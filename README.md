@@ -230,13 +230,16 @@ NYX includes an extensive library of specialized security skills automatically l
 
 ---
 
-## Authorization, Safety & Scope Protocol
+## Security Policy, Scope & Authorized-Use Posture
 
-Before initiating active security tests, NYX enforces strict safety boundary checks:
+NYX is calibrated specifically for authorized external-perimeter security research, bug bounty hunting, CTFs, and red-team engagements under explicit Rules of Engagement (RoE):
 
-1. **Target Boundary Verification**: Inspects `.engagement/authorization.yaml` to ensure `authorized: true` and verifies target hosts against `scope` whitelist.
-2. **Mandatory Refusal**: Refuses execution against out-of-scope assets or unverified third-party hosts.
-3. **Evidence & PII Discipline**: Automatically redacts Bearer tokens, active session cookies, and victim PII before writing evidence to disk.
+- 🔒 **Target Scope Verification**: Automatically validates `.engagement/target.yaml` and `.engagement/authorization.yaml` before executing active probes.
+- 🎯 **7-Question Quality Gate (`nyx triage`)**: Enforces proof-of-impact, accepted program terms, and scope verification before report generation.
+- 🛡️ **External Perimeter Focus**: Explicitly excludes internal Active Directory attacks (BloodHound, Kerberoasting, DCSync), C2 frameworks, LSASS dumping, and EDR evasion.
+- 🔐 **Cryptographic Evidence Vault (`nyx evidence`)**: Auto-redacts session cookies, authorization headers, and user PII before writing evidence artifacts.
+
+For full details on authorized use, explicit exclusions, supply-chain verification, and responsible disclosure, see the full [NYX Security Policy](SECURITY.md).
 
 ---
 
