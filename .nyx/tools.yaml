@@ -1,0 +1,244 @@
+tools:
+  subfinder:
+    binary: "subfinder"
+    type: "recon"
+    category:
+      - "passive"
+      - "subdomain_enum"
+    description: "Subdomain discovery tool."
+    purpose: "Passive subdomain enumeration"
+    execution_class: "PASSIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-d", "-o", "-silent", "-json"]
+    timeout: 300
+    required_authorization: false
+    authorization:
+      required: false
+    adapter: "nyx.execution.adapters.subfinder.SubfinderAdapter"
+    output:
+      format: "text"
+    output_format: "text"
+    required_permissions:
+      - "PASSIVE"
+
+  httpx:
+    binary: "httpx"
+    type: "probe"
+    category:
+      - "safe_active"
+      - "http_probe"
+    description: "HTTP probing and web technology detection tool."
+    purpose: "Live host discovery and status probing"
+    execution_class: "SAFE_ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-u", "-l", "-status-code", "-title", "-tech-detect", "-json", "-silent"]
+    timeout: 300
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: "nyx.execution.adapters.httpx.HttpxAdapter"
+    output:
+      format: "json"
+    output_format: "json"
+    required_permissions:
+      - "SAFE_ACTIVE"
+
+  katana:
+    binary: "katana"
+    type: "crawler"
+    category:
+      - "safe_active"
+      - "web_crawling"
+    description: "Web crawler and endpoint discovery engine."
+    purpose: "Crawling URLs and endpoint extraction"
+    execution_class: "SAFE_ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-u", "-d", "-jc", "-kf", "-json", "-silent"]
+    timeout: 300
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: "nyx.execution.adapters.katana.KatanaAdapter"
+    output:
+      format: "json"
+    output_format: "json"
+    required_permissions:
+      - "SAFE_ACTIVE"
+
+  nuclei:
+    binary: "nuclei"
+    type: "scanner"
+    category:
+      - "active"
+      - "vulnerability_scan"
+    description: "Vulnerability scanner powered by community templates."
+    purpose: "Active vulnerability scanning"
+    execution_class: "ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-u", "-target", "-t", "-tags", "-json", "-silent"]
+    timeout: 300
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: "nyx.execution.adapters.nuclei.NucleiAdapter"
+    output:
+      format: "json"
+    output_format: "json"
+    required_permissions:
+      - "ACTIVE"
+
+  nmap:
+    binary: "nmap"
+    type: "portscan"
+    category:
+      - "safe_active"
+      - "port_scanner"
+    description: "Network exploration tool and security / port scanner."
+    purpose: "Port scanning and service detection"
+    execution_class: "SAFE_ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-sV", "-T4", "-p", "-pn", "-oN"]
+    timeout: 300
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: "nyx.execution.adapters.nmap.NmapAdapter"
+    output:
+      format: "text"
+    output_format: "text"
+    required_permissions:
+      - "SAFE_ACTIVE"
+
+  curl:
+    binary: "curl"
+    type: "utility"
+    category:
+      - "safe_active"
+      - "http_request"
+    description: "Command line tool for transferring data with URLs."
+    purpose: "HTTP request and response probing"
+    execution_class: "SAFE_ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-s", "-i", "-X", "-H", "-d", "-v", "-L", "-k", "--max-time"]
+    timeout: 30
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: ""
+    output:
+      format: "text"
+    output_format: "text"
+    required_permissions:
+      - "SAFE_ACTIVE"
+
+  python:
+    binary: "python"
+    type: "utility"
+    category:
+      - "safe_active"
+      - "scripting"
+    description: "Python interpreter for scripted security checks."
+    purpose: "Custom scripted verification"
+    execution_class: "SAFE_ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-c", "-m"]
+    timeout: 60
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: ""
+    output:
+      format: "text"
+    output_format: "text"
+    required_permissions:
+      - "SAFE_ACTIVE"
+
+  recon:
+    description: "Discover authorized attack surface, resolve subdomains, and probe live HTTP hosts."
+    command: "nyx recon"
+    execution_class: "SAFE_ACTIVE"
+    inputs:
+      - target (string, required)
+    outputs:
+      - recon/<target>/manifest.json
+      - .engagement/endpoints.json
+
+  classify:
+    description: "Analyze endpoint technology, match attack patterns, and output recommended security skills."
+    command: "nyx classify"
+    execution_class: "PASSIVE"
+    inputs:
+      - url (string, required)
+
+  surface:
+    description: "Rank target attack surface priority into P1, P2, and Kill lists."
+    command: "nyx surface"
+    execution_class: "PASSIVE"
+    inputs:
+      - target (string, required)
+
+  engagement:
+    description: "Initialize and manage persistent engagement workspace memory and authorization bounds."
+    command: "nyx engagement"
+    execution_class: "PASSIVE"
+    subcommands:
+      - init
+      - status
+      - export
+
+  memory:
+    description: "Persist and search discovery items, endpoints, technologies, and tested attack vectors."
+    command: "nyx memory"
+    execution_class: "PASSIVE"
+    subcommands:
+      - add
+      - search
+      - import-burp
+
+  state:
+    description: "View or update bug hunting state machine progression (DISCOVERY, ANALYSIS, VALIDATION, REPORTING)."
+    command: "nyx state"
+    execution_class: "PASSIVE"
+
+  evidence:
+    description: "Store, display, and integrity-verify sanitized security research evidence per finding."
+    command: "nyx evidence"
+    execution_class: "PASSIVE"
+    subcommands:
+      - list
+      - show
+      - verify
+      - add
+
+  finding:
+    description: "Manage detailed finding objects, hypothesis tracking, state transitions, and timeline history."
+    command: "nyx finding"
+    execution_class: "PASSIVE"
+    subcommands:
+      - create
+      - list
+      - show
+      - transition
+      - reject
+      - history
+      - attach-evidence
+      - hypothesis
+
+  triage:
+    description: "Execute the 7-Question Gate on findings to validate reproducibility and impact."
+    command: "nyx triage"
+    execution_class: "PASSIVE"
+
+  report:
+    description: "Generate structured platform vulnerability reports (HackerOne, Bugcrowd, Intigriti, Immunefi)."
+    command: "nyx report"
+    execution_class: "PASSIVE"
+
+  mission:
+    description: "Run automated end-to-end security research missions controlled by Google Antigravity."
+    command: "nyx mission"
+    execution_class: "SAFE_ACTIVE"
+    subcommands:
+      - init
+      - status
+      - run

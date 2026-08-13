@@ -1,0 +1,35 @@
+{
+  "name": "nyx-security",
+  "owner": {
+    "name": "Sachin Sharma",
+    "url": "https://github.com/nyx-security"
+  },
+  "metadata": {
+    "description": "Offensive-security skill bundles for NYX Agent by ElementalSoul.",
+    "version": "2.1.0"
+  },
+  "plugins": [
+    {
+      "name": "NYX Security Intelligence Engine",
+      "source": "./",
+      "description": "82-skill bug-hunting & external red-team bundle — 57 hunt-* web/vuln-class + framework skills, enterprise platform attack chains (M365/Entra, Okta, SharePoint, vCenter, SSL-VPN, APK/iOS), recon/OSINT, reporting & validation gates, Burp MCP integration. Skills auto-load by topic; 15 slash commands.",
+      "version": "2.1.0",
+      "author": {
+        "name": "Sachin Sharma",
+        "url": "https://github.com/nyx-security"
+      },
+      "homepage": "https://nyx-security.github.io/NYX Security Intelligence Engine",
+      "category": "security",
+      "tags": [
+        "security",
+        "offensive-security",
+        "bug-bounty",
+        "red-team",
+        "pentest",
+        "recon",
+        "osint",
+        "hunt"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+# macOS
+.DS_Store
+._*
+
+# Editor backups
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Engagement artifacts — NEVER commit
+.engagement/
+evidence/
+*.har
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.mov
+# Allow display assets under assets/ (banner, diagrams)
+!assets/*.png
+!assets/*.jpg
+!assets/*.jpeg
+!assets/*.svg
+!docs/assets/*.svg
+findings/
+submissions.txt
+notes.md
+/scope.md
+targets/
+
+# Local-only artifacts
+.obsidian/
+graphify-out/
+
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+*-credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Packaging build output
+build/
+dist/
+*.egg-info/
+
+# Development test workspaces
+test-*/
+test_*_workspace/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Test & Log artifacts
+.pytest_cache/
+*.log
+
+# Local nyx recon outputs
+recon/
+
+# Maintainer denylist
+scripts/.identifier-denylist.local
+New_version/

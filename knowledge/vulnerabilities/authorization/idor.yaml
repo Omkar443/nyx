@@ -1,0 +1,26 @@
+vulnerability:
+  name: Insecure Direct Object Reference (IDOR)
+  category: authorization
+  description: Accessing resources belonging to other users by changing object identifiers.
+
+attack_surface: authorization
+
+detection_patterns:
+  - "/api/users/{id}"
+  - "user_id="
+  - "account_id="
+  - "id="
+
+validation_steps:
+  - Create two distinct test accounts (User A and User B).
+  - Use User A session to request User B resource ID.
+  - Confirm HTTP 200 with User B sensitive data returned.
+
+evidence_requirements:
+  - HTTP request/response showing User A retrieving User B object data.
+
+severity_mapping: High
+
+related_skills:
+  - hunt-idor
+  - hunt-graphql

@@ -1,0 +1,17 @@
+technology:
+  name: GraphQL
+  category: API Engine
+  description: GraphQL API schema, mutations, introspection, and node ID queries.
+
+attack_surface:
+  api:
+    vulnerabilities:
+      - introspection_enabled
+      - broken_object_level_authorization
+      - mass_assignment
+      - query_batching_dos
+
+related_skills:
+  - hunt-graphql
+  - hunt-idor
+  - hunt-api-misconfig

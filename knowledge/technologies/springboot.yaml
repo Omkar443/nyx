@@ -1,0 +1,17 @@
+technology:
+  name: Spring Boot
+  category: Framework
+  description: Java Spring Boot application framework and Actuator endpoints.
+
+attack_surface:
+  actuator:
+    vulnerabilities:
+      - heapdump_credential_leak
+      - env_disclosure
+      - spel_injection_rce
+      - spring4shell
+
+related_skills:
+  - hunt-springboot
+  - hunt-rce
+  - hunt-ssti

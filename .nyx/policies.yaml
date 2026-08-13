@@ -1,0 +1,14 @@
+policies:
+  authorization:
+    require_scope_verification: true
+    allow_passive_without_auth: true
+    block_unauthorized_active_testing: true
+
+  sanitization:
+    enable_fail_safe_zero_disk: true
+    redact_sensitive_headers: ["authorization", "cookie", "set-cookie", "x-api-key"]
+    redact_sensitive_params: ["password", "token", "secret", "api_key", "session"]
+
+  evidence_hygiene:
+    verify_sha256_integrity: true
+    atomic_metadata_swaps: true

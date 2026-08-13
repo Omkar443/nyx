@@ -1,0 +1,17 @@
+technology: Next.js
+attack_surface:
+  - Server Actions
+  - Middleware auth routes
+  - Image Optimization
+  - RSC payloads
+  - static asset paths
+vulnerabilities:
+  - Middleware auth bypass
+  - Server Action arbitrary execution
+  - SSRF via image optimization
+  - ISR cache poisoning
+skills_to_load:
+  - hunt-nextjs
+  - hunt-nodejs
+  - hunt-ssrf
+  - hunt-cache-poison

@@ -1,0 +1,10 @@
+response_patterns:
+  stack_trace_leakage:
+    regex: "Exception|Traceback|SyntaxError|System.Web|org.springframework"
+    skills: ["hunt-exceptional-conditions"]
+
+  framework_headers:
+    x_powered_by:
+      "ASP.NET": ["hunt-aspnet"]
+      "Express": ["hunt-nodejs"]
+      "PHP": ["hunt-rce"]

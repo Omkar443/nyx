@@ -1,0 +1,12 @@
+parameter_patterns:
+  object_identifiers:
+    regex: "(^|_)id$|user_id|account_id|doc_id"
+    skills: ["hunt-idor"]
+
+  redirection_targets:
+    regex: "redirect|next|url|dest|target|return"
+    skills: ["hunt-open-redirect", "hunt-ssrf"]
+
+  command_execution:
+    regex: "cmd|exec|command|ping|host"
+    skills: ["hunt-rce"]

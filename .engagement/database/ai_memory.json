@@ -1,0 +1,16 @@
+{
+  "decisions": [
+    {
+      "timestamp": "2026-08-13T12:12:20.529190",
+      "type": "MISSION_PLAN",
+      "details": {
+        "target": "example.com",
+        "provider": "gemini",
+        "valid": false
+      }
+    }
+  ],
+  "failed_approaches": [],
+  "technology_history": {},
+  "notes": []
+}

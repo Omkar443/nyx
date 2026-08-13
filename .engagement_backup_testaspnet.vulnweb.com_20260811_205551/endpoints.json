@@ -1,0 +1,15 @@
+[
+  {
+    "url": "http://testaspnet.vulnweb.com/",
+    "method": "GET",
+    "source": "recon",
+    "sources": [
+      "recon"
+    ],
+    "discovered_at": "2026-08-11T20:02:05.722692",
+    "status": 200,
+    "server": "Microsoft-IIS/8.5",
+    "title": "acublog news",
+    "priority": "P2"
+  }
+]

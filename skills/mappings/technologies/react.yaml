@@ -1,0 +1,17 @@
+technology: React
+attack_surface:
+  - client-side rendering
+  - API communication
+  - DOM sinks
+  - state management
+  - dangerouslySetInnerHTML
+vulnerabilities:
+  - XSS
+  - token exposure
+  - insecure API usage
+  - client-side route bypass
+skills_to_load:
+  - hunt-xss
+  - hunt-dom
+  - hunt-spa-api
+  - hunt-source-leak

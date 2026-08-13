@@ -1,0 +1,17 @@
+technology: GraphQL
+attack_surface:
+  - introspection
+  - batching
+  - authorization
+  - query complexity
+  - field-level permissions
+vulnerabilities:
+  - IDOR
+  - auth bypass
+  - information disclosure
+  - batching DoS
+  - SQLi in resolvers
+skills_to_load:
+  - hunt-graphql
+  - hunt-idor
+  - hunt-auth-bypass

@@ -1,0 +1,25 @@
+vulnerability:
+  name: API Mass Assignment
+  category: api
+  description: Overwriting protected internal fields by passing unvetted JSON properties.
+
+attack_surface: api
+
+detection_patterns:
+  - "is_admin="
+  - "role="
+  - "verified="
+  - "tier="
+
+validation_steps:
+  - Add admin fields ({is_admin: true}) to account registration/update JSON requests.
+  - Inspect response/state to verify field persistence.
+
+evidence_requirements:
+  - Response showing modified privilege state.
+
+severity_mapping: High
+
+related_skills:
+  - hunt-api-misconfig
+  - hunt-spa-api

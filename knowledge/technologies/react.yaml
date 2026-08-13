@@ -1,0 +1,17 @@
+technology:
+  name: React
+  category: Frontend Framework
+  description: React single-page application framework and SPA client bundle routing.
+
+attack_surface:
+  client_side:
+    vulnerabilities:
+      - dom_xss
+      - prototype_pollution
+      - broken_access_control
+      - unauthenticated_api_exposure
+
+related_skills:
+  - hunt-spa-api
+  - hunt-dom
+  - hunt-xss

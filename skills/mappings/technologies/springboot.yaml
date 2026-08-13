@@ -1,0 +1,14 @@
+technology: Spring Boot
+attack_surface:
+  - Actuator endpoints
+  - SpEL expressions
+  - H2 Console
+  - Jolokia JMX
+vulnerabilities:
+  - Heap dump credential leak
+  - RCE via SpEL / Jolokia / H2
+  - Spring4Shell
+skills_to_load:
+  - hunt-springboot
+  - hunt-rce
+  - hunt-ssti

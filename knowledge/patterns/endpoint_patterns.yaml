@@ -1,0 +1,15 @@
+endpoint_patterns:
+  authentication:
+    regex: "login|auth|signin|signup|sso|oauth|saml"
+    priority: P1
+    skills: ["hunt-auth-bypass", "hunt-ato", "hunt-mfa-bypass"]
+
+  file_management:
+    regex: "upload|avatar|file|import|export|download"
+    priority: P1
+    skills: ["hunt-file-upload", "hunt-lfi", "hunt-xxe"]
+
+  api_endpoints:
+    regex: "api/|/v1/|/v2/|/graphql|/grpc"
+    priority: P1
+    skills: ["hunt-api-misconfig", "hunt-idor", "hunt-graphql"]

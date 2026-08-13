@@ -1,0 +1,26 @@
+vulnerability:
+  name: AWS Metadata SSRF
+  category: ssrf
+  description: Accessing IMDS internal metadata IP (169.254.169.254) via Server-Side Request Forgery.
+
+attack_surface: ssrf
+
+detection_patterns:
+  - "url="
+  - "target="
+  - "dest="
+  - "redirect="
+
+validation_steps:
+  - Inject http://169.254.169.254/latest/meta-data/ into URL parameters.
+  - Check for IAM security credentials or instance metadata response.
+
+evidence_requirements:
+  - Response containing AWS metadata or IAM credentials.
+
+severity_mapping: Critical
+
+related_skills:
+  - hunt-ssrf
+  - hunt-cloud-misconfig
+  - cloud-iam-deep

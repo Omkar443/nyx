@@ -1,0 +1,17 @@
+technology:
+  name: AWS
+  category: Cloud Infrastructure
+  description: Amazon Web Services infrastructure, S3 buckets, IAM roles, and IMDS.
+
+attack_surface:
+  cloud:
+    vulnerabilities:
+      - public_s3_bucket
+      - imdsv1_ssrf_exploitation
+      - iam_privilege_escalation
+      - unauthenticated_cognito_role
+
+related_skills:
+  - hunt-cloud-misconfig
+  - cloud-iam-deep
+  - hunt-ssrf

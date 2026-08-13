@@ -1,0 +1,103 @@
+"""
+NYX Web API Intelligence & AI Routes
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from nyx.web.auth import require_auth
+from nyx.application.ai_service import AIService
+from nyx.application.skill_service import SkillService
+from nyx.application.analysis_service import AnalysisService
+from nyx.web.dependencies import get_ai_service, get_skill_service, get_analysis_service
+
+router = APIRouter(prefix="/api/v1", tags=["Intelligence & AI"])
+
+
+def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
+    if isinstance(res, dict):
+        return res.get("success", True), res
+    if hasattr(res, "to_dict"):
+        d = res.to_dict()
+        ok = d.get("success", getattr(res, "is_success", True))
+        return ok, d
+    return True, {"success": True, "data": res}
+
+
+@router.get("/intelligence/context", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def get_intelligence_context(
+    target: str = Query("example.com", description="Target domain"),
+    service: AIService = Depends(get_ai_service),
+) -> Dict[str, Any]:
+    """Retrieve aggregated target security context for AI reasoning."""
+    _, data = _parse_res(service.get_context(target))
+    return data
+
+
+@router.get("/intelligence/surface", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def get_intelligence_surface(
+    target: str = Query("example.com", description="Target domain"),
+    service: AnalysisService = Depends(get_analysis_service),
+) -> Dict[str, Any]:
+    """Retrieve attack surface ranking intelligence."""
+    _, data = _parse_res(service.rank_surface(target))
+    return data
+
+
+@router.get("/skills", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def list_skills_catalog(
+    category: Optional[str] = Query(None, description="Optional category filter"),
+    service: SkillService = Depends(get_skill_service),
+) -> Dict[str, Any]:
+    """List available NYX security research skills catalog."""
+    _, data = _parse_res(service.get_skills_result(category=category))
+    return data
+
+
+@router.get("/skills/recommend", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def recommend_skills(
+    tech: Optional[str] = Query(None, description="Technology name"),
+    service: SkillService = Depends(get_skill_service),
+) -> Dict[str, Any]:
+    """Recommend security research skills based on detected tech stack."""
+    _, data = _parse_res(service.get_skills_result(category=tech))
+    return data
+
+
+@router.get("/knowledge/search", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def search_knowledge_base(
+    query: str = Query(..., description="Search query"),
+) -> Dict[str, Any]:
+    """Search NYX security knowledge base and research mappings."""
+    from nyx.core import knowledge
+    results = knowledge.search(query)
+    return {
+        "success": True,
+        "data": {"query": query, "results": results, "count": len(results)},
+        "error": None,
+        "code": "OK",
+    }
+
+
+@router.get("/ai/providers", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def list_ai_providers(service: AIService = Depends(get_ai_service)) -> Dict[str, Any]:
+    """List registered AI providers (Gemini, NYX AI, OpenAI, Local LLM)."""
+    _, data = _parse_res(service.list_providers())
+    return data
+
+
+@router.post("/ai/plan", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def generate_ai_mission_plan(
+    target: str = Query(..., description="Target domain"),
+    provider: Optional[str] = Query(None, description="Optional AI provider name"),
+    service: AIService = Depends(get_ai_service),
+) -> Dict[str, Any]:
+    """Generate a policy-validated multi-step mission plan using AI provider reasoning."""
+    ok, data = _parse_res(service.plan_mission(target, provider_name=provider))
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": data.get("code", "PLAN_FAILED"), "message": data.get("error", "Failed to plan mission.")},
+        )
+    return data

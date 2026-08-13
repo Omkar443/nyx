@@ -1,0 +1,26 @@
+vulnerability:
+  name: Cross-Site Scripting (XSS)
+  category: xss
+  description: Injecting malicious client-side script reflected in application response.
+
+attack_surface: client_side
+
+detection_patterns:
+  - "q="
+  - "query="
+  - "search="
+  - "msg="
+
+validation_steps:
+  - Inject safe unique polyglot HTML probe.
+  - Check if characters like < > " ' are rendered unescaped in response DOM.
+
+evidence_requirements:
+  - HTTP response demonstrating unescaped payload reflection.
+
+severity_mapping: Medium
+
+related_skills:
+  - hunt-xss
+  - hunt-dom
+  - hunt-html-injection

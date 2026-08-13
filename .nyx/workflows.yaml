@@ -1,0 +1,35 @@
+workflows:
+  research_workflow:
+    mode: "RESEARCH"
+    default: true
+    states:
+      DISCOVERY:
+        allowed_transitions: ["DISCOVERY", "ANALYSIS"]
+      ANALYSIS:
+        allowed_transitions: ["DISCOVERY", "ANALYSIS", "VALIDATION"]
+      VALIDATION:
+        allowed_transitions: ["ANALYSIS", "VALIDATION", "REPORTING"]
+      REPORTING:
+        allowed_transitions: ["VALIDATION", "REPORTING"]
+
+  strict_workflow:
+    mode: "STRICT"
+    default: false
+    states:
+      DISCOVERY:
+        allowed_transitions: ["ANALYSIS"]
+      ANALYSIS:
+        allowed_transitions: ["VALIDATION"]
+      VALIDATION:
+        allowed_transitions: ["REPORTING"]
+      REPORTING:
+        allowed_transitions: []
+
+intelligence:
+  enabled: true
+
+knowledge:
+  path: knowledge
+
+router:
+  confidence_threshold: 0.7

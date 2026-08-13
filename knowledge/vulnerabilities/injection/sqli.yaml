@@ -1,0 +1,25 @@
+vulnerability:
+  name: SQL Injection
+  category: injection
+  description: Executing malicious SQL statements via untrusted parameter input.
+
+attack_surface: database_queries
+
+detection_patterns:
+  - "id="
+  - "search="
+  - "order="
+  - "sort="
+
+validation_steps:
+  - Inject SQL syntax probes (' OR 1=1 --, ' UNION SELECT).
+  - Monitor for database error tracebacks or timing delays.
+
+evidence_requirements:
+  - Database error traceback, boolean differential, or time-delay confirmation.
+
+severity_mapping: Critical
+
+related_skills:
+  - hunt-sqli
+  - hunt-nosqli

@@ -1,0 +1,16 @@
+technology: AWS
+attack_surface:
+  - IAM
+  - S3
+  - metadata service (IMDSv1/v2)
+  - STS AssumeRole
+  - Cognito Identity Pools
+vulnerabilities:
+  - privilege escalation
+  - exposed storage
+  - credential leakage
+  - SSRF to metadata
+skills_to_load:
+  - cloud-iam-deep
+  - hunt-cloud-misconfig
+  - hunt-ssrf

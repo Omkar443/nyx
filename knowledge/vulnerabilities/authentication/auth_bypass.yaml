@@ -1,0 +1,27 @@
+vulnerability:
+  name: Authentication Bypass
+  category: authentication
+  description: Circumventing authentication mechanisms via parameter tampering, logic flaws, or header manipulation.
+
+attack_surface: authentication
+
+detection_patterns:
+  - "/login"
+  - "/auth"
+  - "/signin"
+  - "/sso"
+
+validation_steps:
+  - Test missing auth headers / missing tokens.
+  - Test HTTP verb tampering (GET vs POST vs OPTIONS).
+  - Test path traversal / normalization tricks on middleware auth endpoints.
+
+evidence_requirements:
+  - Request/response proving unauthenticated access to sensitive resources.
+
+severity_mapping: High
+
+related_skills:
+  - hunt-auth-bypass
+  - hunt-mfa-bypass
+  - hunt-ato

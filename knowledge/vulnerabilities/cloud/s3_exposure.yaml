@@ -1,0 +1,22 @@
+vulnerability:
+  name: Public S3 Bucket Exposure
+  category: cloud
+  description: Publicly reachable Amazon S3 storage buckets with anonymous read/write permissions.
+
+attack_surface: cloud
+
+detection_patterns:
+  - ".s3.amazonaws.com"
+  - "s3://"
+
+validation_steps:
+  - Issue unauthenticated GET/LIST requests to bucket URL.
+
+evidence_requirements:
+  - Directory listing or object body fetched without authentication.
+
+severity_mapping: High
+
+related_skills:
+  - hunt-cloud-misconfig
+  - cloud-iam-deep

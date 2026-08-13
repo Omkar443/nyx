@@ -1,0 +1,21 @@
+technology:
+  name: ASP.NET
+  category: Framework
+  description: Microsoft ASP.NET WebForms, MVC, and Core framework stack.
+
+attack_surface:
+  authentication:
+    endpoints:
+      - login.aspx
+      - signin.aspx
+      - account/login
+    vulnerabilities:
+      - authentication_bypass
+      - session_management
+      - viewstate_deserialization
+      - machinekey_leakage
+
+related_skills:
+  - hunt-aspnet
+  - hunt-auth-bypass
+  - hunt-ato
