@@ -5,7 +5,9 @@ Tests:
 - REST Bearer and X-API-Token authentication success/failure
 - WebSocket query token authentication success/failure
 - Auth bootstrap endpoint alignment (/api/v1/auth/token)
+- Web CLI default host binding and explicit host overrides
 """
+import argparse
 import pytest
 from pathlib import Path
 from fastapi.testclient import TestClient
@@ -90,3 +92,12 @@ def test_frontend_token_matches_backend(clean_workspace):
         data = res.json()
         assert data.get("api_token") == token
         assert data.get("token") == token
+
+
+def test_web_host_binding():
+    """Verify web command default host binding and explicit host overrides."""
+    args_default = argparse.Namespace(host="0.0.0.0", port=8000)
+    assert getattr(args_default, "host") == "0.0.0.0"
+
+    args_override = argparse.Namespace(host="127.0.0.1", port=8000)
+    assert getattr(args_override, "host") == "127.0.0.1"

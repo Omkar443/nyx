@@ -2356,19 +2356,21 @@ def cmd_agent(args: argparse.Namespace) -> int:
 
 def cmd_web(args: argparse.Namespace) -> int:
     """Launch NYX Security Operations Dashboard & Web Platform."""
-    host = getattr(args, "host", "127.0.0.1")
+    host = getattr(args, "host", "0.0.0.0")
     port = getattr(args, "port", 8000)
     
     from nyx.web.auth import get_or_create_api_token
     token = get_or_create_api_token()
 
+    dashboard_host = "localhost" if host in ("0.0.0.0", "0:0:0:0:0:0:0:0", "::") else host
+
     say(color("=" * 60, "cyan"))
     say(color(" NYX Security Operations Dashboard", "bold"))
     say(color("=" * 60, "cyan"))
     say(f" API Server:    http://{host}:{port}")
-    say(f" Dashboard:     http://{host}:{port}")
-    say(f" WebSocket:     ws://{host}:{port}/ws/events")
-    say(f" API Docs:      http://{host}:{port}/api/docs")
+    say(f" Dashboard:     http://{dashboard_host}:{port}")
+    say(f" WebSocket:     ws://{dashboard_host}:{port}/ws/events")
+    say(f" API Docs:      http://{dashboard_host}:{port}/api/docs")
     say(f" Authentication: ENABLED (Token configured)")
     say(f" API Token:     {token[:8]}...{token[-4:]}")
     say(color("=" * 60, "cyan") + "\n")
@@ -3481,7 +3483,7 @@ def main() -> int:
 
     # nyx web parser
     p_web = sub.add_parser("web", help="launch NYX web dashboard & API server")
-    p_web.add_argument("--host", default="127.0.0.1", help="host address to bind (default: 127.0.0.1)")
+    p_web.add_argument("--host", default="0.0.0.0", help="host address to bind dashboard server (default: 0.0.0.0)")
     p_web.add_argument("--port", type=int, default=8000, help="port number to bind (default: 8000)")
     p_web.set_defaults(func=cmd_web)
 
