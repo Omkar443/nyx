@@ -112,11 +112,11 @@ class NodeDependencyManager:
         return {"name": "Node.js", "status": "FAIL", "detail": "Execution failed"}
 
     def check_npm(self) -> Dict[str, Any]:
-        npm_cmd = shutil.which("npm")
+        npm_cmd = shutil.which("npm") or shutil.which("npm.cmd") or shutil.which("npm.exe")
         if not npm_cmd:
             return {"name": "npm", "status": "FAIL", "detail": "NOT FOUND"}
         try:
-            res = subprocess.run(["npm", "--version"], capture_output=True, text=True, timeout=5)
+            res = subprocess.run([npm_cmd, "--version"], capture_output=True, text=True, timeout=5, shell=(sys.platform == "win32"))
             if res.returncode == 0:
                 ver_str = res.stdout.strip()
                 return {"name": "npm", "status": "OK", "detail": f"v{ver_str}"}
@@ -137,21 +137,20 @@ class NodeDependencyManager:
         return {"name": "Frontend deps", "status": "OK", "detail": "Installed"}
 
     def install_frontend_deps(self) -> bool:
-        if not shutil.which("npm"):
-            return False
-        if not self.frontend_dir.exists():
+        npm_cmd = shutil.which("npm") or shutil.which("npm.cmd") or shutil.which("npm.exe")
+        if not npm_cmd or not self.frontend_dir.exists():
             return False
 
         # Prefer npm ci if lockfile exists, else npm install
         lock_file = self.frontend_dir / "package-lock.json"
-        cmd = ["npm", "ci"] if lock_file.exists() else ["npm", "install"]
+        cmd = [npm_cmd, "ci"] if lock_file.exists() else [npm_cmd, "install"]
         try:
-            res = subprocess.run(cmd, cwd=self.frontend_dir, capture_output=True, text=True, timeout=300)
+            res = subprocess.run(cmd, cwd=self.frontend_dir, capture_output=True, text=True, timeout=300, shell=(sys.platform == "win32"))
             if res.returncode == 0:
                 return True
             # Fallback to npm install if npm ci fails
-            if cmd[1] == "ci":
-                res2 = subprocess.run(["npm", "install"], cwd=self.frontend_dir, capture_output=True, text=True, timeout=300)
+            if "ci" in cmd:
+                res2 = subprocess.run([npm_cmd, "install"], cwd=self.frontend_dir, capture_output=True, text=True, timeout=300, shell=(sys.platform == "win32"))
                 return res2.returncode == 0
         except Exception:
             pass
@@ -173,13 +172,12 @@ class FrontendBuildManager:
         return {"name": "Frontend build", "status": "OK", "detail": "Built"}
 
     def build_frontend(self) -> bool:
-        if not shutil.which("npm"):
-            return False
-        if not self.frontend_dir.exists():
+        npm_cmd = shutil.which("npm") or shutil.which("npm.cmd") or shutil.which("npm.exe")
+        if not npm_cmd or not self.frontend_dir.exists():
             return False
 
         try:
-            res = subprocess.run(["npm", "run", "build"], cwd=self.frontend_dir, capture_output=True, text=True, timeout=180)
+            res = subprocess.run([npm_cmd, "run", "build"], cwd=self.frontend_dir, capture_output=True, text=True, timeout=180, shell=(sys.platform == "win32"))
             return res.returncode == 0
         except Exception:
             return False

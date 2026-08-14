@@ -69,3 +69,17 @@ class AIManager:
         """Make a security action decision using active or specified provider."""
         prov = self.get_provider(provider_name)
         return prov.decide(context, options=options)
+
+    def test_provider(self, name: Optional[str] = None) -> Dict[str, Any]:
+        """Run health check test for specified or active AI provider."""
+        prov = self.get_provider(name)
+        if hasattr(prov, "test_connection"):
+            return prov.test_connection()
+        info = prov.get_info()
+        return {
+            "provider": prov.provider_name,
+            "success": info.get("status") == "ready",
+            "status": info.get("status", "unknown"),
+            "model": info.get("model", "default"),
+            "message": f"Provider '{prov.provider_name}' status: {info.get('status')}",
+        }

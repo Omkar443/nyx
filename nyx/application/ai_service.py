@@ -42,6 +42,16 @@ class AIService(BaseService):
         except Exception as ex:
             return self.fail(message=f"Error setting active provider: {ex}", error_code="PROVIDER_ERROR")
 
+    def test_provider(self, provider_name: Optional[str] = None) -> ServiceResult:
+        """Run health check test for specified AI provider."""
+        try:
+            res = self.manager.test_provider(name=provider_name)
+            if res.get("success"):
+                return self.ok(data=res, message=res.get("message", "Provider test passed."))
+            return self.fail(message=res.get("message", "Provider test failed."), error_code="PROVIDER_TEST_FAILED", details=res)
+        except Exception as ex:
+            return self.fail(message=f"Error testing AI provider: {ex}", error_code="PROVIDER_ERROR")
+
     def get_context(self, target: str) -> ServiceResult:
         """Retrieve aggregated security context for a target."""
         try:

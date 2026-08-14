@@ -2411,7 +2411,16 @@ def cmd_ai(args: argparse.Namespace) -> int:
             p_name = p_item.get("name", "")
             p_type = p_item.get("type", "")
             p_stat = p_item.get("status", "")
-            say(f"{mark}{color(p_name, 'bold'):<12} Type: {p_type:<20} Status: {color(p_stat, 'green')}")
+            p_err = p_item.get("error", "")
+
+            stat_color = "green" if p_stat == "ready" else ("yellow" if p_stat == "unavailable" else "red")
+            stat_str = p_stat
+            if p_stat == "unavailable" and p_err:
+                if "SDK" in p_err:
+                    stat_str = "unavailable - SDK missing"
+                elif "not configured" in p_err:
+                    stat_str = "unavailable - API key not configured"
+            say(f"{mark}{color(p_name, 'bold'):<12} Type: {p_type:<20} Status: {color(stat_str, stat_color)}")
         return 0
 
     elif subcmd == "context":
@@ -2453,6 +2462,20 @@ def cmd_ai(args: argparse.Namespace) -> int:
             say(f"     Tool: {step.get('tool')} | Description: {step.get('description')}")
         return 0
 
+    elif subcmd == "test":
+        target_prov = target or "gemini"
+        res = service.test_provider(provider_name=target_prov)
+        data = res.data or {}
+        msg = data.get("message") or res.error or "Test completed"
+        section(f"NYX AI Provider Test — {target_prov.upper()}")
+        say(f"Provider:  {color(data.get('provider', target_prov), 'bold')}")
+        say(f"Model:     {data.get('model', 'default')}")
+        say(f"Status:    {color(data.get('status', 'unknown'), 'green' if res.is_success else 'red')}")
+        say(f"Message:   {msg}")
+        if data.get("sample"):
+            say(f"Sample:    {data.get('sample')}")
+        return 0 if res.is_success else 1
+
     elif subcmd == "status":
         res = service.get_status()
         if not res.is_success:
@@ -2466,7 +2489,7 @@ def cmd_ai(args: argparse.Namespace) -> int:
         say(f"Failed Approaches:  {data.get('failed_approaches_count')}")
         return 0
 
-    say(color("  [error] Unknown AI subcommand. Supported: providers, context, plan <target>, status", "red"))
+    say(color("  [error] Unknown AI subcommand. Supported: providers, test [provider], context, plan <target>, status", "red"))
     return 1
 
 
@@ -3077,6 +3100,28 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     say(f"  Dependencies    {'✓' if dep_check.get('status') == 'OK' else '✗ MISSING'}")
     say(f"  Build           {'✓' if build_check.get('status') == 'OK' else '✗ MISSING'}")
 
+    say("\nAI Providers")
+    from nyx.ai.providers.gemini import HAS_GENAI
+    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY"))
+    gemini_model = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+
+    say(f"  Gemini SDK       {'✓ Installed' if HAS_GENAI else '✗ Not installed (pip install google-genai)'}")
+    say(f"  Gemini API Key   {'✓ Configured in current process' if gemini_key_set else '✗ Not configured in current process'}")
+    say(f"  Gemini Model     ✓ {gemini_model}")
+
+    if not gemini_key_set:
+        curr_os = PlatformInfo.get_os()
+        say(color(f"\n  [info] Current environment: {curr_os.upper()}", "yellow"))
+        if curr_os == "windows":
+            say(color("  GEMINI_API_KEY is not available to this process.", "yellow"))
+            say("  Configure it in the environment used to launch NYX (PowerShell: $env:GEMINI_API_KEY=\"<key>\")")
+        elif curr_os == "wsl2":
+            say(color("  GEMINI_API_KEY is not available to this WSL process.", "yellow"))
+            say("  Export it in WSL (export GEMINI_API_KEY=\"<key>\") before launching NYX.")
+        else:
+            say(color("  GEMINI_API_KEY is not available to this process.", "yellow"))
+            say("  Export it (export GEMINI_API_KEY=\"<key>\") before launching NYX.")
+
     say("\nSecurity")
     target_file = REPO_ROOT / ".engagement" / "target.yaml"
     say(f"  Workspace       {'✓ PRESENT' if target_file.exists() else '✓ READY'}")
@@ -3524,6 +3569,10 @@ def main() -> int:
 
     p_ai_prov = p_ai_sub.add_parser("providers", help="list registered AI providers")
     p_ai_prov.set_defaults(func=cmd_ai)
+
+    p_ai_test = p_ai_sub.add_parser("test", help="run health check test for AI provider")
+    p_ai_test.add_argument("target", nargs="?", default="gemini", help="provider name (e.g. gemini)")
+    p_ai_test.set_defaults(func=cmd_ai)
 
     p_ai_ctx = p_ai_sub.add_parser("context", help="show target security context for AI reasoning")
     p_ai_ctx.add_argument("target", nargs="?", default="example.com", help="target domain")

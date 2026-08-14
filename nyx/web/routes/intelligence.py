@@ -87,6 +87,16 @@ async def list_ai_providers(service: AIService = Depends(get_ai_service)) -> Dic
     return data
 
 
+@router.post("/ai/test", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def test_ai_provider(
+    provider: Optional[str] = Query(None, description="Optional AI provider name (e.g. gemini)"),
+    service: AIService = Depends(get_ai_service),
+) -> Dict[str, Any]:
+    """Run health check test for specified or active AI provider."""
+    _, data = _parse_res(service.test_provider(provider_name=provider))
+    return data
+
+
 @router.post("/ai/plan", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def generate_ai_mission_plan(
     target: str = Query(..., description="Target domain"),

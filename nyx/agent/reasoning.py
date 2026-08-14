@@ -13,7 +13,8 @@ class ReasoningEngine:
     """Coordinates AI provider analysis with security policy checks."""
 
     def __init__(self, provider_name: Optional[str] = None):
-        self.ai_manager = AIManager(default_provider=provider_name or "gemini")
+        self.provider_name = (provider_name or "gemini").lower()
+        self.ai_manager = AIManager(default_provider=self.provider_name)
         self.policy_engine = AIPolicyEngine()
 
     def analyze_target(self, target: str, context: Dict[str, Any]) -> Dict[str, Any]:
