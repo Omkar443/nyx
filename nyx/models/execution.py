@@ -74,7 +74,7 @@ class ExecutionResult:
     command: list[str] = field(default_factory=list)
     timeout: int = 60
     authorized: bool = True
-    scope_status: str = "IN_SCOPE"
+    scope_status: str = "CONFIGURED"
     sanitized: bool = True
     execution_class: str = "SAFE_ACTIVE"
     evidence_id: str | None = None
@@ -106,6 +106,13 @@ class ExecutionResult:
         self.completed_at = val
 
     def to_dict(self) -> dict[str, Any]:
+        scope_status_val = self.scope_status or "UNCONFIGURED"
+        if scope_status_val == "IN_SCOPE":
+            scope_status_val = "CONFIGURED"
+
+        allowed_mode = "LIVE" if scope_status_val == "CONFIGURED" else ("DRY_RUN" if scope_status_val == "UNCONFIGURED" else "BLOCKED")
+        auth_status_val = "APPROVED" if self.authorized else "PENDING"
+
         return {
             "execution_id": self.execution_id,
             "tool_name": self.tool_name,
@@ -124,7 +131,16 @@ class ExecutionResult:
             "command": self.command,
             "timeout": self.timeout,
             "authorized": self.authorized,
-            "scope_status": self.scope_status,
+            "scope_status": scope_status_val,
+            "scope": {
+                "status": scope_status_val,
+                "allowed_mode": allowed_mode,
+            },
+            "authorization": {
+                "status": auth_status_val,
+            },
+            "authorization_status": auth_status_val,
+            "execution_mode": "DRY_RUN" if self.dry_run else "LIVE",
             "sanitized": self.sanitized,
             "execution_class": self.execution_class,
             "evidence_id": self.evidence_id,
@@ -152,7 +168,7 @@ class ExecutionResult:
             command=data.get("command") or [],
             timeout=int(data.get("timeout", 60)),
             authorized=bool(data.get("authorized", True)),
-            scope_status=data.get("scope_status", "IN_SCOPE"),
+            scope_status=data.get("scope_status", "CONFIGURED"),
             sanitized=bool(data.get("sanitized", True)),
             execution_class=data.get("execution_class", "SAFE_ACTIVE"),
             evidence_id=data.get("evidence_id"),

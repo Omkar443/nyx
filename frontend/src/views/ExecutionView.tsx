@@ -63,6 +63,8 @@ export const ExecutionView: React.FC = () => {
         return 'nyx-badge-info';
       case 'FAILED':
         return 'nyx-badge-critical';
+      case 'BLOCKED':
+        return 'nyx-badge-critical';
       case 'QUEUED':
         return 'nyx-badge-high';
       default:
@@ -70,10 +72,34 @@ export const ExecutionView: React.FC = () => {
     }
   };
 
+  const getScopeBadge = (scopeStatus: string = '') => {
+    const status = (scopeStatus || '').toUpperCase();
+    if (status === 'CONFIGURED' || status === 'IN_SCOPE') {
+      return (
+        <span className="nyx-badge nyx-badge-success">
+          <CheckCircle className="w-3 h-3" />
+          ✓ IN SCOPE
+        </span>
+      );
+    }
+    if (status === 'OUT_OF_SCOPE') {
+      return (
+        <span className="nyx-badge nyx-badge-critical">
+          <X className="w-3 h-3" />
+          ✕ BLOCKED
+        </span>
+      );
+    }
+    return (
+      <span className="nyx-badge nyx-badge-high">
+        <AlertTriangle className="w-3 h-3" />
+        ⚠ SCOPE REQUIRED
+      </span>
+    );
+  };
+
   return (
     <div className="nyx-execution-view">
-      {/* File Update Progress */}
-
       {/* Page Header */}
       <div className="nyx-page-header">
         <div className="nyx-page-header-content">
@@ -123,9 +149,9 @@ export const ExecutionView: React.FC = () => {
           </div>
           <div>
             <div className="nyx-stat-value">
-              {history.filter(h => h.status === 'FAILED').length}
+              {history.filter(h => h.status === 'FAILED' || h.status === 'BLOCKED').length}
             </div>
-            <div className="nyx-stat-label">Failed</div>
+            <div className="nyx-stat-label">Failed / Blocked</div>
           </div>
         </div>
       </div>
@@ -253,12 +279,14 @@ export const ExecutionView: React.FC = () => {
               <div className="nyx-execution-header-item">Tool</div>
               <div className="nyx-execution-header-item">Target</div>
               <div className="nyx-execution-header-item">Status</div>
+              <div className="nyx-execution-header-item">Scope State</div>
               <div className="nyx-execution-header-item">Mode</div>
               <div className="nyx-execution-header-item">Action</div>
             </div>
             <div className="nyx-execution-body">
               {history.map((h: any, idx: number) => {
-                const ToolIcon = getToolIcon(h.tool_name);
+                const ToolIcon = getToolIcon(h.tool_name || h.tool);
+                const scopeStatusVal = h.scope?.status || h.scope_status;
                 return (
                   <div key={idx} className="nyx-execution-row group">
                     <div className="nyx-execution-cell nyx-execution-id">
@@ -267,7 +295,7 @@ export const ExecutionView: React.FC = () => {
                     <div className="nyx-execution-cell">
                       <span className="nyx-badge nyx-badge-info">
                         <ToolIcon className="w-3 h-3" />
-                        {h.tool_name}
+                        {h.tool_name || h.tool}
                       </span>
                     </div>
                     <div className="nyx-execution-cell nyx-execution-target">
@@ -279,6 +307,9 @@ export const ExecutionView: React.FC = () => {
                       </span>
                     </div>
                     <div className="nyx-execution-cell">
+                      {getScopeBadge(scopeStatusVal)}
+                    </div>
+                    <div className="nyx-execution-cell">
                       {h.dry_run ? (
                         <span className="nyx-badge nyx-badge-info">
                           <Shield className="w-3 h-3" />
@@ -287,7 +318,7 @@ export const ExecutionView: React.FC = () => {
                       ) : (
                         <span className="nyx-badge nyx-badge-high">
                           <Zap className="w-3 h-3" />
-                          ACTIVE
+                          LIVE
                         </span>
                       )}
                     </div>
@@ -321,7 +352,7 @@ export const ExecutionView: React.FC = () => {
                     {selectedExec.execution_id || 'Execution Output'}
                   </h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="nyx-badge nyx-badge-info">{selectedExec.tool_name}</span>
+                    <span className="nyx-badge nyx-badge-info">{selectedExec.tool_name || selectedExec.tool}</span>
                     <span className="nyx-badge nyx-badge-success">{selectedExec.target}</span>
                   </div>
                 </div>
@@ -332,15 +363,65 @@ export const ExecutionView: React.FC = () => {
             </div>
             
             <div className="nyx-modal-content">
-              <div className="nyx-modal-details">
+              {(selectedExec.scope?.status === 'UNCONFIGURED' || selectedExec.scope_status === 'UNCONFIGURED' || selectedExec.scope_status === 'SCOPE_UNCONFIGURED') && (
+                <div className="nyx-alert nyx-alert-amber mb-4 p-3 rounded border border-[#FF6B35]/40 bg-[#FF6B35]/10 flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-[#FF6B35]" />
+                  <div>
+                    <div className="font-bold text-[#FF6B35]">⚠ Scope Not Configured</div>
+                    <div className="text-xs text-gray-300">Create engagement scope before active execution</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="nyx-modal-detail-row">
+                  <div className="nyx-modal-detail-icon">
+                    <Shield className="w-4 h-4 text-[#00FF88]" />
+                  </div>
+                  <div>
+                    <div className="nyx-modal-detail-label">Scope Status</div>
+                    <div className="nyx-modal-detail-value mt-1">
+                      {getScopeBadge(selectedExec.scope?.status || selectedExec.scope_status)}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="nyx-modal-detail-row">
                   <div className="nyx-modal-detail-icon">
                     <Activity className="w-4 h-4 text-[#00D9FF]" />
                   </div>
                   <div>
-                    <div className="nyx-modal-detail-label">Exit Code</div>
-                    <div className="nyx-modal-detail-value">
-                      {selectedExec.exit_code ?? 0}
+                    <div className="nyx-modal-detail-label">Execution Mode</div>
+                    <div className="nyx-modal-detail-value font-mono text-xs text-[#00D9FF] mt-1">
+                      {(selectedExec.scope?.status === 'UNCONFIGURED' || selectedExec.scope_status === 'UNCONFIGURED' || selectedExec.dry_run)
+                        ? 'DRY-RUN ONLY'
+                        : 'LIVE'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="nyx-modal-detail-row">
+                  <div className="nyx-modal-detail-icon">
+                    <CheckCircle className="w-4 h-4 text-[#00FF88]" />
+                  </div>
+                  <div>
+                    <div className="nyx-modal-detail-label">Authorization</div>
+                    <div className="nyx-modal-detail-value text-xs font-mono mt-1">
+                      {selectedExec.authorization?.status === 'APPROVED' || selectedExec.authorized
+                        ? '✓ Approved'
+                        : '✕ Denied'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="nyx-modal-detail-row">
+                  <div className="nyx-modal-detail-icon">
+                    <Terminal className="w-4 h-4 text-[#00FF88]" />
+                  </div>
+                  <div>
+                    <div className="nyx-modal-detail-label">Classification</div>
+                    <div className="nyx-modal-detail-value text-xs font-mono mt-1">
+                      {selectedExec.execution_class || 'PASSIVE'}
                     </div>
                   </div>
                 </div>

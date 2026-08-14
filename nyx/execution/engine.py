@@ -137,7 +137,7 @@ class ExecutionEngine:
 
         # 3. Policy & Execution Class Verification
         policy_ok, pol_msg, scope_status = check_policy(
-            tool_name, clean_target, execution_class=exec_class, active_permitted=active_permitted
+            tool_name, clean_target, execution_class=exec_class, active_permitted=active_permitted, dry_run=dry_run
         )
         if not policy_ok:
             end_time = datetime.now().isoformat()
@@ -260,8 +260,8 @@ class ExecutionEngine:
         end_time = datetime.now().isoformat()
 
         # 7. Output Sanitization
-        san_out, _ = sanitize_canonical_evidence(stdout or "")
-        san_err, _ = sanitize_canonical_evidence(stderr or "")
+        san_out = str(sanitize_canonical_evidence(stdout or "").content)
+        san_err = str(sanitize_canonical_evidence(stderr or "").content)
 
         # 8. Result Parsing via Adapter if available
         parsed_data = {}

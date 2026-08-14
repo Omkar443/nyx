@@ -81,6 +81,91 @@ def is_hostname_in_scope(hostname: str, scope_list: list[str] | None = None, bas
             return True
     return False
 
+
+def get_scope_status(hostname: str | None = None, base_dir: Path | None = None) -> dict[str, Any]:
+    """Retrieve detailed scope status for a target domain or active workspace."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    t_file = d / "target.yaml"
+
+    if not t_file.exists():
+        return {
+            "status": "UNCONFIGURED",
+            "scope_state": "UNCONFIGURED",
+            "in_scope": False,
+            "allowed_mode": "DRY_RUN",
+            "scope_list": [],
+        }
+
+    scope_list = get_engagement_scope(base_dir=base_dir)
+    if not scope_list:
+        return {
+            "status": "UNCONFIGURED",
+            "scope_state": "UNCONFIGURED",
+            "in_scope": False,
+            "allowed_mode": "DRY_RUN",
+            "scope_list": [],
+        }
+
+    if hostname:
+        in_scope = is_hostname_in_scope(hostname, scope_list=scope_list, base_dir=base_dir)
+        if in_scope:
+            return {
+                "status": "CONFIGURED",
+                "scope_state": "CONFIGURED",
+                "in_scope": True,
+                "allowed_mode": "LIVE",
+                "scope_list": scope_list,
+            }
+        else:
+            return {
+                "status": "OUT_OF_SCOPE",
+                "scope_state": "OUT_OF_SCOPE",
+                "in_scope": False,
+                "allowed_mode": "BLOCKED",
+                "scope_list": scope_list,
+            }
+
+    return {
+        "status": "CONFIGURED",
+        "scope_state": "CONFIGURED",
+        "in_scope": True,
+        "allowed_mode": "LIVE",
+        "scope_list": scope_list,
+    }
+
+
+def get_authorization_status(target_domain: str | None = None, base_dir: Path | None = None) -> dict[str, Any]:
+    """Retrieve structured authorization status."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    auth_file = d / "authorization.yaml"
+    if not auth_file.exists():
+        return {
+            "status": "PENDING",
+            "authorized": False,
+            "reason": "Missing authorization.yaml in .engagement/ directory.",
+        }
+
+    try:
+        content = auth_file.read_text(encoding="utf-8")
+        if "authorized: true" in content.lower():
+            return {
+                "status": "APPROVED",
+                "authorized": True,
+                "reason": "Authorized",
+            }
+        else:
+            return {
+                "status": "DENIED",
+                "authorized": False,
+                "reason": "Authorization revoked or set to false in authorization.yaml.",
+            }
+    except Exception as e:
+        return {
+            "status": "DENIED",
+            "authorized": False,
+            "reason": f"Could not read authorization.yaml: {e}",
+        }
+
 def _sanitize_text_content(val: str) -> tuple[str, int]:
     """Core regex-based text content sanitization pipeline."""
     if not isinstance(val, str) or not val:

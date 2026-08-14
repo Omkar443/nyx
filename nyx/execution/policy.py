@@ -31,7 +31,13 @@ def is_strict_scope_match(hostname: str, scope_list: list[str]) -> bool:
     return is_hostname_in_scope(clean_host, scope_list)
 
 
-def check_policy(tool_name: str, target: str, execution_class: str = "SAFE_ACTIVE", active_permitted: bool = False) -> tuple[bool, str, str]:
+def check_policy(
+    tool_name: str,
+    target: str,
+    execution_class: str = "SAFE_ACTIVE",
+    active_permitted: bool = False,
+    dry_run: bool = False,
+) -> tuple[bool, str, str]:
     """Verify command execution safety:
     1. Scope verification
     2. Authorization state check
@@ -44,15 +50,17 @@ def check_policy(tool_name: str, target: str, execution_class: str = "SAFE_ACTIV
     # Scope check
     if scope_list and clean_target:
         if not is_strict_scope_match(clean_target, scope_list):
-            return False, f"Target '{clean_target}' is outside declared engagement scope {scope_list}.", "OUT_OF_SCOPE"
-        scope_status = "IN_SCOPE"
+            return False, "Target outside authorized engagement scope", "OUT_OF_SCOPE"
+        scope_status = "CONFIGURED"
     else:
-        # If no scope configured yet, default to local/target test evaluation
-        scope_status = "SCOPE_UNCONFIGURED"
+        # If no scope configured yet
+        scope_status = "UNCONFIGURED"
+        if not dry_run:
+            return False, "Target scope is not configured", "UNCONFIGURED"
 
     # Authorization check
     auth_ok, auth_msg = check_authorization(clean_target)
-    if not auth_ok and execution_class != "PASSIVE":
+    if not auth_ok and execution_class != "PASSIVE" and not dry_run:
         return False, f"Authorization Check Failed: {auth_msg}", "UNAUTHORIZED"
 
     # Execution class policy
@@ -60,7 +68,7 @@ def check_policy(tool_name: str, target: str, execution_class: str = "SAFE_ACTIV
     if exec_cls not in EXECUTION_CLASSES:
         exec_cls = "SAFE_ACTIVE"
 
-    if exec_cls == "ACTIVE" and not active_permitted:
+    if exec_cls == "ACTIVE" and not active_permitted and not dry_run:
         d = _get_eng_dir()
         allow_active = False
         if d.exists():
