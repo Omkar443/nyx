@@ -35,6 +35,7 @@ test_bugcrowd_draft.md
 
 # Local-only artifacts
 .obsidian/
+.nyx/
 graphify-out/
 
 # Secrets

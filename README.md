@@ -5,11 +5,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.9+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/AI%20Provider-Neutral-purple.svg" alt="AI Provider Neutral"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-82%20Loaded-brightgreen.svg" alt="82 Security Skills"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-190%20Loaded-brightgreen.svg" alt="190 Security Skills"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Quality%20Gate-7--Question-orange.svg" alt="7-Question Gate"></a>
 </p>
 
@@ -17,7 +17,7 @@
 
 ## Overview
 
-**NYX Security Intelligence Engine** (`nyx`) is an open-source, AI-model-neutral security research and tool orchestration framework. Designed for senior bug hunters, red-team operators, and application security engineers, NYX transforms raw LLM capabilities into an autonomous security researcher equipped with 82 specialized vulnerability playbooks, persistent engagement memory, SHA-256 evidence verification, and distributed execution nodes.
+**NYX Security Intelligence Engine** (`nyx`) is an open-source, AI-model-neutral security research, threat intelligence, and tool orchestration framework. Designed for senior bug hunters, red-team operators, and application security engineers, NYX transforms raw LLM capabilities into an autonomous security researcher equipped with 190 specialized vulnerability playbooks, persistent engagement memory, SHA-256 evidence verification, and distributed execution nodes.
 
 Whether backed by **Google Gemini**, **Anthropic Claude**, **OpenAI GPT-4**, or **Local LLMs (Ollama / vLLM)**, NYX maintains strict scope boundary enforcement, eliminates false positives through empirical validation gates, and streamlines the full lifecycle from discovery to report generation.
 
@@ -25,7 +25,9 @@ Whether backed by **Google Gemini**, **Anthropic Claude**, **OpenAI GPT-4**, or 
 
 ## Key Highlights & Pillars
 
-- 🛡️ **82 Specialized Security Skills**: Per-vulnerability playbooks covering Web (SQLi, XSS, SSRF, IDOR, LFI, XXE, CORS), API (GraphQL, gRPC, WebSocket), Cloud (AWS, Azure, GCP, IMDS), Enterprise Identity (M365/Entra ID, Okta), Infrastructure (vCenter, SharePoint, Enterprise VPNs), and Mobile Red Teaming (Android APK, iOS IPA).
+- ⚡ **First-Run Automatic Dependency Bootstrap**: Preflight environment manager detects, installs, and builds Python and Node.js/frontend dependencies automatically across Windows, Linux, and WSL2.
+- 🎯 **Explicit Scope Policy Enforcement**: Strict scope validation (`CONFIGURED`, `UNCONFIGURED`, `OUT_OF_SCOPE`). Automatically blocks active execution on unconfigured scopes while allowing safe dry-runs.
+- 🛡️ **190 Specialized Security Skills**: Per-vulnerability playbooks covering Web (SQLi, XSS, SSRF, IDOR, LFI, XXE, CORS), API (GraphQL, gRPC, WebSocket), Cloud (AWS, Azure, GCP, IMDS), Enterprise Identity (M365/Entra ID, Okta), Infrastructure (vCenter, SharePoint, Enterprise VPNs), and Mobile Red Teaming (Android APK, iOS IPA).
 - 🧠 **AI Model Neutrality**: Unified abstraction layer supporting Gemini, Claude, OpenAI, and Local Ollama / vLLM endpoints with dynamic switching.
 - 💾 **Persistent Engagement Memory**: Maintains structured JSON ledgers (`.engagement/`) tracking discovered subdomains, mapped technology stacks, tested attack vectors, and failed hypotheses.
 - 🔒 **SHA-256 Cryptographic Evidence Vault**: Stores tamper-evident HTTP request/response logs, screenshots, and console traces with automated PII redaction.
@@ -43,17 +45,18 @@ flowchart TD
         CLI["NYX CLI (nyx)"]
         WEB["React Web Dashboard"]
         REST["FastAPI REST & WebSocket Server"]
+        BOOT["First-Run Environment Bootstrap"]
     end
 
     subgraph Governance ["Authorization & Scope Engine"]
-        SCOPE["Scope Verification (.engagement/target.yaml)"]
+        SCOPE["Scope Policy Gating (CONFIGURED | UNCONFIGURED | OUT_OF_SCOPE)"]
         AUTH["Authorization Guard (.engagement/authorization.yaml)"]
         STATE["Workflow State Machine (DISCOVERY | ANALYSIS | VALIDATION | REPORTING)"]
     end
 
     subgraph Intelligence ["NYX Intelligence & Reasoning Core"]
         ROUTER["Skill Classifier & Router"]
-        KNOWLEDGE["82 Security Skills Catalog"]
+        KNOWLEDGE["190 Security Skills Catalog"]
         MEMORY["Persistent Engagement Memory (.engagement/endpoints.json)"]
         DIFF["Asset Graph & Diff Engine"]
         AI_MGR["AI Provider Abstraction Manager"]
@@ -79,7 +82,8 @@ flowchart TD
         REPORTS["Platform Report Generator (H1 / Bugcrowd / Intigriti / Immunefi)"]
     end
 
-    Client --> Governance
+    Client --> BOOT
+    BOOT --> Governance
     Governance --> Intelligence
     Intelligence --> AI_Providers
     AI_Providers --> Execution
@@ -92,41 +96,55 @@ flowchart TD
 ## Installation & Quickstart
 
 ### Prerequisites
-- **Python**: 3.10+
-- **Node.js**: 18+ (for Web Dashboard)
-- **Go / External Security Tools** (Optional): `subfinder`, `httpx`, `nmap`, `katana`
+- **Python**: 3.9+ (Windows, Linux, WSL2, or macOS)
+- **Node.js**: 18+ (Auto-detected & bootstrapped if missing)
 
-### 1. Installation via Pip
-
-```bash
-pip install nyx-security-engine
-```
-
-### 2. Installation from Source
+### 1. Editable Installation from Source
 
 ```bash
 git clone https://github.com/Omkar443/nyx.git
 cd nyx
-pip install -e .
+python -m pip install -e .
 ```
 
-### 3. Verify Environment Health
+### 2. Verify Environment Health
 
 ```bash
 nyx doctor
 ```
+
 *Expected Output:*
 ```text
 ======================================================================
 NYX Security Intelligence Engine Environment Doctor
 ======================================================================
-Python Version:  3.14.3
-Platform:        win32
-Repository Root: D:\Pentest\Skill File\NYX
-Security Skills: 190 loaded
-Active Workspace: READY (Uninitialized)
+System
+  OS              ✓ WINDOWS / WSL2 / LINUX
+  Architecture    ✓ AMD64
 
-✓ NYX Environment & Intelligence Engine System Check: OK
+Python
+  Version         ✓ 3.14.3
+  pip             ✓
+
+Python Packages
+  NYX             ✓
+  FastAPI         ✓
+  Uvicorn         ✓
+
+Frontend
+  Node.js         ✓ v24.14.0
+  npm             ✓
+  Dependencies    ✓
+  Build           ✓
+
+Security
+  Workspace       ✓ READY
+  Configuration   ✓ OK
+
+Loaded Security Skills: 190
+
+Result:
+✓ NYX environment is ready
 ```
 
 ---
@@ -136,7 +154,7 @@ Active Workspace: READY (Uninitialized)
 ### Step 1: Initialize an Engagement Workspace
 
 ```bash
-nyx engagement init target.com
+nyx mission init target.com
 ```
 
 ### Step 2: Perform Passive Recon & Surface Ranking
@@ -155,23 +173,29 @@ nyx surface target.com
 nyx classify "https://api.target.com/v1/users/42?next=https://evil.com"
 ```
 
-### Step 4: Run Quality Gate Triage on a Finding
+### Step 4: Run Controlled Tool Execution
+
+```bash
+# Dry-run execution on unconfigured or active target
+nyx exec subfinder target.com --dry-run
+```
+
+### Step 5: Run Quality Gate Triage on a Finding
 
 ```bash
 nyx triage database/findings/FH-2026-001.md
 ```
 
-### Step 5: Export Bug Bounty / Client Report
+### Step 6: Export Bug Bounty / Client Report
 
 ```bash
 nyx report database/findings/FH-2026-001.md --platform bugcrowd --out draft.md
 ```
 
-### Step 6: Launch Web Platform & Dashboard
+### Step 7: Launch Web Platform & Dashboard
 
 ```bash
-# Build & start Web Dashboard on port 8000
-cd frontend && npm run build && cd ..
+# nyx web automatically bootstraps Node.js/frontend dependencies on first launch!
 nyx web --port 8000
 ```
 
@@ -181,18 +205,20 @@ nyx web --port 8000
 
 | Command | Subcommands / Arguments | Description |
 |---|---|---|
-| `nyx doctor` | None | Verify Python environment, skills registry, and workspace readiness |
+| `nyx doctor` | None | Verify system, Python environment, skills, frontend build, and workspace readiness |
 | `nyx engagement` | `init <target>`, `status`, `export` | Manage persistent target workspace, scope boundaries, and ledger |
+| `nyx mission` | `init <target>`, `status`, `run <target>` | Initialize or run automated end-to-end security research missions |
 | `nyx recon` | `<target>` | Passive subdomain enumeration, DNS resolution, and live HTTP probing |
 | `nyx surface` | `<target>` | Rank attack surface endpoints based on recon manifest data |
-| `nyx classify` | `<url>` | Match URL parameters and path structures to the 82 security skills |
+| `nyx classify` | `<url>` | Match URL parameters and path structures to the 190 security skills |
+| `nyx exec` | `<tool> <target> [--dry-run]` | Policy-gated tool execution harness with scope status validation |
 | `nyx memory` | `add`, `search`, `import-burp <file>` | Manage engagement memory ledger and import Burp XML HTTP history |
 | `nyx evidence` | `list`, `show <id>`, `verify <id>`, `add` | Manage cryptographic SHA-256 evidence vault items |
 | `nyx triage` | `<finding.md>` | Execute the 7-Question Quality Gate triage evaluation |
 | `nyx report` | `<finding.md> --platform <h1\|bugcrowd...>` | Generate platform-formatted bug bounty submission drafts |
-| `nyx web` | `--port 8000 --host 127.0.0.1` | Launch FastAPI web server & React Dashboard UI |
-| `nyx monitor` | `start`, `stop`, `status` | Continuous attack surface monitoring and asset diffing engine |
-| `nyx workers` | `list`, `register`, `status` | Manage remote HMAC-authenticated worker execution nodes |
+| `nyx web` | `--port 8000 --host 0.0.0.0` | Launch FastAPI web server & React Dashboard UI (auto-bootstrapped) |
+| `nyx monitor` | `start`, `status` | Continuous attack surface monitoring and asset diffing engine |
+| `nyx workers` | `list`, `register`, `status`, `run` | Manage & run distributed HMAC-authenticated worker execution nodes |
 
 ---
 
@@ -211,7 +237,7 @@ export LOCAL_LLM_URL="http://localhost:11434/v1"
 
 ---
 
-## Comprehensive Security Skill Catalog (82 Skills)
+## Comprehensive Security Skill Catalog (190 Skills)
 
 NYX includes an extensive library of specialized security skills automatically loaded based on context:
 
@@ -234,7 +260,7 @@ NYX includes an extensive library of specialized security skills automatically l
 
 NYX is calibrated specifically for authorized external-perimeter security research, bug bounty hunting, CTFs, and red-team engagements under explicit Rules of Engagement (RoE):
 
-- 🔒 **Target Scope Verification**: Automatically validates `.engagement/target.yaml` and `.engagement/authorization.yaml` before executing active probes.
+- 🔒 **Target Scope Verification**: Automatically validates `.engagement/target.yaml` and `.engagement/authorization.yaml` before executing active probes. Unconfigured target scopes restrict executions to safe dry-runs.
 - 🎯 **7-Question Quality Gate (`nyx triage`)**: Enforces proof-of-impact, accepted program terms, and scope verification before report generation.
 - 🛡️ **External Perimeter Focus**: Explicitly excludes internal Active Directory attacks (BloodHound, Kerberoasting, DCSync), C2 frameworks, LSASS dumping, and EDR evasion.
 - 🔐 **Cryptographic Evidence Vault (`nyx evidence`)**: Auto-redacts session cookies, authorization headers, and user PII before writing evidence artifacts.
@@ -250,14 +276,12 @@ For full details on authorized use, explicit exclusions, supply-chain verificati
 - 📖 [Security Policy & Rules](SECURITY.md)
 - 📖 [Contributing Guidelines](CONTRIBUTING.md)
 - 📖 [Changelog](CHANGELOG.md)
-- 📖 [Private Asset Protection Audit](docs/private_asset_audit.md)
-- 📖 [Release Candidate Audit Report](docs/release_candidate_report.md)
 
 ---
 
 ## License & Credits
 
-- **Code License**: [MIT License](LICENSE)
+- **Code License**: [Apache License 2.0](LICENSE)
 - **Content License**: [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-CONTENT)
 - **Project Lead & Author**: [Omkar443](https://github.com/Omkar443)
 
