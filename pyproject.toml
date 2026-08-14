@@ -23,8 +23,9 @@ Documentation = "https://github.com/Omkar443/nyx/blob/main/README.md"
 [project.scripts]
 nyx = "nyx_cli.cli:main"
 
-[tool.setuptools]
-packages = ["nyx_cli", "nyx", "nyx.api", "nyx.application", "nyx.core", "nyx.execution", "nyx.infrastructure", "nyx.interface", "nyx.models", "nyx.recon", "nyx.security", "nyx.validation", "nyx.worker", "nyx.distributed", "nyx.browser", "nyx.runtime", "nyx.auth", "nyx.agents", "nyx.intelligence", "nyx.monitor", "nyx.alerts", "nyx.research", "nyx.knowledge"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nyx*", "nyx_cli*"]
 
 [tool.setuptools.package-data]
 nyx_cli = ["data/*.json"]

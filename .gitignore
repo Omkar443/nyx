@@ -69,8 +69,8 @@ frontend/dist/
 .pytest_cache/
 *.log
 
-# Local nyx recon outputs
-recon/
+# Local nyx recon outputs (root directory only)
+/recon/
 
 # Maintainer denylist
 scripts/.identifier-denylist.local
