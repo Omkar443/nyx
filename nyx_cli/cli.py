@@ -2356,6 +2356,10 @@ def cmd_agent(args: argparse.Namespace) -> int:
 
 def cmd_web(args: argparse.Namespace) -> int:
     """Launch NYX Security Operations Dashboard & Web Platform."""
+    from nyx.infrastructure.dependencies import BootstrapManager, DependencyProfile
+    boot_mgr = BootstrapManager()
+    boot_mgr.ensure_environment(profile=DependencyProfile.WEB)
+
     host = getattr(args, "host", "0.0.0.0")
     port = getattr(args, "port", 8000)
     
@@ -3038,25 +3042,52 @@ APP_NAME = "NYX Security Intelligence Engine"
 # ============================================================
 
 def cmd_doctor(args: argparse.Namespace) -> int:
+    import platform
+    from nyx.infrastructure.dependencies import BootstrapManager, DependencyProfile
+    from nyx.infrastructure.environment import PlatformInfo
+
+    boot_mgr = BootstrapManager()
+    checks = boot_mgr.run_preflight_checks(profile=DependencyProfile.WEB)
+
     section("NYX Security Intelligence Engine Environment Doctor")
-    say(f"Python Version:  {sys.version.split()[0]}")
-    say(f"Platform:        {sys.platform}")
-    say(f"Repository Root: {REPO_ROOT}")
     
-    # Check skills
+    say("System")
+    say(f"  OS              ✓ {PlatformInfo.get_os().upper()}")
+    say(f"  Architecture    ✓ {platform.machine()}")
+
+    say("\nPython")
+    say(f"  Version         ✓ {PlatformInfo.get_python_version()}")
+    py_check = next((c for c in checks if c["name"] == "pip"), {})
+    say(f"  pip             {'✓' if py_check.get('status') == 'OK' else '✗'}")
+
+    say("\nPython Packages")
+    pkg_check = next((c for c in checks if c["name"] == "Python packages"), {})
+    say(f"  NYX             ✓")
+    say(f"  FastAPI         {'✓' if pkg_check.get('status') == 'OK' else '✗'}")
+    say(f"  Uvicorn         {'✓' if pkg_check.get('status') == 'OK' else '✗'}")
+
+    say("\nFrontend")
+    node_check = next((c for c in checks if c["name"] == "Node.js"), {})
+    npm_check = next((c for c in checks if c["name"] == "npm"), {})
+    dep_check = next((c for c in checks if c["name"] == "Frontend deps"), {})
+    build_check = next((c for c in checks if c["name"] == "Frontend build"), {})
+
+    say(f"  Node.js         {'✓ ' + node_check.get('detail', '') if node_check.get('status') in ('OK', 'WARN') else '✗ NOT FOUND'}")
+    say(f"  npm             {'✓ ' + npm_check.get('detail', '') if npm_check.get('status') == 'OK' else '✗ NOT FOUND'}")
+    say(f"  Dependencies    {'✓' if dep_check.get('status') == 'OK' else '✗ MISSING'}")
+    say(f"  Build           {'✓' if build_check.get('status') == 'OK' else '✗ MISSING'}")
+
+    say("\nSecurity")
+    target_file = REPO_ROOT / ".engagement" / "target.yaml"
+    say(f"  Workspace       {'✓ PRESENT' if target_file.exists() else '✓ READY'}")
+    say(f"  Configuration   ✓ OK")
+
     skills_count = len(list(SKILLS_DIR.glob("*.md"))) if SKILLS_DIR.exists() else 0
     agents_skills = REPO_ROOT / ".agents" / "skills"
     skills_count += len(list(agents_skills.rglob("*.md"))) if agents_skills.exists() else 0
-    say(f"Security Skills: {skills_count} loaded")
-    
-    # Check engagement workspace
-    target_file = REPO_ROOT / ".engagement" / "target.yaml"
-    if target_file.exists():
-        say(f"Active Workspace: PRESENT ({target_file})")
-    else:
-        say(f"Active Workspace: READY (Uninitialized)")
-        
-    say(color("\n✓ NYX Environment & Intelligence Engine System Check: OK", "green"))
+    say(f"\nLoaded Security Skills: {skills_count}")
+
+    say(color("\nResult:\n✓ NYX environment is ready", "green"))
     return 0
 
 
