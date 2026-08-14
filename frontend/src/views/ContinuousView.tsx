@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { Activity, Bell, Shield, Sparkles, RefreshCw, Play, Clock, CheckCircle, AlertCircle, History } from 'lucide-react';
-
+import { Activity, Bell, Shield, Sparkles, RefreshCw, Play, CheckCircle, History, Radar, Database, AlertTriangle, Target, Zap, Lock } from 'lucide-react';
 export const ContinuousView: React.FC = () => {
   const [monitoringStatus, setMonitoringStatus] = useState<any>(null);
   const [changes, setChanges] = useState<any[]>([]);
@@ -46,107 +45,181 @@ export const ContinuousView: React.FC = () => {
     loadContinuousData();
   }
 
+  const getMonitoringStatusBadge = () => {
+    if (!monitoringStatus) return 'nyx-badge-info';
+    if (monitoringStatus.active) return 'nyx-badge-success';
+    return 'nyx-badge-low';
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-cyan-400" /> NYX Continuous Security Intelligence
-          </h2>
-          <p className="text-sm text-slate-400">Continuous attack surface monitoring, automated change detection & research opportunity prioritization</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleBackupKnowledge}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 font-semibold text-xs rounded flex items-center gap-1.5"
-          >
-            <Shield className="w-3.5 h-3.5" /> Backup Knowledge
-          </button>
-          <button onClick={loadContinuousData} className="p-2 rounded bg-slate-800 text-slate-300 hover:text-white">
-            <RefreshCw className="w-4 h-4" />
-          </button>
+    <div className="nyx-continuous-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-cyan">
+              <Activity className="w-6 h-6 text-[#00D9FF]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Continuous Intelligence</h1>
+              <p className="nyx-page-subtitle">Attack surface monitoring with automated change detection</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBackupKnowledge}
+              className="nyx-button nyx-button-secondary"
+            >
+              <Database className="w-4 h-4 text-[#00D9FF]" />
+              <span>Backup Knowledge</span>
+            </button>
+            <button onClick={loadContinuousData} className="nyx-button nyx-button-ghost" title="Refresh">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Monitoring Job Trigger */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Play className="w-5 h-5 text-emerald-400" /> Launch Surface Monitoring Watcher
-        </h3>
-        <form onSubmit={handleStartMonitoring} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div className="md:col-span-2">
-            <label className="text-xs font-mono text-slate-400">Target Domain</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. target.com"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-            />
+      {/* Launch Surface Monitoring Watcher */}
+      <div className="nyx-card nyx-card-accent-cyan">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-green">
+              <Radar className="w-4 h-4 text-[#00FF88]" />
+            </div>
+            <h2 className="nyx-section-title">Launch Surface Monitoring Watcher</h2>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-semibold text-sm rounded shadow disabled:opacity-50"
-          >
-            {loading ? 'Starting...' : 'Start Monitoring Job'}
-          </button>
-        </form>
+          <div className="flex items-center gap-2">
+            <span className={`nyx-badge ${getMonitoringStatusBadge()}`}>
+              {monitoringStatus?.active ? 'ACTIVE' : 'STANDBY'}
+            </span>
+          </div>
+        </div>
+        
+        <div className="nyx-form-container">
+          <form onSubmit={handleStartMonitoring} className="nyx-form-inline">
+            <div className="nyx-form-field nyx-form-field-grow">
+              <label className="nyx-form-label">
+                <Target className="w-3 h-3 text-[#00D9FF]" />
+                Target Domain
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. target.com"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                className="nyx-input"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="nyx-button nyx-button-primary"
+            >
+              {loading ? (
+                <>
+                  <Activity className="w-4 h-4 animate-spin" />
+                  <span>Starting...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Start Monitoring Job</span>
+                </>
+              )}
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* Knowledge Integrity & Active Alerts Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="glass-panel p-4 flex items-center justify-between border-l-4 border-l-emerald-400">
-          <div>
-            <div className="text-xs text-slate-400 font-mono uppercase">Knowledge Asset Status</div>
-            <div className="text-md font-bold text-white flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
-              {knowledgeStatus?.total_skills_count || 0} Skills Verified Intact
+      {/* Knowledge Integrity & Active Alerts Grid */}
+      <div className="nyx-status-grid">
+        {/* Knowledge Status */}
+        <div className="nyx-status-card nyx-status-card-green">
+          <div className="nyx-status-card-content">
+            <div className="nyx-status-card-header">
+              <div className="nyx-status-card-icon">
+                <Shield className="w-5 h-5 text-[#00FF88]" />
+              </div>
+              <span className="nyx-status-card-label">Knowledge Asset Status</span>
+            </div>
+            <div className="nyx-status-card-value">
+              <CheckCircle className="w-4 h-4 text-[#00FF88]" />
+              <span className="nyx-data-value">{knowledgeStatus?.total_skills_count || 0}</span>
+              <span className="nyx-status-card-text">Skills Verified Intact</span>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 font-mono text-xs border border-emerald-500/30">
-            PROTECTED
-          </span>
+          <span className="nyx-badge nyx-badge-success">PROTECTED</span>
         </div>
 
-        <div className="glass-panel p-4 flex items-center justify-between border-l-4 border-l-cyan-400">
-          <div>
-            <div className="text-xs text-slate-400 font-mono uppercase">Active Security Alerts</div>
-            <div className="text-md font-bold text-white flex items-center gap-2">
-              <Bell className="w-4 h-4 text-cyan-400" />
-              {alerts.length} Total Alerts Logged
+        {/* Live Alerts */}
+        <div className="nyx-status-card nyx-status-card-cyan">
+          <div className="nyx-status-card-content">
+            <div className="nyx-status-card-header">
+              <div className="nyx-status-card-icon">
+                <Bell className="w-5 h-5 text-[#00D9FF]" />
+              </div>
+              <span className="nyx-status-card-label">Active Security Alerts</span>
+            </div>
+            <div className="nyx-status-card-value">
+              <AlertTriangle className="w-4 h-4 text-[#00D9FF]" />
+              <span className="nyx-data-value">{alerts.length}</span>
+              <span className="nyx-status-card-text">Total Alerts Logged</span>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 font-mono text-xs border border-cyan-500/30">
-            LIVE ALERTS
-          </span>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#00D9FF] animate-pulse"></div>
+            <span className="nyx-badge nyx-badge-low">LIVE ALERTS</span>
+          </div>
         </div>
       </div>
 
       {/* Research Opportunities & Changes Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="nyx-content-grid">
         {/* Research Opportunities */}
-        <div className="glass-panel p-6 space-y-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" /> Prioritized Research Opportunities ({opportunities.length})
-          </h3>
+        <div className="nyx-card nyx-card-accent-amber">
+          <div className="nyx-section-header">
+            <div className="flex items-center gap-3">
+              <div className="nyx-section-icon nyx-section-icon-amber">
+                <Sparkles className="w-4 h-4 text-[#FF6B35]" />
+              </div>
+              <h3 className="nyx-section-title">Prioritized Opportunities</h3>
+              <span className="nyx-count-pill">{opportunities.length}</span>
+            </div>
+          </div>
+
           {opportunities.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-sm glass-card">No open research opportunities.</div>
+            <div className="nyx-empty-state">
+              <div className="nyx-empty-state-icon">
+                <Sparkles className="w-8 h-8 text-[#484F58]" />
+              </div>
+              <div className="nyx-empty-state-title">No open research opportunities</div>
+              <div className="nyx-empty-state-description">
+                Continuous monitoring will suggest opportunities as changes occur
+              </div>
+            </div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            <div className="nyx-opportunities-list">
               {opportunities.map((opp) => (
-                <div key={opp.opportunity_id} className="glass-card p-4 space-y-2 border-l-4 border-l-amber-400">
-                  <div className="flex justify-between items-start">
-                    <h4 className="text-sm font-extrabold text-white">{opp.title}</h4>
-                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-mono font-bold">
+                <div key={opp.opportunity_id} className="nyx-opportunity-card">
+                  <div className="nyx-opportunity-header">
+                    <h4 className="nyx-opportunity-title">{opp.title}</h4>
+                    <span className="nyx-badge nyx-badge-high">
+                      <Zap className="w-3 h-3" />
                       SCORE: {opp.priority_score || 5}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300">{opp.description}</p>
-                  <div className="text-[11px] font-mono text-slate-400">
-                    Recommended Skills: <span className="text-cyan-300">{opp.recommended_skills?.join(', ')}</span>
+                  <p className="nyx-opportunity-description">{opp.description}</p>
+                  <div className="nyx-opportunity-skills">
+                    <span className="nyx-opportunity-label">Recommended Skills:</span>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {opp.recommended_skills?.map((skill: string, idx: number) => (
+                        <span key={idx} className="nyx-badge nyx-badge-info">{skill}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -155,22 +228,40 @@ export const ContinuousView: React.FC = () => {
         </div>
 
         {/* Security Changes Detected */}
-        <div className="glass-panel p-6 space-y-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <History className="w-5 h-5 text-cyan-400" /> Surface Changes Detected ({changes.length})
-          </h3>
+        <div className="nyx-card nyx-card-accent-cyan">
+          <div className="nyx-section-header">
+            <div className="flex items-center gap-3">
+              <div className="nyx-section-icon nyx-section-icon-cyan">
+                <History className="w-4 h-4 text-[#00D9FF]" />
+              </div>
+              <h3 className="nyx-section-title">Surface Changes Detected</h3>
+              <span className="nyx-count-pill">{changes.length}</span>
+            </div>
+          </div>
+
           {changes.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-sm glass-card">No surface changes recorded.</div>
+            <div className="nyx-empty-state">
+              <div className="nyx-empty-state-icon">
+                <History className="w-8 h-8 text-[#484F58]" />
+              </div>
+              <div className="nyx-empty-state-title">No surface changes recorded</div>
+              <div className="nyx-empty-state-description">
+                All monitored targets are currently within baseline
+              </div>
+            </div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            <div className="nyx-changes-list">
               {changes.map((ch, idx) => (
-                <div key={idx} className="glass-card p-3 font-mono text-xs space-y-1 border-l-2 border-l-cyan-400">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-cyan-300">{ch.event_type}</span>
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">{ch.severity}</span>
+                <div key={idx} className="nyx-change-item">
+                  <div className="nyx-change-header">
+                    <span className="nyx-change-type">{ch.event_type}</span>
+                    <span className="nyx-badge nyx-badge-info">{ch.severity}</span>
                   </div>
-                  <div className="text-slate-200">{ch.description}</div>
-                  <div className="text-[10px] text-slate-500">Target: {ch.target}</div>
+                  <div className="nyx-change-description">{ch.description}</div>
+                  <div className="nyx-change-target">
+                    <Target className="w-3 h-3 text-[#484F58]" />
+                    <span>{ch.target}</span>
+                  </div>
                 </div>
               ))}
             </div>

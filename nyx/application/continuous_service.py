@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from nyx.application.base import BaseService, ServiceResult
 from nyx.monitor.scheduler import MonitoringScheduler
 from nyx.monitor.watcher import SurfaceWatcher
+from nyx.intelligence.tracking import AssetTracker
 from nyx.intelligence.history import AssetHistory
 from nyx.intelligence.change_detection import ChangeDetector
 from nyx.alerts.manager import AlertManager
@@ -22,6 +23,7 @@ class ContinuousService(BaseService):
         super().__init__()
         self.scheduler = MonitoringScheduler()
         self.watcher = SurfaceWatcher()
+        self.tracker = AssetTracker()
         self.history = AssetHistory()
         self.change_detector = ChangeDetector()
         self.alert_manager = AlertManager()
@@ -49,6 +51,21 @@ class ContinuousService(BaseService):
         return self.ok(data={"jobs_count": len(jobs), "jobs": jobs}, message="Retrieved monitoring status.")
 
     def get_asset_history(self, target: Optional[str] = None) -> ServiceResult:
+        t_name = target
+        if not t_name:
+            from nyx.infrastructure.filesystem import _get_eng_dir
+            d = _get_eng_dir()
+            if d.exists():
+                t_file = d / "target.yaml"
+                if t_file.exists():
+                    for line in t_file.read_text(encoding="utf-8").splitlines():
+                        if line.strip().startswith("domain:") or line.strip().startswith("name:"):
+                            t_name = line.split(":", 1)[1].strip().strip('"').strip("'")
+                            break
+        
+        target_to_sync = t_name or "example.com"
+        self.tracker.record_current_state(target_to_sync)
+
         snapshots = self.history.get_snapshots(target=target)
         return self.ok(data={"snapshots_count": len(snapshots), "snapshots": snapshots}, message="Retrieved asset history snapshots.")
 

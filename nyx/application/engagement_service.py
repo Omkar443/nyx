@@ -25,7 +25,7 @@ class EngagementService:
         return core_engagement.export_engagement()
 
     def add_memory(self, type_: str, value: str, source: str = "manual", priority: str = "P2", category: str = "frameworks") -> dict[str, Any]:
-        return core_engagement.add_memory(mem_type=type_, value=value, source=source, priority=priority, category=category)
+        return core_engagement.add_memory(type_=type_, value=value, priority=priority, category=category)
 
     def search_memory(self, query: str) -> dict[str, Any]:
         return core_engagement.search_memory(query=query)

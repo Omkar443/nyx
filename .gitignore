@@ -11,6 +11,7 @@
 
 # Engagement artifacts — NEVER commit
 .engagement/
+.engagement_backup_*/
 evidence/
 *.har
 *.png
@@ -29,6 +30,8 @@ submissions.txt
 notes.md
 /scope.md
 targets/
+test_e2e_*.md
+test_bugcrowd_draft.md
 
 # Local-only artifacts
 .obsidian/

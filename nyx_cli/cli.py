@@ -1176,19 +1176,19 @@ def is_hostname_in_scope(hostname: str, scope_list: list[str]) -> bool:
 
 STATE_COMMAND_PERMISSIONS = {
     "DISCOVERY": {
-        "allowed": ["engagement", "recon", "surface", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "recon", "surface", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "ANALYSIS": {
-        "allowed": ["engagement", "surface", "classify", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "surface", "classify", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "VALIDATION": {
-        "allowed": ["engagement", "memory", "technology", "duplicate-check", "triage", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "memory", "technology", "duplicate-check", "triage", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "REPORTING": {
-        "allowed": ["engagement", "memory", "technology", "findings", "report", "state", "evidence", "finding", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "memory", "technology", "findings", "report", "state", "evidence", "finding", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     }
 }
@@ -2232,8 +2232,27 @@ def cmd_workers(args: argparse.Namespace) -> int:
         else:
             say(color(f"Error: {res.error}", "red"))
             return 1
+    elif subcmd == "run":
+        interval = float(getattr(args, "interval", 1.0))
+        once = bool(getattr(args, "once", False))
+        worker_id = getattr(args, "worker_id", None)
+        hostname = getattr(args, "hostname", None)
+        server_url = getattr(args, "server_url", None)
+        api_token = getattr(args, "api_token", None)
 
-    say(color("Usage: nyx workers [list|register|status|remove]", "yellow"))
+        say(color("Starting NYX Worker Execution Runtime...", "bold"))
+        res = svc.start_daemon(
+            poll_interval=interval,
+            once=once,
+            worker_id=worker_id,
+            hostname=hostname,
+            server_url=server_url,
+            api_token=api_token,
+        )
+        say(color(f"Worker runtime finished processing {res.data.get('processed_tasks_count')} task(s).", "green"))
+        return 0
+
+    say(color("Usage: nyx workers [list|register|status|remove|run]", "yellow"))
     return 1
 
 
@@ -2576,17 +2595,33 @@ def cmd_knowledge(args: argparse.Namespace) -> int:
         match_techs = res.get("matched_technologies", [])
         match_vulns = res.get("matched_vulnerabilities", [])
         skills = res.get("matched_skills", [])
+        intent = res.get("primary_intent", "vulnerability")
 
-        if match_techs:
-            say(color("Matched Technologies:", "cyan"))
-            for t in match_techs:
-                t_obj = t.get("technology", {})
-                say(f"  • {color(t_obj.get('name', 'N/A'), 'bold')}: {t_obj.get('description', '')}")
-        if match_vulns:
-            say(color("\nMatched Vulnerability Knowledge:", "yellow"))
-            for v in match_vulns:
-                v_obj = v.get("vulnerability", {})
-                say(f"  • {color(v_obj.get('name', 'N/A'), 'bold')} [{v_obj.get('category')}]: {v_obj.get('description', '')}")
+        def print_vulns():
+            if match_vulns:
+                say(color("Matched Vulnerability Knowledge:", "yellow"))
+                for v in match_vulns:
+                    v_obj = v.get("vulnerability", {})
+                    say(f"  • {color(v_obj.get('name', 'N/A'), 'bold')} [{v_obj.get('category')}]: {v_obj.get('description', '')}")
+
+        def print_techs():
+            if match_techs:
+                say(color("Matched Technologies:", "cyan"))
+                for t in match_techs:
+                    t_obj = t.get("technology", {})
+                    say(f"  • {color(t_obj.get('name', 'N/A'), 'bold')}: {t_obj.get('description', '')}")
+
+        if intent == "vulnerability":
+            print_vulns()
+            if match_vulns and match_techs:
+                say("")
+            print_techs()
+        else:
+            print_techs()
+            if match_techs and match_vulns:
+                say("")
+            print_vulns()
+
         if skills:
             say(color("\nRecommended Security Skills:", "green"))
             for sk in skills:
@@ -2598,11 +2633,36 @@ def cmd_knowledge(args: argparse.Namespace) -> int:
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
-    from nyx.core.analysis import decision_context, surface
+    from nyx.application.analysis_service import AnalysisService
+    service = AnalysisService()
     subcmd = getattr(args, "analyze_subcommand", None)
+
     if subcmd == "context":
-        decision_context(target=getattr(args, "target", None), url=getattr(args, "url", None))
+        target = getattr(args, "target", None)
+        url = getattr(args, "url", None)
+        res = service.get_decision_context(url=url or f"https://{target or 'example.com'}/login.aspx")
+        if target and not url:
+            res["target"] = target
+        t_name = res.get("target", target or "example.com")
+        ep_scope = res.get("endpoint", url or f"https://{t_name}/login.aspx")
+        techs = res.get("technologies", [])
+        skills = res.get("recommended_skills", [])
+        graph = res.get("graph", {})
+
+        section(f"NYX Intelligence Decision Context — {t_name}")
+        say(f"Target Domain:    {color(t_name, 'cyan')}")
+        say(f"Endpoint Scope:   {ep_scope}")
+        say(f"Detected Stack:   {', '.join(techs) if techs else 'None recorded'}\n")
+        say("Recommended Security Skills:")
+        for sk in skills:
+            say(f"  • {color(sk, 'bold')}")
+        if graph:
+            say("\nAttack Surface Graph:")
+            say(f"  • Node Count: {graph.get('nodes_count', len(graph.get('nodes', [])))}")
+            say(f"  • Edge Count: {graph.get('edges_count', len(graph.get('edges', [])))}")
+        say(color("=" * 50, "cyan"))
         return 0
+
     elif subcmd == "surface":
         d = _get_eng_dir()
         t_name = getattr(args, "target", None)
@@ -2613,7 +2673,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                     if line.strip().startswith("domain:") or line.strip().startswith("name:"):
                         t_name = line.split(":", 1)[1].strip().strip('"').strip("'")
                         break
-        return surface(target=t_name or "example.com")
+        target = t_name or "example.com"
+        manifest = getattr(args, "manifest", None)
+        res = service.rank_surface(target, manifest=manifest)
+        if res.get("status") == "error":
+            say(color(f"  [error] {res.get('error')}", "red"))
+            return 1
+        section(f"NYX Attack Surface Ranking — {target}")
+        for item in res.get("rankings", []):
+            say(f"  • [{color(str(item.get('score', '')), 'bold')}] {item.get('endpoint', '')} — {item.get('reason', '')}")
+        return 0
+
     return 0
 
 
@@ -2857,31 +2927,70 @@ def cmd_technology_map(args: argparse.Namespace) -> int:
 def cmd_evidence(args: argparse.Namespace) -> int:
     from nyx.application.evidence_service import EvidenceService
     service = EvidenceService()
-    subcmd = getattr(args, "evidence_subcommand", "")
-    eid = getattr(args, "evidence_id", "") or getattr(args, "finding_id", "")
-    if subcmd == "list" or getattr(args, "finding_id", None):
-        res = service.list_evidence(eid)
-        section(f"NYX Evidence Vault — {eid}")
-        for ev in res.get("evidence", []):
-            say(f"  • {color(ev.get('id', ''), 'bold')} [{ev.get('type', '')}] — {ev.get('description', '')} ({ev.get('hash', '')[:8]})")
+    subcmd = getattr(args, "ev_subcommand", "") or getattr(args, "evidence_subcommand", "")
+
+    if subcmd == "add":
+        fid = getattr(args, "finding_id", "")
+        ev_type = getattr(args, "type", "note")
+        content = getattr(args, "content", None)
+        file_path = getattr(args, "file", None)
+        desc = getattr(args, "description", "")
+        src = getattr(args, "source", "manual")
+        res = service.add(finding_id=fid, ev_type=ev_type, content=content, file=file_path, description=desc, source=src)
+        if res.get("status") == "error":
+            say(color(f"  [error] {res.get('message', 'Failed to add evidence')}", "red"))
+            return 1
+        say(color(f"✓ Added evidence {res.get('evidence_id')} to {fid} (SHA256: {res.get('sha256', '')[:8]})", "green"))
+        return 0
+    elif subcmd == "list":
+        fid = getattr(args, "finding_id", "")
+        res = service.list_evidence(fid)
+        if res.get("status") == "error":
+            say(color(f"  [error] {res.get('message', 'Failed to list evidence')}", "red"))
+            return 1
+        section(f"NYX Evidence Vault — {fid}")
+        ev_list = res.get("evidence", [])
+        if not ev_list:
+            say("  No evidence found.")
+            return 0
+        for ev in ev_list:
+            eid = ev.get('evidence_id', '')
+            etype = ev.get('type', '')
+            desc = ev.get('description', '')
+            h = ev.get('sha256', '')
+            integ = ev.get('integrity', 'PASS')
+            say(f"  • {color(eid, 'bold')} [{etype}] — {desc} (Hash: {h[:8]}..., Integrity: {color(integ, 'green' if integ == 'PASS' else 'red')})")
         return 0
     elif subcmd == "show":
-        res = service.show_evidence(eid)
+        eid = getattr(args, "evidence_id", "")
+        res = service.show(eid)
         if res.get("status") == "error":
-            say(color(f"  [error] {res.get('error')}", "red"))
+            say(color(f"  [error] {res.get('message', res.get('error', 'Unknown error'))}", "red"))
             return 1
+        item = res.get("evidence", {})
         section(f"NYX Evidence Details — {eid}")
-        say(f"Type: {res.get('type')}")
-        say(f"Hash: {res.get('hash')}")
-        say(f"Content:\n{res.get('content')}")
+        say(f"Finding ID:  {item.get('finding_id')}")
+        say(f"Type:        {item.get('type')}")
+        say(f"Source:      {item.get('source')}")
+        say(f"Description: {item.get('description')}")
+        say(f"SHA256:      {item.get('sha256')}")
+        say(f"File:        {item.get('file')}")
+        if res.get("preview_lines"):
+            say("\nContent Preview:")
+            for line in res.get("preview_lines", []):
+                say(f"  {line}")
         return 0
     elif subcmd == "verify":
-        res = service.verify_evidence(eid)
-        if res.get("valid"):
-            say(color(f"✓ Evidence {eid} integrity verified ({res.get('hash', '')[:8]}).", "green"))
+        eid = getattr(args, "evidence_id", "")
+        res = service.verify(eid)
+        if res.get("status") == "error":
+            say(color(f"  [error] {res.get('message', 'Failed to verify evidence')}", "red"))
+            return 1
+        if res.get("integrity") == "PASS":
+            say(color(f"✓ Evidence {eid} integrity verified ({res.get('current_hash', '')[:8]}).", "green"))
             return 0
         else:
-            say(color(f"✗ Evidence {eid} integrity check FAILED: {res.get('error')}", "red"))
+            say(color(f"✗ Evidence {eid} integrity check FAILED: expected {res.get('expected_hash')[:8]} but got {res.get('current_hash')[:8]}", "red"))
             return 1
     return 1
 
@@ -2898,7 +3007,7 @@ def cmd_triage(args: argparse.Namespace) -> int:
     for q in res.get("questions", []):
         mark = "✓" if q.get("passed") else "✗"
         col = "green" if q.get("passed") else "red"
-        say(f"  {color(mark, col)} Q{q.get('id')}: {q.get('question')}")
+        say(f"  {color(mark, col)} {q.get('id')}: {q.get('question')}")
     return 0 if res.get("status") == "PASSED" else 1
 
 
@@ -3305,6 +3414,16 @@ def main() -> int:
     p_wk_rem = p_workers_sub.add_parser("remove", help="remove a worker node by ID")
     p_wk_rem.add_argument("worker_id", help="worker ID (e.g. WRK-12345678)")
     p_wk_rem.set_defaults(func=cmd_workers)
+
+    p_wk_run = p_workers_sub.add_parser("run", help="start worker runtime to process queued tasks")
+    p_wk_run.add_argument("--interval", type=float, default=1.0, help="polling interval in seconds")
+    p_wk_run.add_argument("--once", action="store_true", help="process available tasks once and exit")
+    p_wk_run.add_argument("--worker-id", default=None, help="worker ID override")
+    p_wk_run.add_argument("--hostname", default=None, help="hostname override")
+    p_wk_run.add_argument("--server-url", default=None, help="NYX Controller REST API base URL for remote worker mode")
+    p_wk_run.add_argument("--api-token", default=None, help="API authentication token for remote worker mode")
+    p_wk_run.set_defaults(func=cmd_workers)
+
     p_workers.set_defaults(func=cmd_workers)
 
     p_agents = sub.add_parser("agents", help="interact with NYX Multi-Agent Fleet")

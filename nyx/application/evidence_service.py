@@ -35,5 +35,11 @@ class EvidenceService:
     def show(self, evidence_id: str) -> dict[str, Any]:
         return core_evidence.show_evidence(evidence_id=evidence_id)
 
+    def show_evidence(self, evidence_id: str) -> dict[str, Any]:
+        return self.show(evidence_id)
+
     def verify(self, evidence_id: str) -> dict[str, Any]:
         return core_evidence.verify_evidence(evidence_id=evidence_id)
+
+    def verify_evidence(self, evidence_id: str) -> dict[str, Any]:
+        return self.verify(evidence_id)

@@ -24,9 +24,6 @@ def get_or_create_api_token() -> str:
     if env_token and env_token.strip():
         return env_token.strip()
 
-    if _CACHED_TOKEN:
-        return _CACHED_TOKEN
-
     try:
         d = _get_eng_dir(create=True)
         token_file = d / ".web_token"
@@ -50,7 +47,7 @@ def get_or_create_api_token() -> str:
 
 def verify_token(provided_token: Optional[str]) -> bool:
     """Verify provided token against configured NYX token."""
-    if not provided_token:
+    if not provided_token or not isinstance(provided_token, str):
         return False
     expected = get_or_create_api_token()
     return secrets.compare_digest(provided_token.strip(), expected.strip())
@@ -64,20 +61,24 @@ async def require_auth(
     token: Optional[str] = None
     if credentials and credentials.credentials:
         token = credentials.credentials
-    elif x_api_token:
+    if not token and x_api_token:
         token = x_api_token
 
-    if not verify_token(token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"code": "UNAUTHORIZED", "message": "Invalid or missing API authentication token."},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return token or ""
+    if token and verify_token(token):
+        return token.strip()
+
+    if x_api_token and verify_token(x_api_token):
+        return x_api_token.strip()
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"code": "UNAUTHORIZED", "message": "Invalid or missing API authentication token."},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def verify_ws_token(token: Optional[str] = Query(None)) -> bool:
-    """Verify WebSocket query token authentication."""
+    """Verify WebSocket query token authentication using standard verify_token logic."""
     if not token or not verify_token(token):
         return False
     return True

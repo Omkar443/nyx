@@ -27,12 +27,13 @@ from nyx.agents import (
 class AgentController:
     """Central controller orchestrating specialized agent fleet, worker nodes, and task execution."""
 
-    def __init__(self, provider_name: Optional[str] = None):
+    def __init__(self, provider_name: Optional[str] = None, base_dir: Optional[Path] = None):
         self.provider_name = provider_name
+        self.base_dir = base_dir
         self.bus = AgentMessageBus()
-        self.registry = AgentRegistry()
-        self.worker_registry = WorkerRegistry()
-        self.task_queue = DistributedTaskQueue()
+        self.registry = AgentRegistry(base_dir=base_dir)
+        self.worker_registry = WorkerRegistry(base_dir=base_dir)
+        self.task_queue = DistributedTaskQueue(base_dir=base_dir)
         self.scheduler = DistributedScheduler(self.registry, self.task_queue)
         self.worker_scheduler = WorkerScheduler(self.registry, self.worker_registry, self.task_queue)
 

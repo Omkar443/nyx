@@ -34,7 +34,7 @@ def _get_evidence_dir(
     known_fids = {f.get("finding_id") for f in findings if f.get("finding_id")}
     ev_base = d / "evidence" / finding_id
 
-    if finding_id not in known_fids and not ev_base.exists():
+    if not create and finding_id not in known_fids and not ev_base.exists():
         return None, f"Finding '{finding_id}' does not exist in current engagement."
 
     if create:

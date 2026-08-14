@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { AlertTriangle, Plus, CheckCircle, FileText, XCircle, ArrowRight } from 'lucide-react';
-
+import { AlertTriangle, Plus, CheckCircle, FileText, XCircle, Shield, Target, Zap, Filter, Search, X, FileCode, Activity } from 'lucide-react';
 export const FindingsView: React.FC = () => {
   const [findings, setFindings] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState<boolean>(false);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [reportMarkdown, setReportMarkdown] = useState<string>('');
+  const [filterSeverity, setFilterSeverity] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Form State
   const [title, setTitle] = useState('');
@@ -68,77 +69,227 @@ export const FindingsView: React.FC = () => {
     }
   }
 
+  const getSeverityBadgeClass = (sev: string = 'medium') => {
+    switch (sev.toLowerCase()) {
+      case 'critical': return 'nyx-badge-critical';
+      case 'high': return 'nyx-badge-high';
+      case 'medium': return 'nyx-badge-medium';
+      case 'low': return 'nyx-badge-low';
+      default: return 'nyx-badge-info';
+    }
+  };
+
+  const getStatusBadgeClass = (status: string = 'HYPOTHESIS') => {
+    switch (status.toUpperCase()) {
+      case 'VERIFIED':
+        return 'nyx-badge-success';
+      case 'HYPOTHESIS':
+        return 'nyx-badge-medium';
+      case 'REJECTED':
+        return 'nyx-badge-critical';
+      case 'TRIAGED':
+        return 'nyx-badge-info';
+      default:
+        return 'nyx-badge-info';
+    }
+  };
+
+  const filteredFindings = findings.filter((f: any) => {
+    const matchesSeverity = filterSeverity === 'all' || (f.severity || 'medium').toLowerCase() === filterSeverity.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      f.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.finding_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.endpoint?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSeverity && matchesSearch;
+  });
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <AlertTriangle className="w-6 h-6 text-amber-400" /> Finding Lifecycle & Triage
-          </h2>
-          <p className="text-sm text-slate-400">Vulnerability hypotheses, empirical validation, and submission drafts</p>
+    <div className="nyx-findings-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-amber">
+              <AlertTriangle className="w-6 h-6 text-[#FF6B35]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Finding Lifecycle & Triage</h1>
+              <p className="nyx-page-subtitle">Vulnerability hypotheses, empirical validation, and submission drafts</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="nyx-button nyx-button-primary"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Hypothesis</span>
+          </button>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-slate-950 font-semibold rounded-lg shadow-lg flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> New Hypothesis
-        </button>
+      </div>
+
+      {/* Findings Stats */}
+      <div className="nyx-stats-overview">
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-amber">
+            <AlertTriangle className="w-4 h-4 text-[#FF6B35]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{findings.length}</div>
+            <div className="nyx-stat-label">Total Findings</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-green">
+            <CheckCircle className="w-4 h-4 text-[#00FF88]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">
+              {findings.filter(f => f.status === 'VERIFIED').length}
+            </div>
+            <div className="nyx-stat-label">Verified</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-critical">
+            <Shield className="w-4 h-4 text-[#FF2D55]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">
+              {findings.filter(f => f.severity === 'Critical' || f.severity === 'High').length}
+            </div>
+            <div className="nyx-stat-label">High Risk</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="nyx-filters-bar">
+        <div className="nyx-search-container">
+          <Search className="nyx-search-icon" />
+          <input
+            type="text"
+            placeholder="Search findings..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="nyx-search-input"
+          />
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="nyx-search-clear">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <div className="nyx-filter-group">
+          <Filter className="w-4 h-4 text-[#8B949E]" />
+          <button
+            onClick={() => setFilterSeverity('all')}
+            className={`nyx-filter-button ${filterSeverity === 'all' ? 'nyx-filter-active' : ''}`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilterSeverity('critical')}
+            className={`nyx-filter-button ${filterSeverity === 'critical' ? 'nyx-filter-active' : ''}`}
+          >
+            Critical
+          </button>
+          <button
+            onClick={() => setFilterSeverity('high')}
+            className={`nyx-filter-button ${filterSeverity === 'high' ? 'nyx-filter-active' : ''}`}
+          >
+            High
+          </button>
+          <button
+            onClick={() => setFilterSeverity('medium')}
+            className={`nyx-filter-button ${filterSeverity === 'medium' ? 'nyx-filter-active' : ''}`}
+          >
+            Medium
+          </button>
+          <button
+            onClick={() => setFilterSeverity('low')}
+            className={`nyx-filter-button ${filterSeverity === 'low' ? 'nyx-filter-active' : ''}`}
+          >
+            Low
+          </button>
+        </div>
       </div>
 
       {/* Findings List */}
-      <div className="space-y-4">
-        {findings.length === 0 ? (
-          <div className="glass-panel p-8 text-center text-slate-500">
-            No active findings recorded. Click "New Hypothesis" to create one.
+      <div className="nyx-findings-list">
+        {filteredFindings.length === 0 ? (
+          <div className="nyx-card nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <AlertTriangle className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">
+              {searchTerm || filterSeverity !== 'all' ? 'No findings match filters' : 'No active findings recorded'}
+            </div>
+            <div className="nyx-empty-state-description">
+              {searchTerm || filterSeverity !== 'all' 
+                ? 'Adjust your search or filter criteria' 
+                : 'Click "New Hypothesis" above to create a finding hypothesis'}
+            </div>
           </div>
         ) : (
-          findings.map((f: any) => (
-            <div key={f.finding_id} className="glass-panel p-5 space-y-3">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-                <div className="flex items-center gap-3">
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded font-mono severity-${f.severity?.toLowerCase() || 'medium'}`}>
+          filteredFindings.map((f: any) => (
+            <div key={f.finding_id} className="nyx-card nyx-finding-card">
+              <div className="nyx-finding-card-header">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`nyx-badge ${getSeverityBadgeClass(f.severity)}`}>
                     {f.severity || 'Medium'}
                   </span>
-                  <span className="text-md font-bold text-white font-mono">{f.finding_id}</span>
-                  <h3 className="text-md font-semibold text-slate-200">{f.title}</h3>
+                  <span className="nyx-finding-id">{f.finding_id}</span>
+                  <h3 className="nyx-finding-title">{f.title}</h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs px-3 py-1 rounded-full bg-slate-800 text-cyan-300 font-mono border border-slate-700">
-                    {f.status || 'HYPOTHESIS'}
-                  </span>
-                </div>
+                <span className={`nyx-badge ${getStatusBadgeClass(f.status)}`}>
+                  {f.status || 'HYPOTHESIS'}
+                </span>
               </div>
 
-              <div className="text-xs font-mono text-slate-400 bg-slate-900/60 p-2.5 rounded border border-slate-800">
-                Endpoint: <span className="text-cyan-300">{f.endpoint || 'General Scope'}</span> | Vulnerability: <span className="text-emerald-300">{f.vulnerability || 'IDOR'}</span>
+              <div className="nyx-finding-details">
+                <div className="nyx-finding-detail-item">
+                  <Target className="w-3.5 h-3.5 text-[#00D9FF]" />
+                  <span className="nyx-finding-detail-label">Endpoint:</span>
+                  <span className="nyx-finding-detail-value">{f.endpoint || 'General Scope'}</span>
+                </div>
+                <div className="nyx-finding-detail-item">
+                  <Zap className="w-3.5 h-3.5 text-[#FF6B35]" />
+                  <span className="nyx-finding-detail-label">Vulnerability:</span>
+                  <span className="nyx-finding-detail-value">{f.vulnerability || 'IDOR'}</span>
+                </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-800/60">
+              <div className="nyx-finding-actions">
                 <button
                   onClick={() => handleTriage(f.finding_id)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 rounded border border-cyan-500/30 flex items-center gap-1.5"
+                  className="nyx-button nyx-button-triage"
                 >
-                  <CheckCircle className="w-3.5 h-3.5" /> 7-Question Gate Triage
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>7-Question Gate Triage</span>
                 </button>
                 <button
                   onClick={() => handleTransition(f.finding_id, 'VERIFIED')}
-                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-semibold text-emerald-300 rounded border border-emerald-500/30 flex items-center gap-1.5"
+                  className="nyx-button nyx-button-verify"
                 >
-                  Mark Verified
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Mark Verified</span>
                 </button>
                 <button
                   onClick={() => handleTransition(f.finding_id, 'REJECTED')}
-                  className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-xs font-semibold text-rose-300 rounded border border-rose-500/30 flex items-center gap-1.5"
+                  className="nyx-button nyx-button-danger"
                 >
-                  <XCircle className="w-3.5 h-3.5" /> Mark Rejected
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Mark Rejected</span>
                 </button>
                 <button
                   onClick={() => handleGenerateReport(f.finding_id)}
-                  className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-xs font-semibold text-purple-300 rounded border border-purple-500/30 flex items-center gap-1.5 ml-auto"
+                  className="nyx-button nyx-button-report ml-auto"
                 >
-                  <FileText className="w-3.5 h-3.5" /> Generate Report Draft
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Generate Report Draft</span>
                 </button>
               </div>
             </div>
@@ -148,38 +299,58 @@ export const FindingsView: React.FC = () => {
 
       {/* Modal Create Finding */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="glass-panel p-6 w-full max-w-lg space-y-4">
-            <h3 className="text-lg font-bold text-white">Create Vulnerability Hypothesis</h3>
-            <form onSubmit={handleCreateFinding} className="space-y-3">
-              <div>
-                <label className="text-xs font-mono text-slate-400">Title</label>
+        <div className="nyx-modal-overlay">
+          <div className="nyx-modal">
+            <div className="nyx-modal-header">
+              <div className="flex items-center gap-3">
+                <div className="nyx-modal-icon">
+                  <AlertTriangle className="w-5 h-5 text-[#FF6B35]" />
+                </div>
+                <h3 className="nyx-modal-title">Create Vulnerability Hypothesis</h3>
+              </div>
+              <button onClick={() => setShowCreate(false)} className="nyx-modal-close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateFinding} className="nyx-modal-content">
+              <div className="nyx-form-field">
+                <label className="nyx-form-label">
+                  <FileText className="w-3 h-3 text-[#00D9FF]" />
+                  Title
+                </label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. IDOR in User Profile Endpoint"
-                  className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white"
+                  className="nyx-input"
                 />
               </div>
-              <div>
-                <label className="text-xs font-mono text-slate-400">Endpoint URL</label>
+              <div className="nyx-form-field">
+                <label className="nyx-form-label">
+                  <Target className="w-3 h-3 text-[#00FF88]" />
+                  Endpoint URL
+                </label>
                 <input
                   type="text"
                   value={endpoint}
                   onChange={(e) => setEndpoint(e.target.value)}
                   placeholder="https://example.com/api/user/123"
-                  className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
+                  className="nyx-input"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-mono text-slate-400">Vulnerability Class</label>
+              <div className="nyx-form-grid">
+                <div className="nyx-form-field">
+                  <label className="nyx-form-label">
+                    <Shield className="w-3 h-3 text-[#FF6B35]" />
+                    Vulnerability Class
+                  </label>
                   <select
                     value={vuln}
                     onChange={(e) => setVuln(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white"
+                    className="nyx-select"
                   >
                     <option value="IDOR">IDOR</option>
                     <option value="SQLi">SQL Injection</option>
@@ -188,12 +359,15 @@ export const FindingsView: React.FC = () => {
                     <option value="BrokenAuth">Broken Auth</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-xs font-mono text-slate-400">Severity</label>
+                <div className="nyx-form-field">
+                  <label className="nyx-form-label">
+                    <AlertTriangle className="w-3 h-3 text-[#FF2D55]" />
+                    Severity
+                  </label>
                   <select
                     value={severity}
                     onChange={(e) => setSeverity(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white"
+                    className="nyx-select"
                   >
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
@@ -203,17 +377,17 @@ export const FindingsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="nyx-modal-actions">
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 bg-slate-800 text-slate-300 text-sm rounded"
+                  className="nyx-button nyx-button-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-cyan-500 text-slate-950 font-semibold text-sm rounded"
+                  className="nyx-button nyx-button-primary"
                 >
                   Save Hypothesis
                 </button>
@@ -225,15 +399,33 @@ export const FindingsView: React.FC = () => {
 
       {/* Modal Report Viewer */}
       {showReport && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="glass-panel p-6 w-full max-w-2xl space-y-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-white">Platform Submission Draft ({showReport})</h3>
-              <button onClick={() => setShowReport(null)} className="text-slate-400 hover:text-white">✕</button>
+        <div className="nyx-modal-overlay">
+          <div className="nyx-modal nyx-modal-lg">
+            <div className="nyx-modal-header">
+              <div className="flex items-center gap-3">
+                <div className="nyx-modal-icon">
+                  <FileCode className="w-5 h-5 text-[#7C3AED]" />
+                </div>
+                <div>
+                  <h3 className="nyx-modal-title">Platform Submission Draft</h3>
+                  <span className="nyx-badge nyx-badge-info">FINDING: {showReport}</span>
+                </div>
+              </div>
+              <button onClick={() => setShowReport(null)} className="nyx-modal-close">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <pre className="bg-slate-950 p-4 rounded text-xs text-emerald-300 font-mono overflow-x-auto whitespace-pre-wrap">
-              {reportMarkdown}
-            </pre>
+            <div className="nyx-modal-preview">
+              <div className="nyx-modal-preview-header">
+                <FileText className="w-3 h-3 text-[#00FF88]" />
+                <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+                  Markdown Preview
+                </span>
+              </div>
+              <div className="nyx-modal-preview-content">
+                {reportMarkdown}
+              </div>
+            </div>
           </div>
         </div>
       )}

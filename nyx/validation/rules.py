@@ -87,9 +87,22 @@ VALIDATION_RULES = {
 }
 
 
+RULE_ALIASES = {
+    "xss": "reflected_xss",
+    "reflected_xss": "reflected_xss",
+    "sql_injection": "sqli",
+    "sql": "sqli",
+    "authentication_bypass": "auth_bypass",
+    "auth": "auth_bypass",
+    "massassignment": "mass_assignment",
+}
+
+
 def get_rule(vuln_type: str) -> dict | None:
-    v_clean = vuln_type.lower().replace(" ", "_")
+    v_clean = vuln_type.lower().strip().replace(" ", "_")
+    target_key = RULE_ALIASES.get(v_clean, v_clean)
+
     for key, rule in VALIDATION_RULES.items():
-        if key == v_clean or rule["type"].lower() == vuln_type.lower():
+        if key == target_key or key == v_clean or rule["type"].lower() == vuln_type.lower().strip():
             return rule
     return None

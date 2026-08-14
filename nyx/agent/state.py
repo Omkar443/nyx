@@ -63,3 +63,5 @@ class AgentStateMachine:
         prev = self._current_state
         self._current_state = ns
         return True, f"Transitioned agent state from {prev} to {ns}."
+
+    set_state = transition_to

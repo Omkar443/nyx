@@ -53,27 +53,27 @@ def init_engagement(
                         existing_target = val
                         break
 
-            if existing_target and existing_target.lower() != target_name.lower():
-                if not do_reset:
-                    return {
-                        "status": "error",
-                        "code": "EXISTS",
-                        "existing_target": existing_target,
-                        "target": target_name,
-                        "message": f"Existing engagement workspace found for target '{existing_target}'. Cannot re-initialize for '{target_name}' without explicit reset/force flag.",
-                    }
-                else:
-                    backup_dir = (
-                        Path.cwd()
-                        / f".engagement_backup_{existing_target}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                    )
-                    if d.exists():
-                        shutil.copytree(d, backup_dir)
-                        shutil.rmtree(d)
-                    d = _get_eng_dir(create=True, base_dir=base_dir)
-                    target_yaml = d / "target.yaml"
+            if existing_target and existing_target.lower() != target_name.lower() and not do_reset:
+                return {
+                    "status": "error",
+                    "code": "EXISTS",
+                    "existing_target": existing_target,
+                    "target": target_name,
+                    "message": f"Existing engagement workspace found for target '{existing_target}'. Cannot re-initialize for '{target_name}' without explicit reset/force flag.",
+                }
         except Exception:
             pass
+
+    if do_reset and d.exists():
+        for child in list(d.iterdir()):
+            try:
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+            except Exception:
+                pass
+        target_yaml = d / "target.yaml"
 
     if not target_yaml.exists():
         target_yaml.write_text(
@@ -369,7 +369,7 @@ def add_memory(
             "message": "No active engagement workspace found.",
         }
 
-    val = _sanitize_text_content(value)
+    val, _ = _sanitize_text_content(value)
     mem_type = (type_ or "note").lower()
 
     if mem_type == "endpoint":

@@ -156,6 +156,28 @@ def _generate_finding_id(eng_dir: Path, year: int | None = None) -> str:
     return f"FH-{year}-{max_seq + 1:03d}"
 
 
+def get_finding(finding_id: str, base_dir: Path | None = None) -> dict[str, Any] | None:
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    if not d.exists():
+        return None
+    f_file = d / "findings" / finding_id / "finding.json"
+    if f_file.exists():
+        try:
+            return json.loads(f_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    findings_file = d / "findings.json"
+    if findings_file.exists():
+        try:
+            stored = json.loads(findings_file.read_text(encoding="utf-8"))
+            for f in stored:
+                if f.get("finding_id") == finding_id:
+                    return f
+        except Exception:
+            pass
+    return None
+
+
 def create_finding(
     title: str,
     endpoint: str = "",
@@ -164,6 +186,10 @@ def create_finding(
     severity: str = "Medium",
     tag: str = "",
     description: str = "",
+    task_id: str = "",
+    agent_id: str = "",
+    target: str = "",
+    evidence_ids: list[str] | None = None,
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
     d = _get_eng_dir(create=False, base_dir=base_dir)
@@ -173,17 +199,33 @@ def create_finding(
             "message": "No active engagement workspace found.",
         }
 
+    # Check duplicate finding first
+    dup = duplicate_check(endpoint=endpoint, parameter=parameter, vulnerability=vulnerability, base_dir=base_dir)
+    if dup.get("is_duplicate"):
+        existing_f = dup.get("existing_finding", {})
+        return {
+            "status": "duplicate",
+            "is_duplicate": True,
+            "finding_id": existing_f.get("finding_id"),
+            "finding": existing_f,
+            "message": f"Duplicate finding '{existing_f.get('finding_id')}' already recorded.",
+        }
+
     fid = _generate_finding_id(d)
     now_str = datetime.datetime.now().isoformat()
 
-    san_title = _sanitize_text_content(title)
-    san_ep = normalize_url(_sanitize_text_content(endpoint))
-    san_param = _sanitize_text_content(parameter)
-    san_vuln = _sanitize_text_content(vulnerability)
-    san_desc = _sanitize_text_content(description)
+    san_title, _ = _sanitize_text_content(title)
+    san_ep_raw, _ = _sanitize_text_content(endpoint)
+    san_ep = normalize_url(san_ep_raw)
+    san_param, _ = _sanitize_text_content(parameter)
+    san_vuln, _ = _sanitize_text_content(vulnerability)
+    san_desc, _ = _sanitize_text_content(description)
 
     fdata = {
         "finding_id": fid,
+        "task_id": task_id,
+        "agent_id": agent_id,
+        "target": target or (san_ep.split("/")[2] if "://" in san_ep else san_ep),
         "title": san_title,
         "severity": severity,
         "status": "HYPOTHESIS",
@@ -192,7 +234,7 @@ def create_finding(
         "vulnerability": san_vuln,
         "tag": tag,
         "description": san_desc,
-        "evidence_ids": [],
+        "evidence_ids": evidence_ids or [],
         "created_at": now_str,
         "updated_at": now_str,
     }
@@ -379,7 +421,7 @@ def triage_finding(
     text = finding_path.read_text(encoding="utf-8").lower()
     answers = []
     for qid, question, signals in TRIAGE_QUESTIONS:
-        hit = any(s in text for s in signals)
+        hit = any(s.lower() in text for s in signals)
         if qid == "Q7":
             answer = "NO — finding matches never-submit category" if hit else "YES"
             ok = not hit
@@ -402,9 +444,18 @@ def triage_finding(
     else:
         verdict = "KILL"
 
+    passed_count = len([q for q in answers if q["ok"]])
+    status_str = "PASSED" if verdict == "PASS" else "FAILED"
+    questions = [
+        {"id": q["id"], "question": q["question"], "passed": q["ok"], "answer": q["answer"]}
+        for q in answers
+    ]
+
     return {
-        "status": "success",
+        "status": status_str,
+        "passed_count": passed_count,
         "verdict": verdict,
+        "questions": questions,
         "answers": answers,
         "failed_questions": fail_qs,
     }
@@ -433,7 +484,7 @@ def parse_finding_metadata(text: str) -> dict[str, str]:
         ("summary", r"##\s*(?:summary|description)\s*\n(.+?)(?=\n##|\Z)"),
         (
             "steps",
-            r"##\s*(?:steps|reproduction|reproduce|poc)\s*\n(.+?)(?=\n##|\Z)",
+            r"##\s*(?:steps|reproduction|reproduce|poc)(?:\s+steps|\s+to\s+reproduce)?\s*\n(.+?)(?=\n##|\Z)",
         ),
         ("impact", r"##\s*impact\s*\n(.+?)(?=\n##|\Z)"),
         (

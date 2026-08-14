@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { Play, Globe, Activity, Shield, Key, Camera, RefreshCw, Terminal, CheckCircle } from 'lucide-react';
-
+import { Play, Globe, Activity, Camera, RefreshCw, Monitor, Cpu, Zap, Radio, Eye, Code, Database } from 'lucide-react';
 export const RuntimeView: React.FC = () => {
   const [sessions, setSessions] = useState<any[]>([]);
   const [runtimeGraph, setRuntimeGraph] = useState<any>(null);
@@ -41,75 +40,177 @@ export const RuntimeView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Globe className="w-6 h-6 text-cyan-400" /> NYX Browser & Runtime Intelligence
-          </h2>
-          <p className="text-sm text-slate-400">Playwright browser automation, authenticated session tracking, and Runtime Intelligence Graph</p>
+    <div className="nyx-runtime-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-green">
+              <Monitor className="w-6 h-6 text-[#00FF88]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Browser Runtime</h1>
+              <p className="nyx-page-subtitle">Playwright browser automation, authenticated session tracking, and Runtime Intelligence Graph</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRunDynamicAgent}
+              disabled={loading}
+              className="nyx-button nyx-button-primary"
+            >
+              {loading ? (
+                <>
+                  <Activity className="w-4 h-4 animate-spin" />
+                  <span>Running...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Run Dynamic Agent</span>
+                </>
+              )}
+            </button>
+            <button onClick={loadData} className="nyx-button nyx-button-ghost" title="Refresh">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleRunDynamicAgent}
-            disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-semibold text-xs rounded shadow flex items-center gap-1.5"
-          >
-            <Play className="w-3.5 h-3.5" /> Run Dynamic Agent
-          </button>
-          <button onClick={loadData} className="p-2 rounded bg-slate-800 text-slate-300 hover:text-white">
-            <RefreshCw className="w-4 h-4" />
-          </button>
+      </div>
+
+      {/* Runtime Stats */}
+      <div className="nyx-stats-overview">
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-green">
+            <Camera className="w-4 h-4 text-[#00FF88]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{sessions.length}</div>
+            <div className="nyx-stat-label">Active Sessions</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-cyan">
+            <Radio className="w-4 h-4 text-[#00D9FF]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{runtimeGraph?.requests?.length || 0}</div>
+            <div className="nyx-stat-label">Observed Requests</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-purple">
+            <Code className="w-4 h-4 text-[#7C3AED]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{runtimeGraph?.apis?.length || 0}</div>
+            <div className="nyx-stat-label">API Operations</div>
+          </div>
         </div>
       </div>
 
       {/* Start Session Form */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Globe className="w-5 h-5 text-emerald-400" /> Launch Managed Browser Session
-        </h3>
-        <form onSubmit={handleStartSession} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div className="md:col-span-2">
-            <label className="text-xs font-mono text-slate-400">Target Domain</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. app.target.com"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-            />
+      <div className="nyx-card nyx-card-accent-green">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-green">
+              <Globe className="w-4 h-4 text-[#00FF88]" />
+            </div>
+            <h2 className="nyx-section-title">Launch Managed Browser Session</h2>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 font-semibold text-sm rounded"
-          >
-            {loading ? 'Starting...' : 'Start Session'}
-          </button>
-        </form>
+          <div className="flex items-center gap-2">
+            <Eye className="w-3 h-3 text-[#00FF88]" />
+            <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+              Managed
+            </span>
+          </div>
+        </div>
+        
+        <div className="nyx-form-container">
+          <form onSubmit={handleStartSession} className="nyx-form-inline">
+            <div className="nyx-form-field nyx-form-field-grow">
+              <label className="nyx-form-label">
+                <Globe className="w-3 h-3 text-[#00D9FF]" />
+                Target Domain
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. app.target.com"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                className="nyx-input"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="nyx-button nyx-button-secondary"
+            >
+              {loading ? 'Starting...' : 'Start Session'}
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Grid: Sessions & Runtime Graph */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="nyx-content-grid">
         {/* Active Browser Sessions */}
-        <div className="glass-panel p-6 space-y-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <Camera className="w-5 h-5 text-cyan-400" /> Active Browser Sessions ({sessions.length})
-          </h3>
+        <div className="nyx-card nyx-card-accent-cyan">
+          <div className="nyx-section-header">
+            <div className="flex items-center gap-3">
+              <div className="nyx-section-icon nyx-section-icon-cyan">
+                <Camera className="w-4 h-4 text-[#00D9FF]" />
+              </div>
+              <h3 className="nyx-section-title">Active Browser Sessions</h3>
+              <span className="nyx-count-pill">{sessions.length}</span>
+            </div>
+            {sessions.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></div>
+                <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+                  Live
+                </span>
+              </div>
+            )}
+          </div>
+
           {sessions.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-sm glass-card">No active browser sessions.</div>
+            <div className="nyx-empty-state">
+              <div className="nyx-empty-state-icon">
+                <Camera className="w-8 h-8 text-[#484F58]" />
+              </div>
+              <div className="nyx-empty-state-title">No active browser sessions</div>
+              <div className="nyx-empty-state-description">
+                Launch a managed browser session above to begin
+              </div>
+            </div>
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+            <div className="nyx-sessions-list">
               {sessions.map((s) => (
-                <div key={s.session_id} className="glass-card p-3 font-mono text-xs space-y-1.5 border-l-2 border-l-cyan-400">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-cyan-300">{s.session_id}</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">ACTIVE</span>
+                <div key={s.session_id} className="nyx-session-card">
+                  <div className="nyx-session-header">
+                    <div className="flex items-center gap-2">
+                      <Monitor className="w-4 h-4 text-[#00D9FF]" />
+                      <span className="nyx-session-id">{s.session_id}</span>
+                    </div>
+                    <span className="nyx-badge nyx-badge-success">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00FF88] inline-block mr-1"></span>
+                      ACTIVE
+                    </span>
                   </div>
-                  <div>Target: <span className="text-white">{s.target}</span></div>
-                  <div>Created: <span className="text-slate-400">{s.created_at}</span></div>
+                  <div className="nyx-session-details">
+                    <div className="nyx-session-detail-row">
+                      <span className="nyx-session-detail-label">Target:</span>
+                      <span className="nyx-session-detail-value">{s.target}</span>
+                    </div>
+                    <div className="nyx-session-detail-row">
+                      <span className="nyx-session-detail-label">Created:</span>
+                      <span className="nyx-session-detail-value text-[#8B949E]">{s.created_at}</span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -117,26 +218,73 @@ export const RuntimeView: React.FC = () => {
         </div>
 
         {/* Runtime Intelligence Graph Summary */}
-        <div className="glass-panel p-6 space-y-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" /> Runtime Intelligence Graph
-          </h3>
-          <div className="space-y-3 font-mono text-xs">
-            <div className="glass-card p-3 flex justify-between items-center">
-              <span className="text-slate-400">Observed Requests:</span>
-              <span className="font-bold text-cyan-300">{runtimeGraph?.requests?.length || 0}</span>
+        <div className="nyx-card nyx-card-accent-green">
+          <div className="nyx-section-header">
+            <div className="flex items-center gap-3">
+              <div className="nyx-section-icon nyx-section-icon-green">
+                <Activity className="w-4 h-4 text-[#00FF88]" />
+              </div>
+              <h3 className="nyx-section-title">Runtime Intelligence Graph</h3>
             </div>
-            <div className="glass-card p-3 flex justify-between items-center">
-              <span className="text-slate-400">API & GraphQL Operations:</span>
-              <span className="font-bold text-emerald-300">{runtimeGraph?.apis?.length || 0}</span>
+            <div className="flex items-center gap-2">
+              <Zap className="w-3 h-3 text-[#00FF88]" />
+              <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+                Analyzing
+              </span>
             </div>
-            <div className="glass-card p-3 flex justify-between items-center">
-              <span className="text-slate-400">Discovered Parameters:</span>
-              <span className="font-bold text-amber-300">{runtimeGraph?.parameters?.length || 0}</span>
+          </div>
+
+          <div className="nyx-runtime-stats">
+            <div className="nyx-runtime-stat">
+              <div className="nyx-runtime-stat-icon">
+                <Radio className="w-4 h-4 text-[#00D9FF]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-runtime-stat-label">Observed Requests</div>
+                <div className="nyx-runtime-stat-value">{runtimeGraph?.requests?.length || 0}</div>
+              </div>
+              <div className="nyx-runtime-stat-bar">
+                <div className="nyx-runtime-stat-bar-fill" style={{ width: `${Math.min((runtimeGraph?.requests?.length || 0) * 10, 100)}%` }}></div>
+              </div>
             </div>
-            <div className="glass-card p-3 flex justify-between items-center">
-              <span className="text-slate-400">Detected Stack / Technologies:</span>
-              <span className="font-bold text-purple-300">{runtimeGraph?.technologies?.length || 0}</span>
+            
+            <div className="nyx-runtime-stat">
+              <div className="nyx-runtime-stat-icon">
+                <Code className="w-4 h-4 text-[#00FF88]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-runtime-stat-label">API & GraphQL Operations</div>
+                <div className="nyx-runtime-stat-value">{runtimeGraph?.apis?.length || 0}</div>
+              </div>
+              <div className="nyx-runtime-stat-bar">
+                <div className="nyx-runtime-stat-bar-fill" style={{ width: `${Math.min((runtimeGraph?.apis?.length || 0) * 10, 100)}%`, backgroundColor: '#00FF88' }}></div>
+              </div>
+            </div>
+            
+            <div className="nyx-runtime-stat">
+              <div className="nyx-runtime-stat-icon">
+                <Database className="w-4 h-4 text-[#FF6B35]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-runtime-stat-label">Discovered Parameters</div>
+                <div className="nyx-runtime-stat-value">{runtimeGraph?.parameters?.length || 0}</div>
+              </div>
+              <div className="nyx-runtime-stat-bar">
+                <div className="nyx-runtime-stat-bar-fill" style={{ width: `${Math.min((runtimeGraph?.parameters?.length || 0) * 10, 100)}%`, backgroundColor: '#FF6B35' }}></div>
+              </div>
+            </div>
+            
+            <div className="nyx-runtime-stat">
+              <div className="nyx-runtime-stat-icon">
+                <Cpu className="w-4 h-4 text-[#7C3AED]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-runtime-stat-label">Detected Stack / Technologies</div>
+                <div className="nyx-runtime-stat-value">{runtimeGraph?.technologies?.length || 0}</div>
+              </div>
+              <div className="nyx-runtime-stat-bar">
+                <div className="nyx-runtime-stat-bar-fill" style={{ width: `${Math.min((runtimeGraph?.technologies?.length || 0) * 10, 100)}%`, backgroundColor: '#7C3AED' }}></div>
+              </div>
             </div>
           </div>
         </div>

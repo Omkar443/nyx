@@ -5,12 +5,15 @@ Orchestrates finding lifecycle, triage, deduplication, and report generation.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from nyx.core import findings as core_findings
 
 
 class FindingService:
     """Service facade for finding lifecycle and triage management."""
+
+    def __init__(self, base_dir: Optional[Path] = None):
+        self.base_dir = base_dir
 
     def create(
         self,
@@ -22,6 +25,10 @@ class FindingService:
         tag: str = "",
         description: str = "",
         tags: list[str] | None = None,
+        task_id: str = "",
+        agent_id: str = "",
+        target: str = "",
+        evidence_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         tag_str = tag or (",".join(tags) if tags else "")
         return core_findings.create_finding(
@@ -32,6 +39,11 @@ class FindingService:
             severity=severity,
             tag=tag_str,
             description=description,
+            task_id=task_id,
+            agent_id=agent_id,
+            target=target,
+            evidence_ids=evidence_ids,
+            base_dir=self.base_dir,
         )
 
     create_finding = create
@@ -40,20 +52,20 @@ class FindingService:
         self, finding_id: str, new_state: str, reason: str = ""
     ) -> dict[str, Any]:
         return core_findings.transition_finding(
-            finding_id=finding_id, new_state=new_state, reason=reason
+            finding_id=finding_id, new_state=new_state, reason=reason, base_dir=self.base_dir
         )
 
     transition_state = transition
 
     def list_findings(
-        self, state: str | None = None, severity: str | None = None
+        self, state: str | None = None, severity: str | None = None, base_dir: Path | None = None
     ) -> dict[str, Any]:
         return core_findings.list_findings(
-            state_filter=state, severity_filter=severity
+            state_filter=state, severity_filter=severity, base_dir=base_dir or self.base_dir
         )
 
     def get_finding(self, finding_id: str) -> dict[str, Any]:
-        d = core_findings.get_finding(finding_id)
+        d = core_findings.get_finding(finding_id, base_dir=self.base_dir)
         if isinstance(d, dict):
             return d
         return {"success": True, "finding": d}
@@ -64,17 +76,19 @@ class FindingService:
         self, endpoint: str, parameter: str = "", vulnerability: str = ""
     ) -> dict[str, Any]:
         return core_findings.duplicate_check(
-            endpoint=endpoint, parameter=parameter, vulnerability=vulnerability
+            endpoint=endpoint, parameter=parameter, vulnerability=vulnerability, base_dir=self.base_dir
         )
 
     def triage(self, finding_file: str) -> dict[str, Any]:
-        return core_findings.triage_finding(finding_file=finding_file)
+        return core_findings.triage_finding(finding_file=finding_file, base_dir=self.base_dir)
+
+    triage_finding = triage
 
     def report(
         self, finding_id: str, platform: str = "h1", out: str | Path | None = None
     ) -> dict[str, Any]:
         res = core_findings.report_finding(
-            finding_id_or_path=finding_id, platform=platform
+            finding_id_or_path=finding_id, platform=platform, base_dir=self.base_dir
         )
         if isinstance(res, dict) and res.get("status") == "success" and out:
             out_p = Path(out)

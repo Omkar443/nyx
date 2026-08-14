@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { Users, Bot, ListTodo, ShieldAlert, Plus, Square, RefreshCw, CheckCircle } from 'lucide-react';
-
+import { Users, Bot, ListTodo, Plus, Square, RefreshCw, Rocket, Target, Activity, AlertCircle, Server, Cpu, Globe, Zap } from 'lucide-react';
 export const FleetView: React.FC = () => {
   const [fleetStatus, setFleetStatus] = useState<any>(null);
   const [createType, setCreateType] = useState<string>('recon');
@@ -31,133 +30,264 @@ export const FleetView: React.FC = () => {
     loadFleetData();
   }
 
+  const getAgentTypeIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'recon': return Target;
+      case 'web': return Globe;
+      case 'api': return Zap;
+      case 'technology': return Cpu;
+      case 'validation': return AlertCircle;
+      case 'reporting': return Server;
+      default: return Bot;
+    }
+  };
+
+  const getAgentStateBadge = (state: string = 'idle') => {
+    switch (state.toLowerCase()) {
+      case 'running': return 'nyx-badge-success';
+      case 'idle': return 'nyx-badge-low';
+      case 'error': return 'nyx-badge-critical';
+      case 'paused': return 'nyx-badge-high';
+      default: return 'nyx-badge-info';
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header Metrics */}
-      <div className="glass-panel p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-cyan-400" /> NYX Multi-Agent Distributed Fleet
-          </h2>
-          <p className="text-sm text-slate-400">Distributed specialized research agents with isolated sandboxes & task queue</p>
-        </div>
-        <div className="flex items-center gap-4 font-mono text-xs">
-          <div className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-cyan-300">
-            Active Agents: <span className="font-bold text-white">{fleetStatus?.total_agents || 0}</span>
+    <div className="nyx-fleet-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-purple">
+              <Users className="w-6 h-6 text-[#7C3AED]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Multi-Agent Fleet</h1>
+              <p className="nyx-page-subtitle">Distributed specialized research agents with isolated sandboxes</p>
+            </div>
           </div>
-          <div className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-emerald-300">
-            Queue Tasks: <span className="font-bold text-white">{fleetStatus?.total_tasks || 0}</span>
+          <div className="flex items-center gap-3">
+            <div className="nyx-metric-pills">
+              <div className="nyx-metric-pill">
+                <span className="nyx-pill-label">Active Agents</span>
+                <span className="nyx-pill-value text-[#00D9FF]">{fleetStatus?.total_agents || 0}</span>
+              </div>
+              <div className="nyx-metric-pill">
+                <span className="nyx-pill-label">Queue Tasks</span>
+                <span className="nyx-pill-value text-[#00FF88]">{fleetStatus?.total_tasks || 0}</span>
+              </div>
+              <div className="nyx-metric-pill">
+                <span className="nyx-pill-label">Pending Approvals</span>
+                <span className="nyx-pill-value text-[#FF6B35]">{fleetStatus?.pending_approvals_count || 0}</span>
+              </div>
+            </div>
+            <button onClick={loadFleetData} className="nyx-button nyx-button-ghost" title="Refresh">
+              <RefreshCw className="w-4 h-4" />
+            </button>
           </div>
-          <div className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-amber-300">
-            Pending Approvals: <span className="font-bold text-white">{fleetStatus?.pending_approvals_count || 0}</span>
-          </div>
-          <button onClick={loadFleetData} className="p-2 rounded bg-slate-800 text-slate-300 hover:text-white">
-            <RefreshCw className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
-      {/* Create Specialized Agent */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Plus className="w-5 h-5 text-emerald-400" /> Launch Specialized Agent Instance
-        </h3>
-        <form onSubmit={handleCreateAgent} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div>
-            <label className="text-xs font-mono text-slate-400">Specialized Agent Type</label>
-            <select
-              value={createType}
-              onChange={(e) => setCreateType(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
+      {/* Deploy Specialized Agent Card */}
+      <div className="nyx-card nyx-card-accent-purple">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-purple">
+              <Rocket className="w-4 h-4 text-[#7C3AED]" />
+            </div>
+            <h2 className="nyx-section-title">Deploy Specialized Agent</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Zap className="w-3 h-3 text-[#7C3AED]" />
+            <span className="text-[10px] font-mono text-[#7C3AED] uppercase tracking-wider">
+              Sandboxed
+            </span>
+          </div>
+        </div>
+        
+        <div className="nyx-form-container">
+          <form onSubmit={handleCreateAgent} className="nyx-form-grid">
+            <div className="nyx-form-field">
+              <label className="nyx-form-label">
+                <Bot className="w-3 h-3 text-[#7C3AED]" />
+                Specialized Agent Type
+              </label>
+              <select
+                value={createType}
+                onChange={(e) => setCreateType(e.target.value)}
+                className="nyx-select"
+              >
+                <option value="recon">ReconAgent (Asset Discovery & Endpoints)</option>
+                <option value="web">WebAgent (Web Attack Surface & Auth)</option>
+                <option value="api">APIAgent (API & IDOR Vectors)</option>
+                <option value="technology">TechnologyAgent (Stack Mapping)</option>
+                <option value="validation">ValidationAgent (Triage & 7-Question Gate)</option>
+                <option value="reporting">ReportingAgent (Submission Drafts)</option>
+              </select>
+            </div>
+            <div className="nyx-form-field">
+              <label className="nyx-form-label">
+                <Target className="w-3 h-3 text-[#00D9FF]" />
+                Target Domain Scope
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. target.com"
+                value={createTarget}
+                onChange={(e) => setCreateTarget(e.target.value)}
+                className="nyx-input"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="nyx-button nyx-button-primary nyx-button-purple nyx-button-full"
             >
-              <option value="recon">ReconAgent (Asset Discovery & Endpoints)</option>
-              <option value="web">WebAgent (Web Attack Surface & Auth)</option>
-              <option value="api">APIAgent (API & IDOR Vectors)</option>
-              <option value="technology">TechnologyAgent (Stack Mapping)</option>
-              <option value="validation">ValidationAgent (Triage & 7-Question Gate)</option>
-              <option value="reporting">ReportingAgent (Submission Drafts)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-mono text-slate-400">Target Domain Scope</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. target.com"
-              value={createTarget}
-              onChange={(e) => setCreateTarget(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-semibold text-sm rounded shadow disabled:opacity-50"
-          >
-            {loading ? 'Launching...' : 'Launch Agent'}
-          </button>
-        </form>
+              <Rocket className="w-4 h-4" />
+              <span>{loading ? 'Launching...' : 'Launch Agent'}</span>
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* Active Agent Fleet Grid */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Bot className="w-5 h-5 text-cyan-400" /> Active Fleet Instances ({fleetStatus?.agents?.length || 0})
-        </h3>
+      {/* Active Fleet Instances */}
+      <div className="nyx-card nyx-card-accent-cyan">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-cyan">
+              <Bot className="w-4 h-4 text-[#00D9FF]" />
+            </div>
+            <h3 className="nyx-section-title">Active Fleet Instances</h3>
+            <span className="nyx-count-pill">{fleetStatus?.agents?.length || 0}</span>
+          </div>
+          {fleetStatus?.agents?.length > 0 && (
+            <span className="nyx-badge nyx-badge-success">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00FF88] inline-block mr-1"></span>
+              OPERATIONAL
+            </span>
+          )}
+        </div>
+
         {(!fleetStatus?.agents || fleetStatus.agents.length === 0) ? (
-          <div className="text-center py-6 text-slate-500 text-sm glass-card">
-            No specialized agents running in fleet. Launch an instance above.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <Bot className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">Fleet is idle</div>
+            <div className="nyx-empty-state-description">
+              Launch a specialized agent above to begin distributed research
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {fleetStatus.agents.map((ag: any) => (
-              <div key={ag.agent_id} className="glass-card p-4 space-y-3 border-l-4 border-l-cyan-400">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-xs font-bold font-mono text-cyan-400">{ag.agent_id}</span>
-                    <h4 className="text-sm font-extrabold text-white capitalize">{ag.agent_type} Agent</h4>
-                    <span className="text-xs text-slate-400 font-mono">Target: <span className="text-slate-200">{ag.target}</span></span>
+          <div className="nyx-agents-grid">
+            {fleetStatus.agents.map((ag: any) => {
+              const AgentIcon = getAgentTypeIcon(ag.agent_type);
+              return (
+                <div key={ag.agent_id} className="nyx-agent-card">
+                  <div className="nyx-agent-header">
+                    <div className="flex items-center gap-3">
+                      <div className="nyx-agent-icon">
+                        <AgentIcon className="w-5 h-5 text-[#00D9FF]" />
+                      </div>
+                      <div>
+                        <span className="nyx-agent-id">{ag.agent_id}</span>
+                        <h4 className="nyx-agent-type">{ag.agent_type} Agent</h4>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleStopAgent(ag.agent_id)}
+                      className="nyx-button nyx-button-danger nyx-button-sm"
+                    >
+                      <Square className="w-3 h-3 fill-current" />
+                      <span>Stop</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleStopAgent(ag.agent_id)}
-                    className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold rounded border border-rose-500/30 flex items-center gap-1"
-                  >
-                    <Square className="w-3 h-3 fill-current" /> Stop
-                  </button>
+                  
+                  <div className="nyx-agent-details">
+                    <div className="nyx-agent-detail-row">
+                      <span className="nyx-agent-detail-label">Target:</span>
+                      <span className="nyx-agent-detail-value">{ag.target}</span>
+                    </div>
+                    <div className="nyx-agent-detail-row">
+                      <span className="nyx-agent-detail-label">State:</span>
+                      <span className={`nyx-badge ${getAgentStateBadge(ag.agent_state)}`}>
+                        {ag.agent_state}
+                      </span>
+                    </div>
+                    <div className="nyx-agent-detail-row">
+                      <span className="nyx-agent-detail-label">Skills:</span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {ag.allowed_skills?.map((skill: string, idx: number) => (
+                          <span key={idx} className="nyx-badge nyx-badge-low">{skill}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="nyx-agent-detail-row">
+                      <span className="nyx-agent-detail-label">Tools:</span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {ag.allowed_tools?.map((tool: string, idx: number) => (
+                          <span key={idx} className="nyx-badge nyx-badge-high">{tool}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400 font-mono space-y-1 bg-slate-950 p-2.5 rounded border border-slate-800">
-                  <div>State: <span className="text-emerald-300 font-bold">{ag.agent_state}</span></div>
-                  <div>Skills: <span className="text-cyan-300">{ag.allowed_skills?.join(', ')}</span></div>
-                  <div>Tools: <span className="text-amber-300">{ag.allowed_tools?.join(', ')}</span></div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Task Queue View */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <ListTodo className="w-5 h-5 text-emerald-400" /> Distributed Task Queue ({fleetStatus?.tasks?.length || 0})
-        </h3>
+      <div className="nyx-card nyx-card-accent-green">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-green">
+              <ListTodo className="w-4 h-4 text-[#00FF88]" />
+            </div>
+            <h3 className="nyx-section-title">Distributed Task Queue</h3>
+            <span className="nyx-count-pill">{fleetStatus?.tasks?.length || 0}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Activity className="w-3 h-3 text-[#00FF88]" />
+            <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+              Auto-Scheduled
+            </span>
+          </div>
+        </div>
+
         {(!fleetStatus?.tasks || fleetStatus.tasks.length === 0) ? (
-          <div className="text-center py-6 text-slate-500 text-sm glass-card">
-            No tasks queued. Tasks are scheduled dynamically by the DistributedScheduler.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <ListTodo className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No tasks queued</div>
+            <div className="nyx-empty-state-description">
+              Tasks are scheduled dynamically by the DistributedScheduler
+            </div>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="nyx-task-list">
             {fleetStatus.tasks.map((tsk: any) => (
-              <div key={tsk.task_id} className="glass-card p-3 flex justify-between items-center text-xs font-mono">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">{tsk.task_id}</span>
-                    <span className="text-white font-semibold">{tsk.task_type}</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300">Priority: {tsk.priority}</span>
+              <div key={tsk.task_id} className="nyx-task-item">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="nyx-task-id">{tsk.task_id}</span>
+                    <span className="nyx-task-type">{tsk.task_type}</span>
+                    <span className="nyx-badge nyx-badge-info">Priority: {tsk.priority}</span>
                   </div>
-                  <div className="text-slate-400">Target: <span className="text-slate-200">{tsk.target}</span> | Agent Type: <span className="text-amber-300">{tsk.agent_type}</span></div>
+                  <div className="nyx-task-detail">
+                    <span className="nyx-task-label">Target:</span>
+                    <span className="text-[#E6EDF3]">{tsk.target}</span>
+                    <span className="mx-2 text-[#484F58]">|</span>
+                    <span className="nyx-task-label">Agent:</span>
+                    <span className="text-[#FF6B35]">{tsk.agent_type}</span>
+                  </div>
                 </div>
-                <span className="px-2 py-1 rounded bg-slate-900 text-cyan-300 border border-slate-800 font-bold">
+                <span className={`nyx-badge ${getAgentStateBadge(tsk.status)}`}>
                   {tsk.status}
                 </span>
               </div>

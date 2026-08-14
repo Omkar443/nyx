@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { Server, Activity, ShieldCheck, Plus, Trash2, RefreshCw, Cpu, CheckCircle, AlertTriangle } from 'lucide-react';
-
+import { Server, Plus, Trash2, RefreshCw, Cpu, Activity, Shield, Database, Network, Lock, MonitorSmartphone } from 'lucide-react';
 export const WorkerFleetView: React.FC = () => {
   const [workerStatus, setWorkerStatus] = useState<any>(null);
   const [hostname, setHostname] = useState<string>('worker-node-1');
@@ -30,95 +29,212 @@ export const WorkerFleetView: React.FC = () => {
     loadWorkerData();
   }
 
+  const getWorkerStatusBadge = (status: string = 'OFFLINE') => {
+    switch (status.toUpperCase()) {
+      case 'ONLINE':
+        return 'nyx-badge-success';
+      case 'OFFLINE':
+        return 'nyx-badge-high';
+      case 'SYNCING':
+        return 'nyx-badge-info';
+      case 'ERROR':
+        return 'nyx-badge-critical';
+      default:
+        return 'nyx-badge-info';
+    }
+  };
+
+  const getPlatformIcon = (platform: string = 'linux') => {
+    switch (platform.toLowerCase()) {
+      case 'linux':
+        return MonitorSmartphone;
+      case 'windows':
+        return MonitorSmartphone;
+      case 'darwin':
+        return MonitorSmartphone;
+      default:
+        return Server;
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Server className="w-6 h-6 text-cyan-400" /> NYX Distributed Worker Fleet
-          </h2>
-          <p className="text-sm text-slate-400">Remote worker nodes running specialized agents with HMAC mutual authentication & SHA-256 evidence sync</p>
-        </div>
-        <div className="flex items-center gap-4 font-mono text-xs">
-          <div className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-cyan-300">
-            Total Workers: <span className="font-bold text-white">{workerStatus?.total_workers || 0}</span>
+    <div className="nyx-worker-fleet-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-cyan">
+              <Server className="w-6 h-6 text-[#00D9FF]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Remote Worker Nodes</h1>
+              <p className="nyx-page-subtitle">HMAC mutual authentication & SHA-256 evidence sync</p>
+            </div>
           </div>
-          <div className="px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-emerald-300">
-            Online Workers: <span className="font-bold text-white">{workerStatus?.online_workers || 0}</span>
+          <div className="flex items-center gap-3">
+            <div className="nyx-metric-pills">
+              <div className="nyx-metric-pill">
+                <span className="nyx-pill-label">Total Workers</span>
+                <span className="nyx-pill-value text-[#00D9FF]">{workerStatus?.total_workers || 0}</span>
+              </div>
+              <div className="nyx-metric-pill">
+                <span className="nyx-pill-label">Online Workers</span>
+                <span className="nyx-pill-value text-[#00FF88]">{workerStatus?.online_workers || 0}</span>
+              </div>
+            </div>
+            <button onClick={loadWorkerData} className="nyx-button nyx-button-ghost" title="Refresh">
+              <RefreshCw className="w-4 h-4" />
+            </button>
           </div>
-          <button onClick={loadWorkerData} className="p-2 rounded bg-slate-800 text-slate-300 hover:text-white">
-            <RefreshCw className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
-      {/* Register Worker Form */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Plus className="w-5 h-5 text-emerald-400" /> Register Remote Worker Node
-        </h3>
-        <form onSubmit={handleRegisterWorker} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div className="md:col-span-2">
-            <label className="text-xs font-mono text-slate-400">Worker Hostname / Identifier</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. worker-node-us-east-1"
-              value={hostname}
-              onChange={(e) => setHostname(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-            />
+      {/* Register Worker Form Card */}
+      <div className="nyx-card nyx-card-accent-cyan">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-green">
+              <Plus className="w-4 h-4 text-[#00FF88]" />
+            </div>
+            <h2 className="nyx-section-title">Register Remote Worker Node</h2>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-semibold text-sm rounded shadow disabled:opacity-50"
-          >
-            {loading ? 'Registering...' : 'Register Worker'}
-          </button>
-        </form>
+          <div className="flex items-center gap-2">
+            <Lock className="w-3 h-3 text-[#00D9FF]" />
+            <span className="text-[10px] font-mono text-[#00D9FF] uppercase tracking-wider">
+              HMAC Protected
+            </span>
+          </div>
+        </div>
+        
+        <div className="nyx-form-container">
+          <form onSubmit={handleRegisterWorker} className="nyx-form-inline">
+            <div className="nyx-form-field nyx-form-field-grow">
+              <label className="nyx-form-label">
+                <Server className="w-3 h-3 text-[#00D9FF]" />
+                Worker Hostname / Identifier
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. worker-node-us-east-1"
+                value={hostname}
+                onChange={(e) => setHostname(e.target.value)}
+                className="nyx-input"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="nyx-button nyx-button-primary"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{loading ? 'Registering...' : 'Register Worker'}</span>
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* Worker Grid */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Cpu className="w-5 h-5 text-cyan-400" /> Connected Worker Nodes ({workerStatus?.workers?.length || 0})
-        </h3>
+      {/* Connected Worker Nodes Grid */}
+      <div className="nyx-card nyx-card-accent-cyan">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-cyan">
+              <Cpu className="w-4 h-4 text-[#00D9FF]" />
+            </div>
+            <h3 className="nyx-section-title">Connected Worker Nodes</h3>
+            <span className="nyx-count-pill">{workerStatus?.workers?.length || 0}</span>
+          </div>
+          {workerStatus?.online_workers > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></div>
+              <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+                {workerStatus.online_workers} Online
+              </span>
+            </div>
+          )}
+        </div>
+
         {(!workerStatus?.workers || workerStatus.workers.length === 0) ? (
-          <div className="text-center py-6 text-slate-500 text-sm glass-card">
-            No remote worker nodes registered. Register a node above.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <Server className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No remote worker nodes registered</div>
+            <div className="nyx-empty-state-description">
+              Register a worker node above to scale task execution
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {workerStatus.workers.map((w: any) => (
-              <div key={w.worker_id} className="glass-card p-4 space-y-3 border-l-4 border-l-cyan-400">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-xs font-bold font-mono text-cyan-400">{w.worker_id}</span>
-                    <h4 className="text-sm font-extrabold text-white">{w.hostname}</h4>
-                    <span className="text-xs text-slate-400 font-mono">Platform: <span className="text-slate-200">{w.platform}</span></span>
+          <div className="nyx-workers-grid">
+            {workerStatus.workers.map((w: any) => {
+              const PlatformIcon = getPlatformIcon(w.platform);
+              return (
+                <div key={w.worker_id} className="nyx-worker-card">
+                  <div className="nyx-worker-header">
+                    <div className="flex items-center gap-3">
+                      <div className="nyx-worker-icon">
+                        <PlatformIcon className="w-5 h-5 text-[#00D9FF]" />
+                      </div>
+                      <div>
+                        <span className="nyx-worker-id">{w.worker_id}</span>
+                        <h4 className="nyx-worker-hostname">{w.hostname}</h4>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveWorker(w.worker_id)}
+                      className="nyx-button nyx-button-danger nyx-button-sm"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleRemoveWorker(w.worker_id)}
-                    className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold rounded border border-rose-500/30 flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" /> Remove
-                  </button>
-                </div>
-                <div className="text-xs font-mono space-y-1 bg-slate-950 p-2.5 rounded border border-slate-800">
-                  <div className="flex items-center gap-2">
-                    Status: 
-                    <span className={`px-2 py-0.5 rounded font-bold ${w.status === 'ONLINE' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
-                      {w.status}
-                    </span>
+                  
+                  <div className="nyx-worker-details">
+                    <div className="nyx-worker-detail-row">
+                      <span className="nyx-worker-detail-label">
+                        <MonitorSmartphone className="w-3 h-3 text-[#8B949E]" />
+                        Platform:
+                      </span>
+                      <span className="nyx-worker-detail-value">{w.platform}</span>
+                    </div>
+                    <div className="nyx-worker-detail-row">
+                      <span className="nyx-worker-detail-label">
+                        <Activity className="w-3 h-3 text-[#8B949E]" />
+                        Status:
+                      </span>
+                      <span className={`nyx-badge ${getWorkerStatusBadge(w.status)}`}>
+                        {w.status}
+                      </span>
+                    </div>
+                    <div className="nyx-worker-detail-row">
+                      <span className="nyx-worker-detail-label">
+                        <Database className="w-3 h-3 text-[#8B949E]" />
+                        Supported Agents:
+                      </span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {w.agents_supported?.map((agent: string, idx: number) => (
+                          <span key={idx} className="nyx-badge nyx-badge-low">{agent}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="nyx-worker-detail-row">
+                      <span className="nyx-worker-detail-label">
+                        <Network className="w-3 h-3 text-[#8B949E]" />
+                        Last Heartbeat:
+                      </span>
+                      <span className="nyx-worker-detail-value text-[#8B949E]">{w.last_seen}</span>
+                    </div>
                   </div>
-                  <div>Supported Agents: <span className="text-cyan-300">{w.agents_supported?.join(', ')}</span></div>
-                  <div>Last Heartbeat: <span className="text-slate-400">{w.last_seen}</span></div>
-                  <div className="text-[10px] text-slate-500 truncate">Auth Token: {w.auth_token}</div>
+                  
+                  <div className="nyx-worker-auth">
+                    <Shield className="w-3 h-3 text-[#484F58]" />
+                    <span className="nyx-worker-auth-token">{w.auth_token}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

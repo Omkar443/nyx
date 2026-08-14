@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi, getStoredToken, setStoredToken } from '../api/client';
-import { Settings, ShieldCheck, Key, Database, Cpu } from 'lucide-react';
-
+import { Settings, ShieldCheck, Key, Server, Database, Lock, Activity, CheckCircle, Cpu, HardDrive, Globe, Info } from 'lucide-react';
 export const SettingsView: React.FC = () => {
   const [health, setHealth] = useState<any>(null);
   const [tokenInput, setTokenInput] = useState<string>(getStoredToken());
@@ -23,71 +22,196 @@ export const SettingsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-slate-400" /> Platform Configuration & System Health
-          </h2>
-          <p className="text-sm text-slate-400">NYX engine version, local authentication settings, and workspace status</p>
+    <div className="nyx-settings-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-blue">
+              <Settings className="w-6 h-6 text-[#58A6FF]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Platform Configuration & System Health</h1>
+              <p className="nyx-page-subtitle">NYX engine version, local authentication settings, and workspace status</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#00FF88]" />
+            <span className="nyx-badge nyx-badge-success">SYSTEM OPERATIONAL</span>
+          </div>
+        </div>
+      </div>
+
+      {/* System Status Stats */}
+      <div className="nyx-stats-overview">
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-green">
+            <CheckCircle className="w-4 h-4 text-[#00FF88]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">1.0.0</div>
+            <div className="nyx-stat-label">NYX Version</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-cyan">
+            <Database className="w-4 h-4 text-[#00D9FF]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">Active</div>
+            <div className="nyx-stat-label">Workspace</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-amber">
+            <Lock className="w-4 h-4 text-[#FF6B35]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">Secure</div>
+            <div className="nyx-stat-label">Auth Token</div>
+          </div>
         </div>
       </div>
 
       {/* System Status Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass-panel p-6 space-y-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" /> System Health Status
-          </h3>
-          <div className="space-y-2 text-xs font-mono">
-            <div className="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400">NYX Version</span>
-              <span className="text-emerald-300 font-bold">{health?.version || '1.0.0'}</span>
+      <div className="nyx-content-grid">
+        {/* System Health Status */}
+        <div className="nyx-card nyx-card-accent-green">
+          <div className="nyx-section-header">
+            <div className="flex items-center gap-3">
+              <div className="nyx-section-icon nyx-section-icon-green">
+                <ShieldCheck className="w-4 h-4 text-[#00FF88]" />
+              </div>
+              <h3 className="nyx-section-title">System Health Status</h3>
             </div>
-            <div className="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400">Application Name</span>
-              <span className="text-white">{health?.app_name || 'NYX Security Operations Dashboard'}</span>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></div>
+              <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+                Healthy
+              </span>
             </div>
-            <div className="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400">Authentication</span>
-              <span className="text-cyan-300">ENABLED (Local Token)</span>
+          </div>
+          
+          <div className="nyx-health-list">
+            <div className="nyx-health-item">
+              <div className="nyx-health-icon">
+                <Cpu className="w-4 h-4 text-[#00FF88]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-health-label">NYX Version</div>
+                <div className="nyx-health-value">{health?.version || '1.0.0'}</div>
+              </div>
+              <span className="nyx-badge nyx-badge-success">STABLE</span>
             </div>
-            <div className="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
-              <span className="text-slate-400">Active Workspace</span>
-              <span className="text-emerald-300">.engagement/</span>
+            
+            <div className="nyx-health-item">
+              <div className="nyx-health-icon">
+                <Server className="w-4 h-4 text-[#E6EDF3]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-health-label">Application Name</div>
+                <div className="nyx-health-value">{health?.app_name || 'NYX Security Operations Dashboard'}</div>
+              </div>
+            </div>
+            
+            <div className="nyx-health-item">
+              <div className="nyx-health-icon">
+                <ShieldCheck className="w-4 h-4 text-[#00D9FF]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-health-label">Authentication</div>
+                <div className="nyx-health-value">ENABLED (Local Token)</div>
+              </div>
+              <span className="nyx-badge nyx-badge-info">ACTIVE</span>
+            </div>
+            
+            <div className="nyx-health-item">
+              <div className="nyx-health-icon">
+                <HardDrive className="w-4 h-4 text-[#00FF88]" />
+              </div>
+              <div className="flex-1">
+                <div className="nyx-health-label">Active Workspace</div>
+                <div className="nyx-health-value">.engagement/</div>
+              </div>
+              <span className="nyx-badge nyx-badge-success">MOUNTED</span>
             </div>
           </div>
         </div>
 
         {/* API Token Config */}
-        <div className="glass-panel p-6 space-y-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <Key className="w-5 h-5 text-amber-400" /> Local API Authentication Token
-          </h3>
-          <form onSubmit={handleSaveToken} className="space-y-3">
-            <div>
-              <label className="text-xs font-mono text-slate-400">Active API Token</label>
-              <input
-                type="password"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-              />
+        <div className="nyx-card nyx-card-accent-amber">
+          <div className="nyx-section-header">
+            <div className="flex items-center gap-3">
+              <div className="nyx-section-icon nyx-section-icon-amber">
+                <Key className="w-4 h-4 text-[#FF6B35]" />
+              </div>
+              <h3 className="nyx-section-title">Local API Authentication Token</h3>
             </div>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-semibold text-sm rounded shadow"
-            >
-              Save Token
-            </button>
-            {tokenSaved && (
-              <span className="text-xs text-emerald-400 font-mono ml-3">Token saved to local storage!</span>
-            )}
-          </form>
-          <div className="text-xs text-slate-400 bg-slate-900/60 p-3 rounded border border-slate-800 font-mono">
-            API token is configured locally in memory/env and never exposed in logs or network tracebacks.
+            <div className="flex items-center gap-2">
+              <Lock className="w-3 h-3 text-[#FF6B35]" />
+              <span className="text-[10px] font-mono text-[#FF6B35] uppercase tracking-wider">
+                Encrypted
+              </span>
+            </div>
           </div>
+          
+          <form onSubmit={handleSaveToken} className="nyx-form-container">
+            <div className="nyx-form-field">
+              <label className="nyx-form-label">
+                <Key className="w-3 h-3 text-[#FF6B35]" />
+                Active API Token
+              </label>
+              <div className="nyx-token-input-container">
+                <input
+                  type="password"
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  className="nyx-input nyx-token-input"
+                  placeholder="Enter API token..."
+                />
+                <Lock className="w-4 h-4 text-[#484F58] absolute right-3 top-1/2 transform -translate-y-1/2" />
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                className="nyx-button nyx-button-primary"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Save Token
+              </button>
+              {tokenSaved && (
+                <div className="nyx-token-saved">
+                  <CheckCircle className="w-4 h-4 text-[#00FF88]" />
+                  <span>Token saved to local storage!</span>
+                </div>
+              )}
+            </div>
+          </form>
+          
+          <div className="nyx-token-note">
+            <Info className="w-3.5 h-3.5 text-[#58A6FF]" />
+            <span>API token is configured locally in memory/env and never exposed in logs or network tracebacks.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* System Info Footer */}
+      <div className="nyx-system-footer">
+        <div className="flex items-center gap-2">
+          <Globe className="w-3 h-3 text-[#484F58]" />
+          <span className="text-[10px] font-mono text-[#484F58] uppercase tracking-wider">
+            NYX Security Intelligence Engine v1.0 Continuous
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Activity className="w-3 h-3 text-[#00FF88]" />
+          <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
+            All Systems Operational
+          </span>
         </div>
       </div>
     </div>

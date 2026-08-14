@@ -3,8 +3,10 @@ NYX FastAPI Web Application Core
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict
 
@@ -19,6 +21,23 @@ from nyx.web.routes import ALL_ROUTERS
 from nyx.web.schemas import HealthResponse, ErrorResponse, ErrorDetail
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Modern FastAPI lifespan context manager replacing deprecated on_event handlers."""
+    from nyx.worker.daemon import WorkerDaemon
+    daemon = WorkerDaemon(worker_id="WRK-WEB-DAEMON")
+    app.state.worker_daemon = daemon
+    daemon_task = asyncio.create_task(
+        daemon.start_async_loop(poll_interval=1.0)
+    )
+    app.state.worker_daemon_task = daemon_task
+    try:
+        yield
+    finally:
+        daemon.stop()
+        daemon_task.cancel()
+
+
 def create_app() -> FastAPI:
     """Create and configure NYX FastAPI web application."""
     app = FastAPI(
@@ -27,6 +46,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url="/api/docs",
         redoc_url="/api/redoc",
+        lifespan=lifespan,
     )
 
     # Restricted CORS configuration (never defaults to '*' for authenticated APIs)
@@ -75,18 +95,20 @@ def create_app() -> FastAPI:
             content=ErrorResponse(error=err_detail).dict(),
         )
 
-    # Unauthenticated Health Endpoint
+    # Unauthenticated Health Endpoints
     @app.get("/health", response_model=HealthResponse, tags=["System"])
+    @app.get("/api/v1/health", response_model=HealthResponse, tags=["System"])
     async def health_check() -> Dict[str, Any]:
         """Unauthenticated health check endpoint."""
-        token_active = bool(get_or_create_api_token())
+        tok = get_or_create_api_token()
         return {
             "status": "ok",
             "version": "1.0.0",
             "app_name": "NYX Security Operations Dashboard",
             "workspace_active": True,
             "target": os.environ.get("NYX_TARGET", "example.com"),
-            "authentication_enabled": token_active,
+            "authentication_enabled": bool(tok),
+            "api_token": tok,
         }
 
     # Authenticated WebSocket Endpoint

@@ -12,9 +12,9 @@ from nyx.agent.manager.controller import AgentController
 class FleetService(BaseService):
     """Service facade for multi-agent distributed research platform."""
 
-    def __init__(self, provider_name: Optional[str] = None):
+    def __init__(self, provider_name: Optional[str] = None, base_dir: Optional[Path] = None):
         super().__init__()
-        self.controller = AgentController(provider_name=provider_name)
+        self.controller = AgentController(provider_name=provider_name, base_dir=base_dir)
 
     def create_agent(self, type: str, target: str) -> ServiceResult:
         res = self.controller.create_agent(type=type, target=target)

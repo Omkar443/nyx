@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { FileText, ShieldCheck, Eye, CheckCircle2, Lock } from 'lucide-react';
-
+import { FileText, ShieldCheck, Eye, CheckCircle2, Lock, Database, Hash, Key, FileCode, X } from 'lucide-react';
 export const EvidenceView: React.FC = () => {
   const [evidenceList, setEvidenceList] = useState<any[]>([]);
   const [selectedEv, setSelectedEv] = useState<any>(null);
   const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
 
   async function loadEvidence() {
-    // Collect findings to gather evidence IDs
     const fRes = await fetchApi('/api/v1/findings');
     if (fRes.success && fRes.data?.findings) {
       const allEv: any[] = [];
@@ -42,89 +40,229 @@ export const EvidenceView: React.FC = () => {
     }
   }
 
+  const getEvidenceTypeIcon = (type: string = 'note') => {
+    switch (type.toLowerCase()) {
+      case 'screenshot':
+        return FileCode;
+      case 'request':
+        return Hash;
+      case 'response':
+        return Database;
+      case 'poc':
+        return Key;
+      default:
+        return FileText;
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <FileText className="w-6 h-6 text-purple-400" /> Evidence Vault & Cryptographic Integrity
-          </h2>
-          <p className="text-sm text-slate-400">Sanitized PoC evidence artifacts and SHA-256 checksum integrity verification</p>
+    <div className="nyx-evidence-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-purple">
+              <ShieldCheck className="w-6 h-6 text-[#7C3AED]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Evidence Vault & Integrity</h1>
+              <p className="nyx-page-subtitle">Sanitized PoC evidence artifacts and SHA-256 checksum integrity verification</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-[#00FF88]" />
+            <span className="nyx-badge nyx-badge-success">INTEGRITY PROTECTED</span>
+          </div>
         </div>
       </div>
 
       {verifyStatus && (
-        <div className="p-4 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-sm font-mono flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" /> {verifyStatus}
+        <div className="nyx-verify-status">
+          <CheckCircle2 className="w-4 h-4 text-[#00FF88]" />
+          <span>{verifyStatus}</span>
+          <button onClick={() => setVerifyStatus(null)} className="nyx-verify-close">
+            <X className="w-3 h-3" />
+          </button>
         </div>
       )}
 
+      {/* Evidence Stats */}
+      <div className="nyx-stats-overview">
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-purple">
+            <FileText className="w-4 h-4 text-[#7C3AED]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{evidenceList.length}</div>
+            <div className="nyx-stat-label">Total Artifacts</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-green">
+            <ShieldCheck className="w-4 h-4 text-[#00FF88]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">100%</div>
+            <div className="nyx-stat-label">Sanitized</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-cyan">
+            <Hash className="w-4 h-4 text-[#00D9FF]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">SHA-256</div>
+            <div className="nyx-stat-label">Hash Verified</div>
+          </div>
+        </div>
+      </div>
+
       {/* Evidence Table */}
-      <div className="glass-panel p-6">
+      <div className="nyx-card nyx-card-accent-purple">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-purple">
+              <FileText className="w-4 h-4 text-[#7C3AED]" />
+            </div>
+            <h3 className="nyx-section-title">Evidence Artifacts</h3>
+            <span className="nyx-count-pill">{evidenceList.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Database className="w-3 h-3 text-[#7C3AED]" />
+            <span className="text-[10px] font-mono text-[#7C3AED] uppercase tracking-wider">
+              Vault Secured
+            </span>
+          </div>
+        </div>
+
         {evidenceList.length === 0 ? (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            No evidence artifacts recorded in active workspace.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <FileText className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No evidence artifacts recorded</div>
+            <div className="nyx-empty-state-description">
+              Evidence is attached during vulnerability validation phase
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300 font-mono">
-              <thead className="bg-slate-900/80 text-xs text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="p-3">Evidence ID</th>
-                  <th className="p-3">Finding ID</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3">Sanitization</th>
-                  <th className="p-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {evidenceList.map((ev: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-800/40">
-                    <td className="p-3 font-semibold text-purple-300">{ev.evidence_id || ev.id || `EV-${idx+1}`}</td>
-                    <td className="p-3 text-cyan-300">{ev.finding_id || 'N/A'}</td>
-                    <td className="p-3 text-slate-400 uppercase text-xs">{ev.type || 'note'}</td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 text-xs rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit">
-                        <Lock className="w-3 h-3" /> Sanitized
+          <div className="nyx-evidence-list">
+            <div className="nyx-evidence-header">
+              <div className="nyx-evidence-header-item">Evidence ID</div>
+              <div className="nyx-evidence-header-item">Finding ID</div>
+              <div className="nyx-evidence-header-item">Type</div>
+              <div className="nyx-evidence-header-item">Sanitization</div>
+              <div className="nyx-evidence-header-item">Actions</div>
+            </div>
+            <div className="nyx-evidence-body">
+              {evidenceList.map((ev: any, idx: number) => {
+                const TypeIcon = getEvidenceTypeIcon(ev.type);
+                return (
+                  <div key={idx} className="nyx-evidence-row group">
+                    <div className="nyx-evidence-cell nyx-evidence-id">
+                      <FileText className="w-3 h-3 text-[#7C3AED]" />
+                      <span>{ev.evidence_id || ev.id || `EV-${idx+1}`}</span>
+                    </div>
+                    <div className="nyx-evidence-cell nyx-evidence-finding">
+                      {ev.finding_id || 'N/A'}
+                    </div>
+                    <div className="nyx-evidence-cell">
+                      <span className="nyx-badge nyx-badge-info">
+                        <TypeIcon className="w-3 h-3" />
+                        {ev.type || 'note'}
                       </span>
-                    </td>
-                    <td className="p-3 flex items-center gap-2">
+                    </div>
+                    <div className="nyx-evidence-cell">
+                      <span className="nyx-badge nyx-badge-success">
+                        <Lock className="w-3 h-3" />
+                        Sanitized
+                      </span>
+                    </div>
+                    <div className="nyx-evidence-cell nyx-evidence-actions">
                       <button
                         onClick={() => handleViewDetails(ev.evidence_id || ev.id)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded flex items-center gap-1"
+                        className="nyx-button nyx-button-secondary nyx-button-sm"
                       >
-                        <Eye className="w-3.5 h-3.5" /> View
+                        <Eye className="w-3.5 h-3.5" />
+                        View
                       </button>
                       <button
                         onClick={() => handleVerifyHash(ev.evidence_id || ev.id)}
-                        className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-xs text-purple-300 rounded border border-purple-500/30 flex items-center gap-1"
+                        className="nyx-button nyx-button-verify nyx-button-sm"
                       >
-                        <ShieldCheck className="w-3.5 h-3.5" /> Verify Hash
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Verify Hash
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
 
       {/* Detail Modal */}
       {selectedEv && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="glass-panel p-6 w-full max-w-xl space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-white font-mono">{selectedEv.evidence_id}</h3>
-              <button onClick={() => setSelectedEv(null)} className="text-slate-400 hover:text-white">✕</button>
+        <div className="nyx-modal-overlay">
+          <div className="nyx-modal">
+            <div className="nyx-modal-header">
+              <div className="flex items-center gap-3">
+                <div className="nyx-modal-icon">
+                  <FileCode className="w-5 h-5 text-[#7C3AED]" />
+                </div>
+                <div>
+                  <h3 className="nyx-modal-title">{selectedEv.evidence_id}</h3>
+                  <span className="nyx-badge nyx-badge-success">
+                    <Lock className="w-3 h-3" />
+                    SANITIZED
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setSelectedEv(null)} className="nyx-modal-close">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="text-slate-400">SHA-256 Hash: <span className="text-emerald-300">{selectedEv.sha256 || 'Calculated on read'}</span></div>
-              <div className="text-slate-400">Sanitization Status: <span className="text-cyan-300">Sanitized (Redacted Auth Tokens / PII)</span></div>
-            </div>
-            <div className="bg-slate-950 p-4 rounded text-xs text-slate-200 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
-              {selectedEv.content || selectedEv.description || 'No raw content preview'}
+            
+            <div className="nyx-modal-content">
+              <div className="nyx-modal-details">
+                <div className="nyx-modal-detail-row">
+                  <div className="nyx-modal-detail-icon">
+                    <Hash className="w-4 h-4 text-[#00FF88]" />
+                  </div>
+                  <div>
+                    <div className="nyx-modal-detail-label">SHA-256 Hash</div>
+                    <div className="nyx-modal-detail-value">
+                      {selectedEv.sha256 || 'Calculated on read'}
+                    </div>
+                  </div>
+                </div>
+                <div className="nyx-modal-detail-row">
+                  <div className="nyx-modal-detail-icon">
+                    <ShieldCheck className="w-4 h-4 text-[#00D9FF]" />
+                  </div>
+                  <div>
+                    <div className="nyx-modal-detail-label">Sanitization Status</div>
+                    <div className="nyx-modal-detail-value">
+                      Sanitized (Redacted Auth Tokens / PII)
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="nyx-modal-preview">
+                <div className="nyx-modal-preview-header">
+                  <FileCode className="w-3 h-3 text-[#8B949E]" />
+                  <span className="text-[10px] font-mono text-[#8B949E] uppercase tracking-wider">
+                    Content Preview
+                  </span>
+                </div>
+                <div className="nyx-modal-preview-content">
+                  {selectedEv.content || selectedEv.description || 'No raw content preview'}
+                </div>
+              </div>
             </div>
           </div>
         </div>

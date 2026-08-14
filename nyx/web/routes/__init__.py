@@ -3,6 +3,7 @@ NYX Web API Router Package
 """
 from __future__ import annotations
 
+from nyx.web.routes.auth import router as auth_router
 from nyx.web.routes.mission import router as mission_router
 from nyx.web.routes.surface import router as surface_router
 from nyx.web.routes.findings import router as findings_router
@@ -16,6 +17,7 @@ from nyx.web.routes.browser import router as browser_router
 from nyx.web.routes.continuous import router as continuous_router
 
 ALL_ROUTERS = [
+    auth_router,
     mission_router,
     surface_router,
     findings_router,

@@ -16,6 +16,7 @@ class HealthResponse(BaseModel):
     workspace_active: bool = False
     target: Optional[str] = None
     authentication_enabled: bool = True
+    api_token: Optional[str] = None
 
 
 class ErrorDetail(BaseModel):

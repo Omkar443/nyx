@@ -163,6 +163,131 @@ def classify_url(url: str) -> dict[str, Any]:
     }
 
 
+def score_endpoint(ep_str: str) -> tuple[int, str]:
+    """Score an endpoint string based on attack surface priority rules.
+    Returns (score, reason).
+    """
+    ep_lower = ep_str.lower()
+    parsed = urllib.parse.urlparse(ep_lower)
+    path = parsed.path or ep_lower
+    query = parsed.query
+
+    # Low priority checks
+    static_exts = (
+        ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg",
+        ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".pdf"
+    )
+    if any(path.endswith(ext) for ext in static_exts):
+        return 10, "Static asset (low attack surface priority)"
+
+    # High priority checks
+    reasons = []
+    score = 50
+
+    # API endpoints (/api/, /graphql, /v1/, /rest/)
+    if re.search(r"/(api|rest|v[0-9]+|graphql)(/|\?|$)", path) or "graphql" in ep_lower:
+        score += 35
+        reasons.append("API / GraphQL endpoint")
+
+    # Authentication paths (/login, /auth, /oauth, /sso)
+    if re.search(r"/(login|signin|signup|auth|oauth|sso|saml|forgot|reset)(/|\?|$)", path):
+        score += 35
+        reasons.append("Authentication / Identity management flow")
+
+    # Admin panels
+    if re.search(r"/(admin|management|dashboard|console|internal|debug|staging|dev)(/|\?|$)", path):
+        score += 35
+        reasons.append("Admin / Management portal")
+
+    # File upload functionality
+    if re.search(r"/(upload|avatar|file|attachment|import|document|media)(/|\?|$)", path):
+        score += 30
+        reasons.append("File upload / document processing endpoint")
+
+    # Parameters with user-controlled input
+    if query or "?" in ep_str:
+        score += 15
+        reasons.append("User-controlled query parameters present")
+
+    if score > 50:
+        return min(score, 100), "; ".join(reasons)
+
+    # Medium priority checks
+    if re.search(r"\.(php|aspx?|jsp|cgi)$", path):
+        return 45, "Dynamic server-side script endpoint"
+
+    if any(segment in path for segment in ["/app/", "/dashboard/", "/user/", "/profile/", "/account/", "/checkout/", "/cart/"]):
+        return 40, "Interactive user route / SPA path"
+
+    return 30, "Standard web route"
+
+
+def rank_surface(target: str, manifest: str | Path | None = None) -> dict[str, Any]:
+    """Rank discovered endpoints for a target based on attack surface analysis."""
+    surf_res = get_surface(target, manifest)
+    if surf_res.get("status") == "error":
+        return surf_res
+
+    m = surf_res.get("manifest", {})
+    endpoints = []
+
+    # Gather endpoints from manifest
+    if "endpoints" in m and isinstance(m["endpoints"], list):
+        endpoints.extend(m["endpoints"])
+
+    if "hosts" in m and isinstance(m["hosts"], list):
+        for h in m["hosts"]:
+            url = h.get("url") if isinstance(h, dict) else str(h)
+            if url and url not in endpoints:
+                endpoints.append(url)
+
+    if "subdomains" in m and isinstance(m["subdomains"], list):
+        for sub in m["subdomains"]:
+            url = f"https://{sub}"
+            if url not in endpoints:
+                endpoints.append(url)
+
+    has_manifest_keys = any(k in m for k in ("endpoints", "hosts", "subdomains"))
+    # Only check engagement memory if manifest didn't explicitly specify endpoint lists
+    if not endpoints and not has_manifest_keys:
+        d = _get_eng_dir()
+        if d.exists():
+            e_file = d / "endpoints.json"
+            if e_file.exists():
+                try:
+                    e_data = json.loads(e_file.read_text(encoding="utf-8"))
+                    for item in e_data:
+                        u = item.get("url") if isinstance(item, dict) else str(item)
+                        if u and u not in endpoints:
+                            endpoints.append(u)
+                except Exception:
+                    pass
+
+    rankings = []
+    seen = set()
+    for ep in endpoints:
+        ep_str = ep.get("url") if isinstance(ep, dict) else str(ep)
+        if not ep_str or ep_str in seen:
+            continue
+        seen.add(ep_str)
+        score, reason = score_endpoint(ep_str)
+        rankings.append({
+            "endpoint": ep_str,
+            "score": score,
+            "reason": reason,
+        })
+
+    # Sort descending by score
+    rankings.sort(key=lambda x: x["score"], reverse=True)
+
+    return {
+        "status": "success",
+        "target": target,
+        "manifest_path": surf_res.get("manifest_path"),
+        "rankings": rankings,
+    }
+
+
 def get_surface(
     target: str, manifest: str | Path | None = None
 ) -> dict[str, Any]:
@@ -206,11 +331,35 @@ def get_technology_map(technology: str | None = None) -> dict[str, Any]:
                 "message": f"No technology mapping found for: {technology}",
                 "available": avail,
             }
+        
+        raw_text = tf.read_text(encoding="utf-8")
+        import yaml
+        try:
+            data = yaml.safe_load(raw_text) or {}
+        except Exception:
+            data = {}
+
+        tech_name = data.get("technology", technology)
+        category = "API" if technology.lower() in ("graphql", "grpc", "rest") else "Framework / Infrastructure"
+        
+        attack_surface = data.get("attack_surface", [])
+        vulnerabilities = data.get("vulnerabilities", [])
+        skills_to_load = data.get("skills_to_load", [])
+        
+        vectors = []
+        for surf in attack_surface:
+            vectors.append({"name": str(surf), "description": f"{tech_name} attack vector on {surf}"})
+        for vuln in vulnerabilities:
+            vectors.append({"name": str(vuln), "description": f"Potential {vuln} in {tech_name}"})
+
         return {
             "status": "success",
-            "technology": technology,
+            "technology": tech_name,
+            "category": category,
             "path": str(tf),
-            "content": tf.read_text(encoding="utf-8"),
+            "vectors": vectors,
+            "recommended_skills": skills_to_load,
+            "content": raw_text,
         }
     else:
         avail_paths = list(maps_dir.glob("*.yaml")) if maps_dir.exists() else []
@@ -309,6 +458,7 @@ def decision_context(
     return {
         "status": "success",
         "target": target_name,
+        "endpoint": ep,
         "technologies": list(set(techs)),
         "surface": rec.get("attack_surface"),
         "recommended_skills": rec.get("recommended_skills"),

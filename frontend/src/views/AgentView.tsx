@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { Bot, CheckCircle, XCircle, Play, ShieldAlert, Sparkles, Clock, ArrowRight } from 'lucide-react';
-
+import { Bot, CheckCircle, XCircle, Play, ShieldAlert, Sparkles, Clock, ArrowRight, Brain, Zap, Lock } from 'lucide-react';
 export const AgentView: React.FC = () => {
   const [status, setStatus] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
@@ -55,64 +54,123 @@ export const AgentView: React.FC = () => {
     loadAgentData();
   }
 
+  const getAgentStateBadge = (state: string = 'IDLE') => {
+    switch (state.toLowerCase()) {
+      case 'running':
+        return 'nyx-badge-success';
+      case 'planning':
+        return 'nyx-badge-info';
+      case 'waiting_approval':
+        return 'nyx-badge-high';
+      case 'idle':
+        return 'nyx-badge-low';
+      default:
+        return 'nyx-badge-info';
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Bot className="w-6 h-6 text-cyan-400" /> NYX Autonomous Research Agent
-          </h2>
-          <p className="text-sm text-slate-400">Policy-checked research planner with mandatory human approval gates</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="px-3 py-1.5 text-xs font-semibold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
-            State: {status?.agent_state || 'IDLE'}
-          </span>
-          <button
-            onClick={handleStartMission}
-            disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-semibold rounded-lg text-sm flex items-center gap-2 disabled:opacity-50"
-          >
-            <Play className="w-4 h-4 fill-current" /> {loading ? 'Starting...' : 'Start Research Mission'}
-          </button>
+    <div className="nyx-agent-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-purple">
+              <Brain className="w-6 h-6 text-[#7C3AED]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">AI Agent Assistant</h1>
+              <p className="nyx-page-subtitle">Policy-checked research planner with mandatory human approval gates</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="nyx-status-pill">
+              <div className={`nyx-status-dot ${status?.agent_state === 'RUNNING' ? 'nyx-status-dot-live' : 'nyx-status-dot-idle'}`}></div>
+              <span className={`nyx-badge ${getAgentStateBadge(status?.agent_state || 'IDLE')}`}>
+                {status?.agent_state || 'IDLE'}
+              </span>
+            </div>
+            <button
+              onClick={handleStartMission}
+              disabled={loading}
+              className="nyx-button nyx-button-primary"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>{loading ? 'Starting...' : 'Start Research Mission'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Human Approval Queue */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-amber-400" /> Human Approval Queue ({approvals.length})
-        </h3>
+      <div className="nyx-card nyx-card-accent-amber">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-amber">
+              <ShieldAlert className="w-4 h-4 text-[#FF6B35]" />
+            </div>
+            <h3 className="nyx-section-title">Human Approval Queue</h3>
+            <span className="nyx-count-pill">{approvals.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Lock className="w-3 h-3 text-[#484F58]" />
+            <span className="text-[10px] font-mono text-[#484F58] uppercase tracking-wider">
+              Mandatory Sign-off
+            </span>
+          </div>
+        </div>
+
         {approvals.length === 0 ? (
-          <div className="text-center py-6 text-slate-500 text-sm glass-card">
-            No actions pending human sign-off. All active executions require explicit approval.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <ShieldAlert className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No actions pending human sign-off</div>
+            <div className="nyx-empty-state-description">
+              All active executions require explicit approval before execution
+            </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="nyx-approval-list">
             {approvals.map((app: any) => (
-              <div key={app.action_id} className="glass-card p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-4 border-l-amber-400">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-amber-400 font-mono">{app.action_id}</span>
-                    <span className="text-sm font-semibold text-white">{app.action}</span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono">{app.tool_name}</span>
+              <div key={app.action_id} className="nyx-approval-item">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="nyx-approval-id">{app.action_id}</span>
+                    <span className="nyx-approval-action">{app.action}</span>
+                    <span className="nyx-badge nyx-badge-low">{app.tool_name}</span>
                   </div>
-                  <div className="text-xs text-slate-400 font-mono">Reasoning: <span className="text-slate-300">{app.reason}</span></div>
-                  <div className="text-xs text-slate-500 font-mono">Risk Level: <span className="text-amber-300 font-semibold">{app.risk || 'Medium'}</span> | Confidence: <span className="text-emerald-300">{app.confidence || 85}%</span></div>
+                  <div className="nyx-approval-detail">
+                    <span className="nyx-approval-label">Reasoning:</span>
+                    <span className="text-[#E6EDF3]">{app.reason}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="nyx-approval-detail">
+                      <span className="nyx-approval-label">Risk:</span>
+                      <span className="nyx-badge nyx-badge-high">{app.risk || 'Medium'}</span>
+                    </div>
+                    <div className="nyx-approval-detail">
+                      <span className="nyx-approval-label">Confidence:</span>
+                      <span className="nyx-badge nyx-badge-success">{app.confidence || 85}%</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => handleApprove(app.action_id)}
-                    className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold rounded border border-emerald-500/30 flex items-center gap-1"
+                    className="nyx-button nyx-button-success"
                   >
-                    <CheckCircle className="w-3.5 h-3.5" /> Approve
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Approve</span>
                   </button>
                   <button
                     onClick={() => handleDeny(app.action_id)}
-                    className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold rounded border border-rose-500/30 flex items-center gap-1"
+                    className="nyx-button nyx-button-danger"
                   >
-                    <XCircle className="w-3.5 h-3.5" /> Deny
+                    <XCircle className="w-4 h-4" />
+                    <span>Deny</span>
                   </button>
                 </div>
               </div>
@@ -122,80 +180,143 @@ export const AgentView: React.FC = () => {
       </div>
 
       {/* Propose Action Form */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-cyan-400" /> Propose Security Action
-        </h3>
-        <form onSubmit={handleProposeAction} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div>
-            <label className="text-xs font-mono text-slate-400">Proposed Action</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Test IDOR vulnerability on user API"
-              value={proposeAction}
-              onChange={(e) => setProposeAction(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-            />
+      <div className="nyx-card nyx-card-accent-cyan">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-cyan">
+              <Sparkles className="w-4 h-4 text-[#00D9FF]" />
+            </div>
+            <h3 className="nyx-section-title">Propose Security Action</h3>
           </div>
-          <div>
-            <label className="text-xs font-mono text-slate-400">Reasoning</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Parameter contains sequential ID"
-              value={proposeReason}
-              onChange={(e) => setProposeReason(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
-            />
+          <div className="flex items-center gap-2">
+            <Zap className="w-3 h-3 text-[#00D9FF]" />
+            <span className="text-[10px] font-mono text-[#00D9FF] uppercase tracking-wider">
+              AI Assisted
+            </span>
           </div>
-          <div>
-            <label className="text-xs font-mono text-slate-400">Required Tool</label>
-            <select
-              value={proposeTool}
-              onChange={(e) => setProposeTool(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-sm text-white font-mono"
+        </div>
+        
+        <div className="nyx-form-container">
+          <form onSubmit={handleProposeAction} className="nyx-form-grid">
+            <div className="nyx-form-field">
+              <label className="nyx-form-label">
+                <Bot className="w-3 h-3 text-[#00D9FF]" />
+                Proposed Action
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Test IDOR on profile endpoint"
+                value={proposeAction}
+                onChange={(e) => setProposeAction(e.target.value)}
+                className="nyx-input"
+              />
+            </div>
+            <div className="nyx-form-field">
+              <label className="nyx-form-label">
+                <Brain className="w-3 h-3 text-[#7C3AED]" />
+                Reasoning
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Sequential identifier in query"
+                value={proposeReason}
+                onChange={(e) => setProposeReason(e.target.value)}
+                className="nyx-input"
+              />
+            </div>
+            <div className="nyx-form-field">
+              <label className="nyx-form-label">
+                <Zap className="w-3 h-3 text-[#FF6B35]" />
+                Required Tool
+              </label>
+              <select
+                value={proposeTool}
+                onChange={(e) => setProposeTool(e.target.value)}
+                className="nyx-select"
+              >
+                <option value="subfinder">subfinder</option>
+                <option value="httpx">httpx</option>
+                <option value="katana">katana</option>
+                <option value="nuclei">nuclei</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="nyx-button nyx-button-primary nyx-button-full"
             >
-              <option value="subfinder">subfinder</option>
-              <option value="httpx">httpx</option>
-              <option value="katana">katana</option>
-              <option value="nuclei">nuclei</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-semibold text-sm rounded shadow"
-          >
-            Submit Proposal
-          </button>
-        </form>
+              <Sparkles className="w-4 h-4" />
+              Submit Proposal
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Active Research Plan */}
-      <div className="glass-panel p-6 space-y-4">
-        <h3 className="text-md font-bold text-white flex items-center gap-2">
-          <Clock className="w-5 h-5 text-emerald-400" /> Active Autonomous Research Plan
-        </h3>
-        {plan ? (
-          <div className="space-y-3 font-mono text-xs text-slate-300">
-            <div className="bg-slate-950 p-4 rounded text-emerald-300 space-y-2">
-              <div>Priority: <span className="text-white font-bold">{plan.priority || 'HIGH'}</span></div>
-              <div>Reasoning: <span className="text-slate-200">{plan.reasoning}</span></div>
-              <div>Recommended Skills: <span className="text-cyan-300">{plan.recommended_skills?.join(', ')}</span></div>
+      <div className="nyx-card nyx-card-accent-green">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-green">
+              <Clock className="w-4 h-4 text-[#00FF88]" />
             </div>
-            <div className="space-y-1">
-              <div className="text-slate-400 font-bold mb-2">Research Objectives:</div>
-              {plan.objectives?.map((obj: string, idx: number) => (
-                <div key={idx} className="flex items-center gap-2 p-2 rounded bg-slate-900/60 border border-slate-800">
-                  <ArrowRight className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>{obj}</span>
+            <h3 className="nyx-section-title">Active Autonomous Research Plan</h3>
+          </div>
+          {plan && (
+            <span className="nyx-badge nyx-badge-success">
+              ACTIVE
+            </span>
+          )}
+        </div>
+
+        {plan ? (
+          <div className="nyx-plan-container">
+            <div className="nyx-plan-summary">
+              <div className="flex items-center gap-3">
+                <span className="nyx-plan-label">Priority:</span>
+                <span className="nyx-badge nyx-badge-high">{plan.priority || 'HIGH'}</span>
+              </div>
+              <div className="nyx-plan-detail">
+                <span className="nyx-plan-label">Reasoning:</span>
+                <span className="text-[#8B949E]">{plan.reasoning}</span>
+              </div>
+              <div className="nyx-plan-detail">
+                <span className="nyx-plan-label">Recommended Skills:</span>
+                <div className="flex gap-2 flex-wrap">
+                  {plan.recommended_skills?.map((skill: string, idx: number) => (
+                    <span key={idx} className="nyx-badge nyx-badge-info">{skill}</span>
+                  ))}
                 </div>
-              ))}
+              </div>
+            </div>
+            
+            <div className="nyx-plan-objectives">
+              <div className="nyx-plan-objectives-header">
+                <span className="nyx-plan-label">Research Objectives:</span>
+                <span className="nyx-count-pill">{plan.objectives?.length || 0}</span>
+              </div>
+              <div className="nyx-objectives-list">
+                {plan.objectives?.map((obj: string, idx: number) => (
+                  <div key={idx} className="nyx-objective-item">
+                    <div className="nyx-objective-icon">
+                      <ArrowRight className="w-3.5 h-3.5 text-[#00FF88]" />
+                    </div>
+                    <span className="nyx-objective-text">{obj}</span>
+                    <span className="nyx-objective-index">{String(idx + 1).padStart(2, '0')}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
-          <div className="text-center py-6 text-slate-500 text-sm">
-            No research plan generated yet.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <Bot className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No research plan generated yet</div>
+            <div className="nyx-empty-state-description">
+              Start a research mission to generate an autonomous security plan
+            </div>
           </div>
         )}
       </div>

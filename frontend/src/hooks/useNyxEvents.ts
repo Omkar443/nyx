@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getStoredToken } from '../api/client';
+import { getStoredToken, initAuth } from '../api/client';
 
 export interface NyxEvent {
   event: string;
@@ -15,20 +15,34 @@ export function useNyxEvents() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const token = getStoredToken();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host || '127.0.0.1:8000';
-    const wsUrl = `${protocol}//${host}/ws/events?token=${encodeURIComponent(token)}`;
-
     let active = true;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryAttempts = 0;
+    const MAX_RETRIES = 5;
 
-    function connect() {
+    async function connect(forceRefresh: boolean = false) {
       if (!active) return;
+      
+      // Ensure authoritative active token from backend (force refresh on retry or auth failure)
+      const token = await initAuth(forceRefresh || retryAttempts > 0);
+      if (!active) return;
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host || '127.0.0.1:8000';
+      const wsUrl = `${protocol}//${host}/ws/events?token=${encodeURIComponent(token || '')}`;
+
       try {
+        if (wsRef.current) {
+          try { wsRef.current.close(); } catch {}
+        }
+
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-          if (active) setConnected(true);
+          if (active) {
+            setConnected(true);
+            retryAttempts = 0; // reset retry counter on successful connection
+          }
         };
 
         ws.onmessage = (evt) => {
@@ -43,29 +57,43 @@ export function useNyxEvents() {
           }
         };
 
-        ws.onclose = () => {
-          if (active) {
-            setConnected(false);
-            setTimeout(connect, 3000);
+        ws.onclose = (evt) => {
+          if (!active) return;
+          setConnected(false);
+          
+          // Detect policy violation (1008 / 4003) or auth rejection
+          const isAuthError = evt.code === 1008 || evt.code === 4003;
+          if (retryAttempts < MAX_RETRIES) {
+            retryAttempts++;
+            const delay = isAuthError ? 1000 : Math.min(1000 * Math.pow(2, retryAttempts), 10000);
+            reconnectTimeout = setTimeout(() => {
+              if (active) connect(true);
+            }, delay);
           }
         };
 
         ws.onerror = () => {
-          ws.close();
+          try { ws.close(); } catch {}
         };
 
         wsRef.current = ws;
       } catch (e) {
-        if (active) setTimeout(connect, 5000);
+        if (active && retryAttempts < MAX_RETRIES) {
+          retryAttempts++;
+          reconnectTimeout = setTimeout(() => {
+            if (active) connect(true);
+          }, 3000);
+        }
       }
     }
 
-    connect();
+    connect(false);
 
     return () => {
       active = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (wsRef.current) {
-        wsRef.current.close();
+        try { wsRef.current.close(); } catch {}
       }
     };
   }, []);

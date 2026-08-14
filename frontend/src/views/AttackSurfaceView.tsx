@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '../api/client';
-import { Globe, Cpu, Play, Search, ShieldCheck } from 'lucide-react';
-
+import { Globe, Cpu, Play, Search, ShieldCheck, Target, Radar, Layers, Activity, ChevronRight, Filter } from 'lucide-react';
 export const AttackSurfaceView: React.FC = () => {
   const [endpoints, setEndpoints] = useState<any[]>([]);
   const [technologies, setTechnologies] = useState<any[]>([]);
@@ -35,98 +34,210 @@ export const AttackSurfaceView: React.FC = () => {
     (ep.url || ep).toLowerCase().includes(filter.toLowerCase())
   );
 
+  const getTechIcon = (category: string = 'Technology') => {
+    switch (category.toLowerCase()) {
+      case 'framework':
+        return Layers;
+      case 'server':
+        return Cpu;
+      case 'database':
+        return Activity;
+      case 'security':
+        return ShieldCheck;
+      default:
+        return Cpu;
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="glass-panel p-6 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Globe className="w-6 h-6 text-cyan-400" /> Attack Surface Intelligence
-          </h2>
-          <p className="text-sm text-slate-400">Target assets, harvested endpoints, and technology stack</p>
+    <div className="nyx-attack-surface-view">
+      {/* File Update Progress */}
+
+      {/* Page Header */}
+      <div className="nyx-page-header">
+        <div className="nyx-page-header-content">
+          <div className="flex items-center gap-4">
+            <div className="nyx-page-icon nyx-page-icon-cyan">
+              <Globe className="w-6 h-6 text-[#00D9FF]" />
+            </div>
+            <div>
+              <h1 className="nyx-page-title">Attack Surface Intelligence</h1>
+              <p className="nyx-page-subtitle">Target assets, harvested endpoints, and technology stack</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="nyx-target-display">
+              <Target className="w-4 h-4 text-[#00D9FF]" />
+              <span className="nyx-label">Target:</span>
+              <span className="nyx-data-value">{target}</span>
+            </div>
+            <button
+              onClick={handleTriggerRecon}
+              disabled={running}
+              className="nyx-button nyx-button-primary"
+            >
+              {running ? (
+                <>
+                  <Activity className="w-4 h-4 animate-spin" />
+                  <span>Running Recon...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Run Reconnaissance</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleTriggerRecon}
-          disabled={running}
-          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-slate-950 font-semibold rounded-lg shadow-lg flex items-center gap-2 disabled:opacity-50"
-        >
-          <Play className="w-4 h-4 fill-current" /> {running ? 'Running Recon...' : 'Run Reconnaissance'}
-        </button>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="nyx-stats-overview">
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-cyan">
+            <Globe className="w-4 h-4 text-[#00D9FF]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{endpoints.length}</div>
+            <div className="nyx-stat-label">Endpoints</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-purple">
+            <Cpu className="w-4 h-4 text-[#7C3AED]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{technologies.length}</div>
+            <div className="nyx-stat-label">Technologies</div>
+          </div>
+        </div>
+        <div className="nyx-stat-card">
+          <div className="nyx-stat-icon nyx-stat-icon-green">
+            <ShieldCheck className="w-4 h-4 text-[#00FF88]" />
+          </div>
+          <div>
+            <div className="nyx-stat-value">{filteredEndpoints.length}</div>
+            <div className="nyx-stat-label">In Scope</div>
+          </div>
+        </div>
       </div>
 
       {/* Technology Stack Grid */}
-      <div className="glass-panel p-6">
-        <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2">
-          <Cpu className="w-5 h-5 text-emerald-400" /> Technology Fingerprints ({technologies.length})
-        </h3>
+      <div className="nyx-card nyx-card-accent-purple">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-purple">
+              <Cpu className="w-4 h-4 text-[#7C3AED]" />
+            </div>
+            <h3 className="nyx-section-title">Technology Fingerprints</h3>
+            <span className="nyx-count-pill">{technologies.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Radar className="w-3 h-3 text-[#7C3AED]" />
+            <span className="text-[10px] font-mono text-[#7C3AED] uppercase tracking-wider">
+              Fingerprinted
+            </span>
+          </div>
+        </div>
+
         {technologies.length === 0 ? (
-          <div className="text-center py-6 text-slate-500 text-sm glass-card">
-            No technology fingerprints recorded yet. Run reconnaissance to analyze stack.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <Cpu className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No technology fingerprints recorded</div>
+            <div className="nyx-empty-state-description">
+              Run reconnaissance to analyze target technology stack
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {technologies.map((t: any, idx: number) => (
-              <div key={idx} className="glass-card p-3 flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-                <div>
-                  <div className="text-sm font-semibold text-white font-mono">{t.name || t}</div>
-                  <div className="text-xs text-slate-400 font-mono">{t.category || 'Technology'}</div>
+          <div className="nyx-tech-grid">
+            {technologies.map((t: any, idx: number) => {
+              const TechIcon = getTechIcon(t.category);
+              return (
+                <div key={idx} className="nyx-tech-item group">
+                  <div className="nyx-tech-icon">
+                    <TechIcon className="w-5 h-5 text-[#00FF88]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="nyx-tech-name">{t.name || t}</div>
+                    <div className="nyx-tech-category">{t.category || 'Technology'}</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#484F58] group-hover:text-[#00D9FF] transition-colors" />
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Harvested Endpoints */}
-      <div className="glass-panel p-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-          <h3 className="text-md font-bold text-white flex items-center gap-2">
-            <Globe className="w-5 h-5 text-cyan-400" /> Harvested Endpoints ({endpoints.length})
-          </h3>
-          <div className="relative w-full md:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+      <div className="nyx-card nyx-card-accent-cyan">
+        <div className="nyx-section-header">
+          <div className="flex items-center gap-3">
+            <div className="nyx-section-icon nyx-section-icon-cyan">
+              <Globe className="w-4 h-4 text-[#00D9FF]" />
+            </div>
+            <h3 className="nyx-section-title">Harvested Endpoints</h3>
+            <span className="nyx-count-pill">{endpoints.length}</span>
+          </div>
+          <div className="nyx-search-container">
+            <Search className="nyx-search-icon" />
             <input
               type="text"
               placeholder="Filter endpoints..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="w-full bg-slate-900/80 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
+              className="nyx-search-input"
             />
+            {filter && (
+              <button 
+                onClick={() => setFilter('')}
+                className="nyx-search-clear"
+              >
+                ×
+              </button>
+            )}
           </div>
         </div>
 
         {filteredEndpoints.length === 0 ? (
-          <div className="text-center py-8 text-slate-500 text-sm glass-card">
-            No endpoints matching filter.
+          <div className="nyx-empty-state">
+            <div className="nyx-empty-state-icon">
+              <Globe className="w-8 h-8 text-[#484F58]" />
+            </div>
+            <div className="nyx-empty-state-title">No endpoints matching filter</div>
+            <div className="nyx-empty-state-description">
+              {filter ? `No results for "${filter}"` : 'Run reconnaissance to discover endpoints'}
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300 font-mono">
-              <thead className="bg-slate-900/80 text-xs text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="p-3">#</th>
-                  <th className="p-3">Endpoint URL</th>
-                  <th className="p-3">Scope</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {filteredEndpoints.slice(0, 100).map((ep: any, idx: number) => {
-                  const urlStr = ep.url || ep;
-                  return (
-                    <tr key={idx} className="hover:bg-slate-800/40">
-                      <td className="p-3 text-slate-500 text-xs">{idx + 1}</td>
-                      <td className="p-3 font-semibold text-cyan-300">{urlStr}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 text-xs rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          IN_SCOPE
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="nyx-endpoints-list">
+            <div className="nyx-endpoints-header">
+              <div className="nyx-endpoints-header-item">#</div>
+              <div className="nyx-endpoints-header-item">Endpoint URL</div>
+              <div className="nyx-endpoints-header-item">Scope</div>
+              <div className="nyx-endpoints-header-item">Status</div>
+            </div>
+            <div className="nyx-endpoints-body">
+              {filteredEndpoints.slice(0, 100).map((ep: any, idx: number) => {
+                const urlStr = ep.url || ep;
+                return (
+                  <div key={idx} className="nyx-endpoint-row group">
+                    <div className="nyx-endpoint-index">{String(idx + 1).padStart(3, '0')}</div>
+                    <div className="nyx-endpoint-url">{urlStr}</div>
+                    <div className="nyx-endpoint-scope">
+                      <span className="nyx-badge nyx-badge-success">IN_SCOPE</span>
+                    </div>
+                    <div className="nyx-endpoint-status">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#00FF88]"></div>
+                      <span className="text-[10px] font-mono text-[#00FF88] uppercase">Active</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

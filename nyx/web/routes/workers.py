@@ -93,3 +93,78 @@ async def dispatch_remote_task(
             detail={"code": "DISPATCH_FAILED", "message": data.get("error", "Dispatch failed.")},
         )
     return data
+
+
+@router.post("/{worker_id}/heartbeat", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def record_worker_heartbeat(
+    worker_id: str,
+    service: WorkerService = Depends(get_worker_service),
+) -> Dict[str, Any]:
+    """Record heartbeat liveness update for a remote worker node."""
+    ok, data = _parse_res(service.record_heartbeat(worker_id))
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "WORKER_NOT_FOUND", "message": f"Worker '{worker_id}' not found."},
+        )
+    return data
+
+
+@router.get("/{worker_id}/tasks/poll", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def poll_remote_tasks(
+    worker_id: str,
+    service: WorkerService = Depends(get_worker_service),
+) -> Dict[str, Any]:
+    """Poll tasks assigned to a specific remote worker node."""
+    _, data = _parse_res(service.poll_remote_tasks(worker_id))
+    return data
+
+
+@router.post("/{worker_id}/tasks/{task_id}/claim", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def claim_remote_task(
+    worker_id: str,
+    task_id: str,
+    service: WorkerService = Depends(get_worker_service),
+) -> Dict[str, Any]:
+    """Claim assigned task for execution by a remote worker node."""
+    ok, data = _parse_res(service.claim_remote_task(worker_id=worker_id, task_id=task_id))
+    if not ok:
+        err_code = data.get("code") or data.get("error_code") or "CLAIM_FAILED"
+        st_code = status.HTTP_403_FORBIDDEN if "DENIED" in str(err_code) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(
+            status_code=st_code,
+            detail={"code": err_code, "message": data.get("error", "Task claim failed.")},
+        )
+    return data
+
+
+@router.post("/{worker_id}/tasks/{task_id}/result", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def submit_task_result(
+    worker_id: str,
+    task_id: str,
+    payload: Dict[str, Any],
+    service: WorkerService = Depends(get_worker_service),
+) -> Dict[str, Any]:
+    """Submit task execution result from remote worker node to controller."""
+    task_status = payload.get("status", "COMPLETED")
+    result_data = payload.get("result")
+    error_msg = payload.get("error")
+
+    ok, data = _parse_res(
+        service.submit_task_result(
+            worker_id=worker_id,
+            task_id=task_id,
+            status=task_status,
+            result=result_data,
+            error=error_msg,
+        )
+    )
+    if not ok:
+        err_code = data.get("code") or data.get("error_code") or "SUBMIT_FAILED"
+        st_code = status.HTTP_403_FORBIDDEN if "DENIED" in str(err_code) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(
+            status_code=st_code,
+            detail={"code": err_code, "message": data.get("error", "Result submission failed.")},
+        )
+    await emit_event("task_completed_remote", data={"task_id": task_id, "worker_id": worker_id})
+    return data
