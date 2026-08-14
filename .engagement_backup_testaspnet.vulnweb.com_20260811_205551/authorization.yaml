@@ -1,9 +1,0 @@
-authorized: true
-target:
-  - testaspnet.vulnweb.com
-allowed:
-  - web
-  - api
-excluded:
-  - third-party
-  - production-user-data
