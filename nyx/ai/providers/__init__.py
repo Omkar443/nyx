@@ -6,12 +6,16 @@ from __future__ import annotations
 from typing import Dict, Type
 from nyx.ai.base import AIProvider
 from nyx.ai.providers.gemini import GeminiProvider
+from nyx.ai.providers.grok import GrokProvider
+from nyx.ai.providers.groq import GroqProvider
 from nyx.ai.providers.claude import ClaudeProvider
 from nyx.ai.providers.openai import OpenAIProvider
 from nyx.ai.providers.local import LocalLLMProvider
 
 _PROVIDERS: Dict[str, Type[AIProvider]] = {
     "gemini": GeminiProvider,
+    "grok": GrokProvider,
+    "groq": GroqProvider,
     "claude": ClaudeProvider,
     "openai": OpenAIProvider,
     "local": LocalLLMProvider,
@@ -29,6 +33,8 @@ def get_provider_class(name: str) -> Type[AIProvider]:
 __all__ = [
     "AIProvider",
     "GeminiProvider",
+    "GrokProvider",
+    "GroqProvider",
     "ClaudeProvider",
     "OpenAIProvider",
     "LocalLLMProvider",

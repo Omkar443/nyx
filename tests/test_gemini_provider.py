@@ -94,8 +94,8 @@ def test_existing_success_path_still_works():
     mock_genai = MagicMock()
     mock_client = MagicMock()
     mock_res = MagicMock()
-    mock_res.output_text = "Analysis result: Potential SQL Injection identified in query param 'id'."
-    mock_client.interactions.create.return_value = mock_res
+    mock_res.text = "Analysis result: Potential SQL Injection identified in query param 'id'."
+    mock_client.models.generate_content.return_value = mock_res
     mock_genai.Client.return_value = mock_client
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyMockKey"}, clear=False), \
@@ -106,7 +106,7 @@ def test_existing_success_path_still_works():
         res = prov.generate("Analyze input params")
 
         assert "Potential SQL Injection" in res
-        mock_client.interactions.create.assert_called_once()
+        mock_client.models.generate_content.assert_called_once()
 
 
 def test_http_options_and_retry_options_configured():
@@ -146,7 +146,7 @@ def test_windows_style_timeout_behavior():
     """Test 10: Windows-style socket/stream hang returns structured timeout error from test_connection()."""
     mock_genai = MagicMock()
     mock_client = MagicMock()
-    mock_client.interactions.create.side_effect = TimeoutError("httpx.ReadTimeout: _network_stream.read timed out")
+    mock_client.models.generate_content.side_effect = TimeoutError("httpx.ReadTimeout: _network_stream.read timed out")
     mock_genai.Client.return_value = mock_client
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyMockKey"}, clear=False), \
@@ -245,9 +245,9 @@ def test_503_triggers_fallback():
     mock_genai = MagicMock()
     mock_client = MagicMock()
     # First call (primary) raises 503, second call (fallback) succeeds
-    mock_client.interactions.create.side_effect = [
+    mock_client.models.generate_content.side_effect = [
         Exception("503 Service Unavailable"),
-        MagicMock(output_text="Fallback success")
+        MagicMock(text="Fallback success")
     ]
     mock_genai.Client.return_value = mock_client
 
@@ -261,14 +261,14 @@ def test_503_triggers_fallback():
         assert res["success"] is True
         assert res["model"] == "gemini-2.5-flash"
         assert res["sample"] == "Fallback success"
-        assert mock_client.interactions.create.call_count == 2
+        assert mock_client.models.generate_content.call_count == 2
 
 
 def test_auth_error_does_not_fallback():
     """Test 18: 401 error does not trigger fallback and returns error."""
     mock_genai = MagicMock()
     mock_client = MagicMock()
-    mock_client.interactions.create.side_effect = Exception("401 Unauthorized")
+    mock_client.models.generate_content.side_effect = Exception("401 Unauthorized")
     mock_genai.Client.return_value = mock_client
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyMockKey"}, clear=False), \
@@ -280,14 +280,14 @@ def test_auth_error_does_not_fallback():
 
         assert res["success"] is False
         assert res["status"] == "error"
-        assert mock_client.interactions.create.call_count == 1
+        assert mock_client.models.generate_content.call_count == 1
 
 
 def test_quota_error_does_not_fallback():
     """Test 19: 429 quota error does not trigger fallback and returns error."""
     mock_genai = MagicMock()
     mock_client = MagicMock()
-    mock_client.interactions.create.side_effect = Exception("429 Resource Exhausted")
+    mock_client.models.generate_content.side_effect = Exception("429 Resource Exhausted")
     mock_genai.Client.return_value = mock_client
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyMockKey"}, clear=False), \
@@ -299,14 +299,14 @@ def test_quota_error_does_not_fallback():
 
         assert res["success"] is False
         assert res["status"] == "error"
-        assert mock_client.interactions.create.call_count == 1
+        assert mock_client.models.generate_content.call_count == 1
 
 
 def test_success_primary_model():
     """Test 20: Success on primary model does not trigger fallback."""
     mock_genai = MagicMock()
     mock_client = MagicMock()
-    mock_client.interactions.create.return_value = MagicMock(output_text="Primary success")
+    mock_client.models.generate_content.return_value = MagicMock(text="Primary success")
     mock_genai.Client.return_value = mock_client
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyMockKey", "GEMINI_MODEL": "gemini-3.6-flash", "GEMINI_FALLBACK_MODELS": "gemini-2.5-flash"}, clear=False), \
@@ -318,14 +318,14 @@ def test_success_primary_model():
 
         assert res["success"] is True
         assert res["model"] == "gemini-3.6-flash"
-        assert mock_client.interactions.create.call_count == 1
+        assert mock_client.models.generate_content.call_count == 1
 
 
 def test_no_raw_google_error_leak():
     """Test 21: Raw Google JSON responses are not leaked."""
     mock_genai = MagicMock()
     mock_client = MagicMock()
-    mock_client.interactions.create.side_effect = Exception('{"error": {"code": 503, "message": "The model is overloaded", "status": "UNAVAILABLE"}}')
+    mock_client.models.generate_content.side_effect = Exception('{"error": {"code": 503, "message": "The model is overloaded", "status": "UNAVAILABLE"}}')
     mock_genai.Client.return_value = mock_client
 
     with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyMockKey"}, clear=False), \

@@ -2395,9 +2395,13 @@ def cmd_ai(args: argparse.Namespace) -> int:
         idx = sys.argv.index("ai")
         rem = [a for a in sys.argv[idx+1:] if not a.startswith("--")]
         if len(rem) >= 1:
-            subcmd = rem[0]
-            if len(rem) >= 2:
-                target = rem[1]
+            if rem[0] == "test":
+                subcmd = "test"
+                # Do not overwrite 'target' with rem[1] for 'test'; rely on argparse
+            else:
+                subcmd = rem[0]
+                if len(rem) >= 2:
+                    target = rem[1]
 
     if subcmd == "providers":
         res = service.list_providers()
@@ -3109,6 +3113,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     say(f"  Gemini API Key   {'✓ Configured in current process' if gemini_key_set else '✗ Not configured in current process'}")
     say(f"  Gemini Model     ✓ {gemini_model}")
 
+    from nyx.ai.providers.grok import HAS_XAI_SDK
+    grok_key_set = bool(os.environ.get("XAI_API_KEY"))
+    grok_model = os.environ.get("XAI_MODEL", "grok-2-latest")
+
+    say(f"  Grok SDK         {'✓ Installed' if HAS_XAI_SDK else '✗ Not installed (pip install openai)'}")
+    say(f"  Grok API Key     {'✓ Configured in current process' if grok_key_set else '✗ Not configured in current process'}")
+    say(f"  Grok Model       ✓ {grok_model}")
+
+    from nyx.ai.providers.groq import HAS_GROQ_SDK
+    groq_key_set = bool(os.environ.get("GROQ_API_KEY"))
+    groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+    say(f"  Groq SDK         {'✓ Installed' if HAS_GROQ_SDK else '✗ Not installed (pip install openai)'}")
+    say(f"  Groq API Key     {'✓ Configured in current process' if groq_key_set else '✗ Not configured in current process'}")
+    say(f"  Groq Model       ✓ {groq_model}")
+
     if not gemini_key_set:
         curr_os = PlatformInfo.get_os()
         say(color(f"\n  [info] Current environment: {curr_os.upper()}", "yellow"))
@@ -3571,7 +3591,7 @@ def main() -> int:
     p_ai_prov.set_defaults(func=cmd_ai)
 
     p_ai_test = p_ai_sub.add_parser("test", help="run health check test for AI provider")
-    p_ai_test.add_argument("target", nargs="?", default="gemini", help="provider name (e.g. gemini)")
+    p_ai_test.add_argument("target", nargs="?", default="gemini", help="provider name (e.g. gemini, grok, groq)")
     p_ai_test.set_defaults(func=cmd_ai)
 
     p_ai_ctx = p_ai_sub.add_parser("context", help="show target security context for AI reasoning")

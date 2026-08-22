@@ -227,15 +227,18 @@ class GeminiProvider(AIProvider):
 
         for current_model in models_to_try:
             def _do_check(m_name=current_model):
+                gen_config = self._get_gen_config()
                 kwargs = {
                     "model": m_name,
-                    "input": "NYX connection health check",
+                    "contents": "NYX connection health check",
                 }
-                return client.interactions.create(**kwargs)
+                if gen_config:
+                    kwargs["config"] = gen_config
+                return client.models.generate_content(**kwargs)
 
             try:
                 res = _run_daemon_bounded(_do_check, total_timeout_sec=total_timeout_sec)
-                text = getattr(res, "output_text", getattr(res, "text", str(res)))
+                text = getattr(res, "text", str(res))
                 return {
                     "provider": self.provider_name,
                     "success": True,
@@ -306,16 +309,14 @@ class GeminiProvider(AIProvider):
                 gen_config = self._get_gen_config()
                 kwargs = {
                     "model": m_name,
-                    "input": prompt,
+                    "contents": prompt,
                 }
                 if gen_config:
-                    kwargs["generation_config"] = gen_config
-                return client.interactions.create(**kwargs)
+                    kwargs["config"] = gen_config
+                return client.models.generate_content(**kwargs)
 
             try:
                 res = _run_daemon_bounded(_do_generate, total_timeout_sec=self.total_timeout_sec)
-                if hasattr(res, "output_text") and res.output_text:
-                    return res.output_text
                 if hasattr(res, "text") and res.text:
                     return res.text
                 return str(res)

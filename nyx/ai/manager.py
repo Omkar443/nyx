@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 from nyx.ai.base import AIProvider
 from nyx.ai.providers import (
     GeminiProvider,
+    GrokProvider,
+    GroqProvider,
     ClaudeProvider,
     OpenAIProvider,
     LocalLLMProvider,
@@ -21,6 +23,8 @@ class AIManager:
     def __init__(self, default_provider: str = "gemini"):
         self._instances: Dict[str, AIProvider] = {
             "gemini": GeminiProvider(),
+            "grok": GrokProvider(),
+            "groq": GroqProvider(),
             "claude": ClaudeProvider(),
             "openai": OpenAIProvider(),
             "local": LocalLLMProvider(),
@@ -38,7 +42,7 @@ class AIManager:
     def set_active_provider(self, name: str) -> bool:
         """Switch active AI provider."""
         norm = name.lower()
-        if norm in self._instances or norm in ("gemini", "claude", "openai", "local"):
+        if norm in self._instances or norm in ("gemini", "grok", "groq", "claude", "openai", "local"):
             self.active_provider_name = norm
             # Ensure instantiated
             self.get_provider(norm)
@@ -48,7 +52,7 @@ class AIManager:
     def list_providers(self) -> List[Dict[str, Any]]:
         """List registered AI providers and their status."""
         providers = []
-        for name in ["gemini", "claude", "openai", "local"]:
+        for name in ["gemini", "grok", "groq", "claude", "openai", "local"]:
             inst = self.get_provider(name)
             info = inst.get_info()
             info["is_active"] = (name == self.active_provider_name)
