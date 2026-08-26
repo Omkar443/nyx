@@ -55,14 +55,142 @@ def get_engagement_scope(base_dir: Path | None = None) -> list[str]:
     scopes = []
     if t_file.exists():
         try:
-            for line in t_file.read_text(encoding="utf-8").splitlines():
-                if line.strip().startswith("-") or "scope" in line:
-                    val = line.split(":")[-1].replace("-", "").strip().strip('"').strip("'")
-                    if val and val != "scope":
-                        scopes.append(val.lower())
+            import yaml
+            data = yaml.safe_load(t_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                # Check nested target dict
+                if "target" in data and isinstance(data["target"], dict):
+                    t_obj = data["target"]
+                    sc = t_obj.get("scope", [])
+                    if isinstance(sc, list):
+                        for item in sc:
+                            if item and isinstance(item, str):
+                                scopes.append(item.lower().strip())
+                    elif isinstance(sc, str):
+                        scopes.append(sc.lower().strip())
+                    if "domain" in t_obj and isinstance(t_obj["domain"], str):
+                        scopes.append(t_obj["domain"].lower().strip())
+                    if "name" in t_obj and isinstance(t_obj["name"], str):
+                        scopes.append(t_obj["name"].lower().strip())
+
+                sc = data.get("scope", [])
+                if isinstance(sc, list):
+                    for item in sc:
+                        if item and isinstance(item, str):
+                            scopes.append(item.lower().strip())
+                elif isinstance(sc, str):
+                    scopes.append(sc.lower().strip())
+                tgt = data.get("target")
+                if tgt and isinstance(tgt, str):
+                    scopes.append(tgt.lower().strip())
         except Exception:
             pass
+
+        if not scopes:
+            try:
+                for line in t_file.read_text(encoding="utf-8").splitlines():
+                    if line.strip().startswith("-") or "scope" in line or "domain" in line:
+                        val = line.split(":")[-1].replace("-", "").strip().strip('"').strip("'").strip("[").strip("]")
+                        for v in val.split(","):
+                            v_clean = v.strip().strip('"').strip("'")
+                            if v_clean and v_clean not in ("scope", "target", "domain"):
+                                scopes.append(v_clean.lower())
+            except Exception:
+                pass
     return scopes
+
+
+def parse_target_tuple(target_str: str) -> tuple[str | None, str, int | None]:
+    """Parse a target string into (scheme, host, port)."""
+    t = target_str.strip().lower()
+    scheme = None
+    port = None
+
+    if "://" in t:
+        try:
+            parsed = urllib.parse.urlparse(t)
+            scheme = parsed.scheme or None
+            host = parsed.hostname or ""
+            port = parsed.port
+        except Exception:
+            host = t
+    else:
+        if ":" in t and not t.startswith("*."):
+            parts = t.split(":")
+            host = parts[0]
+            try:
+                port = int(parts[1].split("/")[0])
+            except ValueError:
+                port = None
+        else:
+            host = t.split("/")[0]
+
+    return scheme, host.rstrip("."), port
+
+
+def is_target_matching_rule(candidate: str, rule: str) -> bool:
+    """Evaluate whether candidate target matches a scope or exclusion rule."""
+    if not candidate or not rule:
+        return False
+    c_scheme, c_host, c_port = parse_target_tuple(candidate)
+    r_scheme, r_host, r_port = parse_target_tuple(rule)
+
+    if not c_host or not r_host:
+        return False
+
+    # 1. Host matching
+    if r_host.startswith("*."):
+        domain_suffix = r_host[2:]
+        if c_host != domain_suffix and not c_host.endswith("." + domain_suffix):
+            return False
+    else:
+        is_ip = bool(re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", r_host))
+        if is_ip:
+            if c_host != r_host:
+                return False
+        else:
+            if c_host != r_host and not c_host.endswith("." + r_host):
+                return False
+
+    # 2. Port matching
+    if r_port is not None and (c_port is not None or c_scheme is not None):
+        if c_port is None:
+            if c_scheme == "http":
+                c_port = 80
+            elif c_scheme == "https":
+                c_port = 443
+        if c_port != r_port:
+            return False
+
+    # 3. Scheme matching
+    if r_scheme is not None and c_scheme is not None:
+        if r_scheme != c_scheme:
+            return False
+
+    return True
+
+
+def get_engagement_exclusions(base_dir: Path | None = None) -> list[str]:
+    """Retrieve list of excluded host patterns from .engagement/target.yaml and authorization.yaml."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    exclusions = []
+    for fname in ("target.yaml", "authorization.yaml"):
+        fpath = d / fname
+        if fpath.exists():
+            try:
+                import yaml
+                data = yaml.safe_load(fpath.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    if "target" in data and isinstance(data["target"], dict):
+                        ex = data["target"].get("exclusions", [])
+                        if isinstance(ex, list):
+                            exclusions.extend([str(x).lower().strip() for x in ex if x])
+                    ex = data.get("exclusions", data.get("excluded", []))
+                    if isinstance(ex, list):
+                        exclusions.extend([str(x).lower().strip() for x in ex if x])
+            except Exception:
+                pass
+    return exclusions
 
 
 def is_hostname_in_scope(hostname: str, scope_list: list[str] | None = None, base_dir: Path | None = None) -> bool:
@@ -70,15 +198,18 @@ def is_hostname_in_scope(hostname: str, scope_list: list[str] | None = None, bas
     s_list = scope_list if scope_list is not None else get_engagement_scope(base_dir=base_dir)
     if not s_list:
         return True
-    host = hostname.lower().strip().rstrip(".")
+
+    # 1. Check exclusions first
+    exclusions = get_engagement_exclusions(base_dir=base_dir)
+    for excl in exclusions:
+        if is_target_matching_rule(hostname, excl):
+            return False
+
+    # 2. Check scope whitelist
     for sc in s_list:
-        sc_clean = sc.lower().strip().rstrip(".")
-        if sc_clean.startswith("*."):
-            domain_part = sc_clean[2:]
-            if host == domain_part or host.endswith("." + domain_part):
-                return True
-        elif host == sc_clean or host.endswith("." + sc_clean):
+        if is_target_matching_rule(hostname, sc):
             return True
+
     return False
 
 

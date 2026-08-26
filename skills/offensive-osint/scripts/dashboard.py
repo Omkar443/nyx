@@ -592,9 +592,9 @@ PAGE_HTML = r"""<!DOCTYPE html>
     </div>
     <div class="meta">
       <span class="pill"><span class="bl"></span> Operational</span>
-      <span class="kv">VERSION <b>v2.1.1</b> · MIT</span>
-      <span class="kv">AUTHOR <b>@nyx-security</b></span>
-      <a class="kv" href="https://github.com/nyx-security/NYX Agent-OSINT" target="_blank" rel="noopener">REPO <b>github.com/nyx-security/NYX Agent-OSINT</b></a>
+      <span class="kv">VERSION <b>v1.0.0</b> · Apache-2.0</span>
+      <span class="kv">AUTHOR <b>@Omkar</b></span>
+      <a class="kv" href="https://github.com/Omkar443/nyx" target="_blank" rel="noopener">REPO <b>github.com/Omkar443/nyx</b></a>
     </div>
   </header>
 

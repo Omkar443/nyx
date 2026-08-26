@@ -1,0 +1,21 @@
+technology:
+  name: Next.js
+  category: frontend_framework
+  description: React full-stack framework with Server-Side Rendering (SSR), Server Actions, and Route Handlers.
+
+attack_surface:
+  - "/_next/image"
+  - "/_next/static"
+  - "/api/"
+  - "rsc="
+
+common_vulnerabilities:
+  - Server Actions arbitrary invocation
+  - Image Optimization SSRF (/_next/image?url=...)
+  - Middleware path normalization auth bypass
+  - React Server Components (RSC) state leakage
+
+related_skills:
+  - hunt-nextjs
+  - hunt-ssrf
+  - hunt-spa-api

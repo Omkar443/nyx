@@ -1534,14 +1534,14 @@ When payout is being downgraded, use these counters:
 To use this as a NYX Agent skill, copy this file to your skills directory:
 
 ```bash
-# Option A: Clone the repo and link the skill
-git clone https://github.com/shuvonsec/claude-bug-bounty.git ~/.claude/skills/bug-bounty
-ln -s ~/.claude/skills/bug-bounty/SKILL.md ~/.claude/skills/bug-bounty/SKILL.md
+# Option A: Clone the repo and install skills
+git clone https://github.com/Omkar443/nyx.git ~/.nyx
+bash ~/.nyx/scripts/install.sh
 
 # Option B: Direct copy
-mkdir -p ~/.claude/skills/bug-bounty
-curl -s https://raw.githubusercontent.com/shuvonsec/claude-bug-bounty/main/SKILL.md \
-  -o ~/.claude/skills/bug-bounty/SKILL.md
+mkdir -p ~/.claude/skills/bb-local-toolkit
+curl -s https://raw.githubusercontent.com/Omkar443/nyx/main/skills/bb-local-toolkit/SKILL.md \
+  -o ~/.claude/skills/bb-local-toolkit/SKILL.md
 ```
 
 Then in NYX Agent, this skill loads automatically when you ask about bug bounty, recon, or vulnerability hunting.

@@ -6,6 +6,8 @@ daemon thread wall-clock ceiling, AFC suppression, cross-environment diagnostics
 from __future__ import annotations
 
 import os
+import re
+import json
 import time
 import logging
 import threading
@@ -17,10 +19,13 @@ logger = logging.getLogger(__name__)
 try:
     from google import genai
     from google.genai import types
+    from google.genai.errors import ClientError, APIError
     HAS_GENAI = True
 except ImportError:
     genai = None  # type: ignore
     types = None  # type: ignore
+    ClientError = None  # type: ignore
+    APIError = None  # type: ignore
     HAS_GENAI = False
 
 
@@ -36,19 +41,46 @@ def _sanitize_error(error_msg: str) -> str:
     return clean
 
 
-def _classify_gemini_error(ex: Exception) -> Dict[str, str]:
+def _classify_gemini_error(ex: Exception, model_name: Optional[str] = None) -> Dict[str, str]:
     """Classify and normalize Gemini SDK exceptions into clean user-facing error structures."""
     if ex is None:
         return {"status": "error", "message": "Unknown error", "details": ""}
 
     err_str = _sanitize_error(str(ex))
     err_lower = err_str.lower()
+    m_name = model_name or "gemini"
 
-    # 1. Timeout errors (both SDK timeout and NYX total operation ceiling)
-    if "timeout" in err_lower or "timed out" in err_lower or "deadline_exceeded" in err_lower:
-        return {"status": "error", "message": "Gemini API connection timed out", "details": ""}
+    # 1. Rate limit / Quota errors (429 RESOURCE_EXHAUSTED) - short circuit before timeout
+    if any(k in err_lower for k in [
+        "resource_exhausted", "quota", "rate limit", "rate_limit", "429", "too many requests"
+    ]):
+        retry_m = re.search(r"retry (?:in|after) ([0-9.]+)s", err_str, re.I)
+        retry_info = f" Retry after {int(float(retry_m.group(1)))}s," if retry_m else ""
+        return {
+            "status": "quota_exceeded",
+            "message": f"Gemini API quota exceeded (free-tier limit reached for model {m_name}).{retry_info} or upgrade your plan at https://ai.dev/rate-limit",
+            "details": err_str,
+        }
 
-    # 2. Service Unavailable (500, 502, 503, 504)
+    # 2. Model not found / deprecated (404 NOT_FOUND)
+    if any(k in err_lower for k in ["404", "not_found", "not found", "is no longer available"]):
+        return {
+            "status": "model_not_found",
+            "message": f"Gemini model '{m_name}' not found or no longer available. Update configuration to use gemini-2.5-flash or check available models.",
+            "details": err_str,
+        }
+
+    # 3. Authentication errors (401, 403 / API_KEY_INVALID / permission_denied)
+    if any(k in err_lower for k in [
+        "api_key_invalid", "unauthenticated", "invalid api key", "invalid_api_key", "401"
+    ]):
+        return {
+            "status": "auth_failed",
+            "message": "Invalid GEMINI_API_KEY — check your key at https://aistudio.google.com",
+            "details": err_str,
+        }
+
+    # 4. Service Unavailable (500, 502, 503, 504)
     if any(k in err_lower for k in ["500", "502", "503", "504", "service unavailable", "bad gateway", "gateway timeout", "service_unavailable"]):
         return {
             "status": "service_unavailable",
@@ -56,29 +88,20 @@ def _classify_gemini_error(ex: Exception) -> Dict[str, str]:
             "details": "The selected Gemini model is currently overloaded. Retry later or use another model."
         }
 
-    # 3. Rate limit / Quota errors (429)
-    if any(k in err_lower for k in [
-        "quota", "rate limit", "resource_exhausted", "429", "too many requests"
-    ]):
-        return {"status": "error", "message": "Gemini API rate limit/quota reached", "details": ""}
+    # 5. Timeout errors (both SDK timeout and NYX total operation ceiling)
+    if "timeout" in err_lower or "timed out" in err_lower or "deadline_exceeded" in err_lower:
+        return {"status": "timeout", "message": "Gemini API connection timed out", "details": ""}
 
-    # 4. Authentication errors (401, 403)
-    if any(k in err_lower for k in [
-        "api_key_invalid", "unauthenticated", "permission_denied",
-        "invalid api key", "401", "403"
-    ]):
-        return {"status": "error", "message": "Gemini API authentication failed", "details": ""}
-
-    # 5. Network / TLS / SSL / Connection errors
+    # 6. Network / TLS / SSL / Connection errors
     if any(k in err_lower for k in [
         "connect", "ssl", "handshake", "getaddrinfo", "gai_error",
         "connection refused", "networkerror", "name or service not known",
         "socket", "stream"
     ]):
-        return {"status": "error", "message": "Unable to connect to Gemini API", "details": ""}
+        return {"status": "connection_error", "message": "Unable to connect to Gemini API", "details": ""}
 
-    # 6. Fallback generic error
-    return {"status": "error", "message": f"Gemini API request failed: {err_str}", "details": ""}
+    # 7. Fallback generic error
+    return {"status": "error", "message": f"Gemini API request failed: {err_str}", "details": err_str}
 
 
 def _run_daemon_bounded(
@@ -130,13 +153,13 @@ class GeminiProvider(AIProvider):
         timeout_ms: int = 15000,
         total_timeout_sec: float = 20.0,
     ):
-        self.model_name = model_name or os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+        self.model_name = model_name or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
         
         fallback_env = os.environ.get("GEMINI_FALLBACK_MODELS")
         if fallback_env is not None:
             self.fallback_models = [m.strip() for m in fallback_env.split(",") if m.strip()]
         else:
-            self.fallback_models = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+            self.fallback_models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-flash-latest", "gemini-pro-latest", "gemini-3.6-flash"]
 
         self.api_key = api_key
         self.timeout_ms = timeout_ms
@@ -221,7 +244,7 @@ class GeminiProvider(AIProvider):
             if m not in models_to_try:
                 models_to_try.append(m)
         if not models_to_try:
-            models_to_try.append("gemini-3.6-flash")
+            models_to_try.append("gemini-2.5-flash")
 
         last_error_info = None
 
@@ -248,8 +271,8 @@ class GeminiProvider(AIProvider):
                     "sample": (text[:60] + "...") if len(text) > 60 else text,
                 }
             except Exception as ex:
-                err_info = _classify_gemini_error(ex)
-                if err_info["status"] == "service_unavailable":
+                err_info = _classify_gemini_error(ex, model_name=current_model)
+                if err_info["status"] in ("service_unavailable", "model_not_found"):
                     last_error_info = err_info
                     last_error_info["model"] = current_model
                     continue
@@ -263,13 +286,13 @@ class GeminiProvider(AIProvider):
                         "details": err_info.get("details", ""),
                     }
         
-        # If all models failed with service_unavailable
+        # If all models failed with service_unavailable or model_not_found
         if last_error_info:
             return {
                 "provider": self.provider_name,
                 "success": False,
                 "status": last_error_info["status"],
-                "model": last_error_info["model"],
+                "model": last_error_info.get("model", self.model_name),
                 "message": last_error_info["message"],
                 "details": last_error_info.get("details", ""),
             }
@@ -300,7 +323,7 @@ class GeminiProvider(AIProvider):
             if m not in models_to_try:
                 models_to_try.append(m)
         if not models_to_try:
-            models_to_try.append("gemini-3.6-flash")
+            models_to_try.append("gemini-2.5-flash")
 
         last_error_info = None
 
@@ -321,9 +344,9 @@ class GeminiProvider(AIProvider):
                     return res.text
                 return str(res)
             except Exception as ex:
-                err_info = _classify_gemini_error(ex)
-                if err_info["status"] == "service_unavailable":
-                    logger.warning("Gemini model %s unavailable, trying fallback...", current_model)
+                err_info = _classify_gemini_error(ex, model_name=current_model)
+                if err_info["status"] in ("service_unavailable", "model_not_found"):
+                    logger.warning("Gemini model %s unavailable/not found, trying fallback...", current_model)
                     last_error_info = err_info
                     continue
                 else:
@@ -339,16 +362,84 @@ class GeminiProvider(AIProvider):
     def analyze(self, context: Dict[str, Any], prompt: Optional[str] = None) -> Dict[str, Any]:
         """Perform security context analysis using Gemini."""
         target = context.get("target", "unknown")
-        techs = context.get("technologies", [])
-        custom_prompt = prompt or f"Analyze target '{target}' running technologies: {techs} and recommend focus areas."
+        technologies = context.get("technologies", [])
+        endpoints = context.get("endpoints", [])
+        phase = context.get("phase", "DISCOVERY")
+        skills = context.get("skills", [])
+        findings = context.get("findings") or context.get("previous_findings", [])
+
+        if prompt:
+            custom_prompt = prompt
+        else:
+            custom_prompt = (
+                "You are assisting a licensed penetration tester operating within NYX, a "
+                "policy-gated security testing tool. This specific target and action have "
+                "already been verified as explicitly authorized and in-scope by NYX's own "
+                "authorization and scope-enforcement system before this analysis request was "
+                "ever made — you are analyzing already-collected, already-permitted "
+                "reconnaissance data, not deciding whether to attack anything.\n\n"
+                f"Target: {target}\n"
+                f"Phase: {phase}\n"
+                f"Detected Technologies: {technologies[:20]}\n"
+                f"Harvested Endpoints: {endpoints[:20]}\n"
+                f"Matched Security Skills: {skills[:15]}\n"
+                f"Prior Findings Count: {len(findings)}\n\n"
+                "Analyze this specific target context and provide a tailored, high-priority vulnerability research focus.\n"
+                "Respond ONLY with a valid JSON object (no markdown code blocks, no ```json formatting, no explanation before or after) with exactly these two keys:\n"
+                '{\n'
+                '  "focus": "<short focus area, a few words>",\n'
+                '  "reasoning": "<2-4 sentence explanation tied directly to the specific technologies, endpoints, or attack surface found>"\n'
+                '}'
+            )
 
         generated = self.generate(custom_prompt)
+
+        # Parse JSON output
+        focus, reasoning = None, None
+        if generated and isinstance(generated, str):
+            clean_text = generated.strip()
+            if clean_text.startswith("```"):
+                lines = clean_text.splitlines()
+                if lines and lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                clean_text = "\n".join(lines).strip()
+            try:
+                data = json.loads(clean_text)
+                if isinstance(data, dict):
+                    f_val = data.get("focus")
+                    r_val = data.get("reasoning")
+                    if f_val and isinstance(f_val, str):
+                        focus = f_val.strip()
+                        reasoning = str(r_val or "").strip()
+            except Exception:
+                pass
+
+        if focus:
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "target": target,
+                "analysis": reasoning or generated,
+                "recommended_focus": focus,
+            }
+
+        # Fallback when JSON parsing fails or call failed
+        error_msg = str(generated).strip()
+        if "[Gemini Provider Error]:" in error_msg:
+            error_msg = error_msg.replace("[Gemini Provider Error]:", "").strip()
+        elif "[Gemini Provider" in error_msg:
+            error_msg = "Gemini API unavailable or offline"
+        elif not error_msg:
+            error_msg = "Model response was empty"
+
         return {
             "provider": self.provider_name,
             "model": self.model_name,
             "target": target,
-            "analysis": generated,
-            "recommended_focus": "Authentication and API Endpoint Analysis",
+            "analysis": error_msg,
+            "recommended_focus": "AI analysis unavailable",
         }
 
     def decide(self, context: Dict[str, Any], options: List[Dict[str, Any]]) -> Dict[str, Any]:

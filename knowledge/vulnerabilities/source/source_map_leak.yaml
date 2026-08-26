@@ -1,0 +1,27 @@
+vulnerability:
+  name: "Source Map & Build Artifact Leakage"
+  category: "information_disclosure"
+  description: "Publicly accessible JavaScript source maps (.js.map) or webpack bundles exposing unminified TypeScript/ES6 source code, internal API endpoints, and developer secrets."
+
+attack_surface: "recon"
+
+detection_patterns:
+  - ".js.map"
+  - "//# sourceMappingURL="
+  - "webpack://"
+  - "asset-manifest.json"
+
+validation_steps:
+  - "Identify script tags in public HTML source."
+  - "Fetch candidate .js.map URLs or parse sourceMappingURL directives."
+  - "Use source-map unpackers to reconstruct project source tree."
+  - "Grep reconstructed source code for internal routes, API keys, and authorization logic."
+
+evidence_requirements:
+  - "Reconstructed source file contents or extracted secret credentials from unminified maps."
+
+severity_mapping: "Medium"
+
+related_skills:
+  - "hunt-source-leak"
+  - "hunt-spa-api"

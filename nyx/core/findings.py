@@ -119,6 +119,9 @@ TRIAGE_QUESTIONS = [
             "click-jacking",
             "csrf on logout",
             "missing security headers",
+            "missing hsts",
+            "missing-hsts",
+            "hsts",
         ],
     ),
 ]

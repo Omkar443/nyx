@@ -251,8 +251,8 @@
   <g transform="translate(60, 1075)" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" letter-spacing="2">
     <text x="0" y="0" fill="#22c55e">★ ORIGINAL</text>
     <text x="120" y="0" fill="#5a5a6a">= author-curated</text>
-    <text x="280" y="0" fill="#3b82f6">VENDORED</text>
-    <text x="380" y="0" fill="#5a5a6a">= shuvonsec/claude-bug-bounty (MIT)</text>
+    <text x="280" y="0" fill="#3b82f6">FOUNDATION</text>
+    <text x="400" y="0" fill="#5a5a6a">= open-source foundation (MIT)</text>
     <text x="1860" y="0" text-anchor="end" fill="#ff2d4f" font-weight="600">CAPABILITY MAP · END</text>
   </g>
 </svg>

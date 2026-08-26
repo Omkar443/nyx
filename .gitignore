@@ -60,6 +60,9 @@ dist/
 # Development test workspaces
 test-*/
 test_*_workspace/
+test_*/
+.test_*/
+scratch/
 
 # Node & Frontend
 node_modules/

@@ -1,0 +1,22 @@
+technology:
+  name: Laravel
+  category: backend_framework
+  description: Modern PHP web application framework with Eloquent ORM, Blade templating, and artisan CLI.
+
+attack_surface:
+  - "/telescope"
+  - "/horizon"
+  - "/storage/"
+  - "/_ignition/"
+  - ".env"
+
+common_vulnerabilities:
+  - APP_DEBUG stack trace credential leakage
+  - Ignition RCE (CVE-2021-3129)
+  - Telescope / Horizon unauthenticated dashboard access
+  - Signed URL tampering
+
+related_skills:
+  - hunt-laravel
+  - hunt-rce
+  - hunt-source-leak

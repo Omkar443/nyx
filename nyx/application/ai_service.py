@@ -64,9 +64,48 @@ class AIService(BaseService):
         """Generate a policy-validated security mission plan."""
         try:
             plan = self.planner.create_plan(target, provider_name=provider_name)
+            if plan.get("status") == "error":
+                return self.fail(
+                    message=plan.get("error", "Mission plan generation failed."),
+                    error_code="SCOPE_ERROR",
+                    details=plan,
+                )
             return self.ok(data=plan, message=f"Mission plan generated for '{target}'.")
         except Exception as ex:
             return self.fail(message=f"Error generating mission plan: {ex}", error_code="PLANNER_ERROR")
+
+    def execute_mission(
+        self,
+        target: str,
+        provider_name: Optional[str] = None,
+        active_permitted: bool = False,
+    ) -> ServiceResult:
+        """Execute a policy-validated security mission plan."""
+        try:
+            plan = self.planner.create_plan(
+                target,
+                provider_name=provider_name,
+                active_permitted=active_permitted,
+            )
+            if plan.get("status") == "error":
+                return self.fail(
+                    message=plan.get("error", "Mission plan generation failed."),
+                    error_code="SCOPE_ERROR",
+                    details=plan,
+                )
+            exec_res = self.planner.execute_plan(
+                plan,
+                active_permitted=active_permitted,
+            )
+            if exec_res.get("status") == "error":
+                return self.fail(
+                    message=exec_res.get("error", "Mission execution failed."),
+                    error_code="EXECUTION_FAILED",
+                    details=exec_res,
+                )
+            return self.ok(data=exec_res, message=f"Mission executed for '{target}'.")
+        except Exception as ex:
+            return self.fail(message=f"Error executing mission plan: {ex}", error_code="PLANNER_ERROR")
 
     def get_status(self) -> ServiceResult:
         """Retrieve overall AI orchestration status."""

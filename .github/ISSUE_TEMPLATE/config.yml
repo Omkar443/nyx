@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Discussions (questions, ideas, show-and-tell)
-    url: https://github.com/nyx-security/nyx/discussions
+    url: https://github.com/Omkar443/nyx/discussions
     about: Ask how to use a skill, request a new one, or share a hunt write-up. Not for bugs.
   - name: 🔒 Security / responsible disclosure
-    url: https://github.com/nyx-security/nyx/blob/main/SECURITY.md
+    url: https://github.com/Omkar443/nyx/blob/main/SECURITY.md
     about: Report a vulnerability in the tooling itself, or a misuse concern. Do not open a public issue.

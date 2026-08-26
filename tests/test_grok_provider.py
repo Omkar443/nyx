@@ -41,9 +41,17 @@ def test_grok_missing_sdk():
             assert "Python SDK is not installed" in info["error"]
 
 def test_classify_xai_error():
-    assert _classify_xai_error(Exception("Connection timed out"))["status"] == "error"
+    assert _classify_xai_error(Exception("Connection timed out"))["status"] == "timeout"
     assert _classify_xai_error(Exception("503 Service Unavailable"))["status"] == "service_unavailable"
-    assert _classify_xai_error(Exception("429 too many requests"))["status"] == "error"
+    assert _classify_xai_error(Exception("429 too many requests"))["status"] == "quota_exceeded"
+    # Zero credits / permission denied
+    res_cred = _classify_xai_error(Exception("403 permission-denied: team doesn't have any credits"))
+    assert res_cred["status"] == "zero_credits"
+    assert "no credits" in res_cred["message"]
+    # Invalid key
+    res_key = _classify_xai_error(Exception("401 invalid_api_key"))
+    assert res_key["status"] == "auth_failed"
+    assert "Invalid XAI_API_KEY" in res_key["message"]
 
 @patch("nyx.ai.providers.grok.HAS_XAI_SDK", True)
 def test_grok_successful_generation():
@@ -113,7 +121,7 @@ def test_grok_auth_failure():
         with patch("nyx.ai.providers.grok.openai", mock_openai_module), patch("nyx.ai.providers.grok.httpx", mock_httpx):
             with pytest.raises(RuntimeError) as exc:
                 provider.generate("Hi")
-            assert "authentication failed" in str(exc.value)
+            assert "Invalid XAI_API_KEY" in str(exc.value) or "auth" in str(exc.value).lower()
 
 @patch("nyx.ai.providers.grok.HAS_XAI_SDK", True)
 def test_grok_network_failure():

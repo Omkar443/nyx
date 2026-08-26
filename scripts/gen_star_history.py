@@ -18,7 +18,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = sys.argv[1] if len(sys.argv) > 1 else "nyx-security/NYX Security Intelligence Engine"
+REPO = sys.argv[1] if len(sys.argv) > 1 else "Omkar443/nyx"
 OUT = Path(__file__).resolve().parent.parent / "assets"
 
 # Validated with the dataviz palette validator against GitHub's real surfaces:

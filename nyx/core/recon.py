@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import re
 import socket
 import sys
@@ -21,6 +22,8 @@ from nyx.infrastructure.process import run_cmd
 from nyx.infrastructure.tools import has_cmd
 from nyx.infrastructure.urls import normalize_url
 from nyx.recon.intelligence import run_recon_intelligence
+from nyx.recon.content_discovery import run_content_discovery
+from nyx.security.authorization import is_hostname_in_scope
 
 _HTTP_OPENER: urllib.request.OpenerDirector | None = None
 
@@ -142,8 +145,14 @@ def recon_http_probe(host: str) -> dict | None:
 
 
 def write_recon_summary(
-    target: str, subs: set[str], resolved: dict, live: list, out: Path
+    target: str,
+    subs: set[str],
+    resolved: dict,
+    live: list,
+    out: Path,
+    content_discovered: list[dict] | None = None,
 ):
+    cd_list = content_discovered or []
     lines = [
         f"# Recon — {target}",
         "",
@@ -154,6 +163,7 @@ def write_recon_summary(
         f"- Subdomains discovered (passive): **{len(subs)}**",
         f"- DNS-resolved: **{len(resolved)}**",
         f"- HTTP-live: **{len(live)}**",
+        f"- Content-discovered (unlinked paths): **{len(cd_list)}**",
         "",
         "## Live hosts",
         "",
@@ -165,11 +175,25 @@ def write_recon_summary(
         lines.append(
             f"| `{r['host']}` | {r['url']} | {r['code']} | {r.get('server','')} | {title} |"
         )
+
+    if cd_list:
+        lines += [
+            "",
+            "## Content discovery (unlinked paths)",
+            "",
+            "| URL | Path | Code | Server | Method |",
+            "|---|---|---|---|---|",
+        ]
+        for cd in sorted(cd_list, key=lambda x: x.get("url", "")):
+            lines.append(
+                f"| {cd.get('url')} | `{cd.get('path')}` | {cd.get('status')} | {cd.get('server','')} | `{cd.get('discovery_method','wordlist_probe')}` |"
+            )
+
     lines += [
         "",
         "## Suggested next moves",
         "",
-        "- For each live host, run `nyx classify https://<host>/<path>?<params>` to surface attack candidates.",
+        "- For each live host and unlinked endpoint, run `nyx classify https://<host>/<path>?<params>` to surface attack candidates.",
         "- Cross-TLD pivot: check JS bundles for sister-domain references.",
         "",
     ]
@@ -211,7 +235,14 @@ def _rank_host(host: str) -> tuple[str, str]:
     return "P2", "standard web surface"
 
 
-def build_manifest(target: str, subs: set, resolved: dict, live: list) -> dict:
+def build_manifest(
+    target: str,
+    subs: set,
+    resolved: dict,
+    live: list,
+    content_discovered: list[dict] | None = None,
+) -> dict:
+    cd_list = content_discovered or []
     live_by_host = {r["host"]: r for r in live}
     assets = []
     for host in sorted(live_by_host):
@@ -271,8 +302,10 @@ def build_manifest(target: str, subs: set, resolved: dict, live: list) -> dict:
             "subdomains": len(subs),
             "resolved": len(resolved),
             "live": len(live),
+            "content_discovered": len(cd_list),
         },
         "assets": assets,
+        "content_discovery": cd_list,
         "ranked_surface": ranked,
         "secrets": [],
         "identity_fabric": {},
@@ -284,6 +317,7 @@ def sync_recon_to_engagement(
     subs: set,
     resolved: dict,
     live: list,
+    content_discovered: list[dict] | None = None,
     base_dir: Path | None = None,
 ) -> tuple[int, int, int]:
     d = _get_eng_dir(create=False, base_dir=base_dir)
@@ -301,7 +335,8 @@ def sync_recon_to_engagement(
     existing_by_url = {
         e.get("url", "").strip().lower(): e for e in endpoints if e.get("url")
     }
-    total_disc = len(live) + len(resolved)
+    cd_list = content_discovered or []
+    total_disc = len(live) + len(resolved) + len(cd_list)
     new_cnt = 0
     known_cnt = 0
 
@@ -361,8 +396,234 @@ def sync_recon_to_engagement(
             endpoints.append(new_obj)
             existing_by_url[key] = new_obj
 
+    for cd in cd_list:
+        raw_cd_url = cd.get("url") or ""
+        url = normalize_url(raw_cd_url)
+        if not url:
+            continue
+        key = url.lower()
+        if key in existing_by_url:
+            known_cnt += 1
+            existing_obj = existing_by_url[key]
+            sources = existing_obj.setdefault("sources", [existing_obj.get("source") or "content_discovery"])
+            if "content_discovery" not in sources:
+                sources.append("content_discovery")
+            if cd.get("status") is not None:
+                existing_obj["status"] = cd.get("status")
+            if cd.get("server") and not existing_obj.get("server"):
+                existing_obj["server"] = cd.get("server")
+            if cd.get("title") and not existing_obj.get("title"):
+                existing_obj["title"] = cd["title"]
+        else:
+            new_cnt += 1
+            p = urllib.parse.urlparse(url)
+            host = p.netloc.split(":")[0] if p.netloc else target
+            prio = "P1" if any(k in url.lower() for k in ("admin", "api", "auth", "secret", "env", "graphql", "ftp", "doc", "sigma")) else "P2"
+            new_obj = {
+                "url": url,
+                "host": host,
+                "status": cd.get("status"),
+                "server": cd.get("server", ""),
+                "title": cd.get("title", ""),
+                "priority": prio,
+                "source": "content_discovery",
+                "sources": ["content_discovery"],
+                "discovery_method": cd.get("discovery_method", "wordlist_probe"),
+                "added_at": datetime.datetime.now().isoformat(),
+            }
+            endpoints.append(new_obj)
+            existing_by_url[key] = new_obj
+
     ep_file.write_text(json.dumps(endpoints, indent=2), encoding="utf-8")
     return total_disc, new_cnt, known_cnt
+
+
+def sync_exec_to_engagement(
+    execution_result: dict,
+    base_dir: Path | None = None,
+) -> tuple[int, int]:
+    """Sync tool execution results into engagement memory (.engagement/endpoints.json).
+
+    Handles Katana-style endpoint lists and httpx-style host probe outputs.
+    Returns (new_count, known_count).
+    """
+    if not isinstance(execution_result, dict):
+        return 0, 0
+
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    if not d.exists():
+        return 0, 0
+
+    ep_file = d / "endpoints.json"
+    try:
+        endpoints = (
+            json.loads(ep_file.read_text(encoding="utf-8")) if ep_file.exists() else []
+        )
+    except Exception:
+        endpoints = []
+    if not isinstance(endpoints, list):
+        endpoints = []
+
+    existing_by_url = {
+        e.get("url", "").strip().lower(): e for e in endpoints if isinstance(e, dict) and e.get("url")
+    }
+
+    meta = execution_result.get("metadata")
+    if not isinstance(meta, dict):
+        meta = execution_result
+
+    candidates: list[dict] = []
+
+    # 1. Katana style: endpoints list
+    ep_list = meta.get("endpoints") or execution_result.get("endpoints")
+    if ep_list and isinstance(ep_list, (list, set, tuple)):
+        for item in ep_list:
+            if isinstance(item, str):
+                candidates.append({"url": item})
+            elif isinstance(item, dict):
+                candidates.append({
+                    "url": item.get("url") or item.get("endpoint"),
+                    "status": item.get("status") or item.get("status_code"),
+                    "title": item.get("title", ""),
+                    "server": item.get("server") or item.get("webserver", ""),
+                    "host": item.get("host"),
+                })
+
+    # 2. Httpx style: live_hosts list
+    live_hosts = meta.get("live_hosts") or execution_result.get("live_hosts")
+    if live_hosts and isinstance(live_hosts, (list, set, tuple)):
+        for item in live_hosts:
+            if isinstance(item, dict):
+                candidates.append({
+                    "url": item.get("url") or item.get("input"),
+                    "status": item.get("status") or item.get("status_code") or item.get("status-code"),
+                    "title": item.get("title", ""),
+                    "server": item.get("webserver") or item.get("server", ""),
+                    "host": item.get("host"),
+                })
+            elif isinstance(item, str):
+                candidates.append({"url": item})
+
+    # 3. Direct single host / endpoint style
+    if not candidates:
+        single_url = meta.get("url") or meta.get("endpoint") or meta.get("input") or execution_result.get("url") or execution_result.get("endpoint")
+        if single_url and isinstance(single_url, str):
+            candidates.append({
+                "url": single_url,
+                "status": meta.get("status") or meta.get("status_code") or meta.get("status-code") or execution_result.get("status"),
+                "title": meta.get("title", "") or execution_result.get("title", ""),
+                "server": meta.get("webserver") or meta.get("server", "") or execution_result.get("server", ""),
+                "host": meta.get("host") or execution_result.get("host"),
+            })
+        elif execution_result.get("target") and isinstance(execution_result.get("target"), str):
+            tgt = execution_result.get("target", "").strip()
+            if tgt.startswith("http://") or tgt.startswith("https://"):
+                candidates.append({"url": tgt})
+
+    new_cnt = 0
+    known_cnt = 0
+
+    for rec in candidates:
+        raw_url = rec.get("url")
+        if not raw_url or not isinstance(raw_url, str):
+            continue
+        url = normalize_url(raw_url)
+        if not url:
+            continue
+        key = url.lower()
+
+        host = rec.get("host")
+        if not host:
+            try:
+                p = urllib.parse.urlparse(url)
+                host = p.netloc.split(":")[0] if p.netloc else ""
+            except Exception:
+                host = ""
+
+        if not is_hostname_in_scope(host or url, base_dir=base_dir):
+            continue
+
+        if key in existing_by_url:
+            known_cnt += 1
+            existing_obj = existing_by_url[key]
+            sources = existing_obj.setdefault(
+                "sources",
+                [existing_obj.get("source") or "manual"],
+            )
+            if "exec" not in sources:
+                sources.append("exec")
+            if rec.get("status") is not None:
+                existing_obj["status"] = rec.get("status")
+            if rec.get("server") and not existing_obj.get("server"):
+                existing_obj["server"] = rec.get("server")
+            if rec.get("title") and not existing_obj.get("title"):
+                existing_obj["title"] = rec["title"]
+            if host and not existing_obj.get("host"):
+                existing_obj["host"] = host
+        else:
+            new_cnt += 1
+            new_obj = {
+                "url": url,
+                "host": host,
+                "status": rec.get("status"),
+                "server": rec.get("server", ""),
+                "title": rec.get("title", ""),
+                "priority": _rank_host(host)[0] if host else "P3",
+                "source": "exec",
+                "sources": ["exec"],
+                "added_at": datetime.datetime.now().isoformat(),
+            }
+            endpoints.append(new_obj)
+            existing_by_url[key] = new_obj
+
+    if new_cnt > 0 or known_cnt > 0:
+        ep_file.write_text(json.dumps(endpoints, indent=2), encoding="utf-8")
+
+    # 4. Sync detected technologies into .engagement/technologies.json
+    tech_candidates: set[str] = set()
+
+    top_tech = meta.get("technologies") or meta.get("tech") or execution_result.get("technologies") or execution_result.get("tech")
+    if top_tech and isinstance(top_tech, (list, set, tuple)):
+        for t in top_tech:
+            if t and isinstance(t, str):
+                tech_candidates.add(t.strip())
+
+    if live_hosts and isinstance(live_hosts, (list, set, tuple)):
+        for item in live_hosts:
+            if isinstance(item, dict):
+                h_techs = item.get("technologies") or item.get("tech") or []
+                if isinstance(h_techs, (list, set, tuple)):
+                    for t in h_techs:
+                        if t and isinstance(t, str):
+                            tech_candidates.add(t.strip())
+
+    if ep_list and isinstance(ep_list, (list, set, tuple)):
+        for item in ep_list:
+            if isinstance(item, dict):
+                e_techs = item.get("technologies") or item.get("tech") or []
+                if isinstance(e_techs, (list, set, tuple)):
+                    for t in e_techs:
+                        if t and isinstance(t, str):
+                            tech_candidates.add(t.strip())
+
+    if tech_candidates:
+        t_file = d / "technologies.json"
+        existing_tech: dict[str, Any] = {}
+        if t_file.exists():
+            try:
+                existing_tech = json.loads(t_file.read_text(encoding="utf-8"))
+            except Exception:
+                existing_tech = {}
+        if not isinstance(existing_tech, dict):
+            existing_tech = {}
+
+        frameworks = set(existing_tech.get("frameworks", []))
+        for t in tech_candidates:
+            frameworks.add(t)
+        existing_tech["frameworks"] = sorted(list(frameworks))
+        t_file.write_text(json.dumps(existing_tech, indent=2), encoding="utf-8")
+
+    return new_cnt, known_cnt
 
 
 def run_recon(
@@ -378,7 +639,12 @@ def run_recon(
         if out_dir
         else (REPO_ROOT / "recon" if clone_mode else Path.cwd() / "recon")
     )
-    target_dir = recon_root / target
+    
+    target_clean = re.sub(r"^https?://", "", target).rstrip("/")
+    target_folder = re.sub(r'[:/\\?*|"<>]', '_', target_clean)
+    target_host = target_clean.split(":")[0].split("/")[0]
+
+    target_dir = recon_root / target_folder
     resolved_path = target_dir.resolve()
     safe_path = recon_root.resolve()
     if resolved_path != safe_path and safe_path not in resolved_path.parents:
@@ -392,13 +658,13 @@ def run_recon(
         configure_http_proxy(proxy_url, insecure=True)
 
     subs = set()
-    subs |= recon_subdomains_via_crtsh(target)
-    sf = recon_subdomains_via_subfinder(target)
+    subs |= recon_subdomains_via_crtsh(target_host)
+    sf = recon_subdomains_via_subfinder(target_host)
     if sf:
         subs |= sf
     if not subs:
-        subs.add(target)
-    subs.add(target)
+        subs.add(target_host)
+    subs.add(target_host)
 
     (target_dir / "subdomains.txt").write_text(
         "\n".join(sorted(subs)) + "\n", encoding="utf-8"
@@ -415,9 +681,13 @@ def run_recon(
         encoding="utf-8",
     )
 
+    hosts_to_probe = set(resolved.keys())
+    if ":" in target_clean:
+        hosts_to_probe.add(target_clean)
+
     live = []
     with ThreadPoolExecutor(max_workers=10) as ex:
-        futures = {ex.submit(recon_http_probe, h): h for h in resolved}
+        futures = {ex.submit(recon_http_probe, h): h for h in hosts_to_probe}
         for f in as_completed(futures):
             host = futures[f]
             rec = f.result()
@@ -429,15 +699,27 @@ def run_recon(
         json.dumps(live, indent=2), encoding="utf-8"
     )
 
-    summary_path = target_dir / "RECON_SUMMARY.md"
-    write_recon_summary(target, subs, resolved, live, summary_path)
+    # Content & unlinked path discovery sub-stage
+    live_urls = [r["url"] for r in live if r.get("url")]
+    if not live_urls and resolved:
+        live_urls = [f"https://{h}" for h in sorted(resolved)]
+    if not live_urls:
+        live_urls = [f"https://{target}"]
 
-    manifest = build_manifest(target, subs, resolved, live)
+    content_discovered = run_content_discovery(live_urls)
+    (target_dir / "content-discovery.json").write_text(
+        json.dumps(content_discovered, indent=2), encoding="utf-8"
+    )
+
+    summary_path = target_dir / "RECON_SUMMARY.md"
+    write_recon_summary(target, subs, resolved, live, summary_path, content_discovered=content_discovered)
+
+    manifest = build_manifest(target, subs, resolved, live, content_discovered=content_discovered)
     manifest_path = target_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     tot_disc, new_cnt, known_cnt = sync_recon_to_engagement(
-        target, subs, resolved, live, base_dir=base_dir
+        target, subs, resolved, live, content_discovered=content_discovered, base_dir=base_dir
     )
 
     return {
@@ -447,6 +729,8 @@ def run_recon(
         "subdomains_count": len(subs),
         "resolved_count": len(resolved),
         "live_count": len(live),
+        "content_discovery_count": len(content_discovered),
+        "content_discovered": content_discovered,
         "summary_path": str(summary_path),
         "manifest_path": str(manifest_path),
         "sync_total": tot_disc,

@@ -22,7 +22,7 @@ class KatanaAdapter(ToolAdapter):
         if arguments:
             cmd.extend(arguments)
         else:
-            cmd.extend(["-jc", "-kf", "all", "-json"])
+            cmd.extend(["-jc", "-kf", "all", "-j"])
         return cmd
 
     def parse_result(self, stdout: str, stderr: str) -> dict[str, Any]:

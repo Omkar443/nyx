@@ -6,7 +6,7 @@
 >
 > **Availability — three ways to run `nyx`:**
 > 1. **From a git clone** (no install): `python3 scripts/nyx.py <cmd>` — uses the live `skills/` + `docs/disclosed-reports/`.
-> 2. **Installed standalone** (works without the repo): `pipx install git+https://github.com/nyx-security/nyx` (or `pip install .` from a clone). Gives you a global `nyx` backed by a bundled skill index; recon output goes to `./recon/` (override with `--out`), and skill/report pointers link to GitHub.
+> 2. **Installed standalone** (works without the repo): `pipx install git+https://github.com/Omkar443/nyx` (or `pip install .` from a clone). Gives you a global `nyx` backed by a bundled skill index; recon output goes to `./recon/` (override with `--out`), and skill/report pointers link to GitHub.
 > 3. It does **not** ship with the plugin — the plugin provides skills + slash commands only.
 >
 > Regenerate the bundled index after editing skills: `python3 scripts/gen_skill_index.py`.

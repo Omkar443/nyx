@@ -24,7 +24,14 @@ def test_analyze_context_output():
     assert "graph" in ctx
 
 
-def test_analyze_surface_consistency():
+def test_analyze_surface_consistency(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "recon" / "example.com").mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "target": "example.com",
+        "endpoints": ["https://example.com/login", "https://example.com/api/user"]
+    }
+    (tmp_path / "recon" / "example.com" / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     service = AnalysisService()
     res = service.rank_surface(target="example.com")
     assert res.get("status") in ("success", "ok")
@@ -182,3 +189,109 @@ def test_task_persistence(tmp_path: Path):
 
     queue4 = DistributedTaskQueue(base_dir=tmp_path)
     assert len(queue4.list_tasks()) == 0
+
+
+def test_cli_main_loads_dotenv(tmp_path: Path, monkeypatch):
+    import os
+    import sys
+    from unittest.mock import patch
+    from nyx_cli.cli import main
+
+    test_env_file = tmp_path / ".env"
+    test_env_file.write_text("NYX_TEST_ENV_VAR=auto_loaded_success\nNYX_EXISTING_VAR=from_env_file\n", encoding="utf-8")
+
+    monkeypatch.setenv("NYX_EXISTING_VAR", "already_exported")
+    if "NYX_TEST_ENV_VAR" in os.environ:
+        monkeypatch.delenv("NYX_TEST_ENV_VAR", raising=False)
+
+    with patch("nyx_cli.cli.REPO_ROOT", tmp_path), \
+         patch.object(sys, "argv", ["nyx", "--help"]), \
+         patch("sys.exit"):
+        try:
+            main()
+        except SystemExit:
+            pass
+
+    assert os.environ.get("NYX_TEST_ENV_VAR") == "auto_loaded_success"
+    # override=False ensures existing exported env var was not clobbered
+    assert os.environ.get("NYX_EXISTING_VAR") == "already_exported"
+
+
+def test_classify_url_stopwords_filter():
+    from nyx.core.analysis import classify_url
+
+    url = "https://server.vulnapp.id/mutillidae/documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php"
+    res = classify_url(url)
+    assert res["status"] == "success"
+    matches = res["matches"]
+
+    # Pattern-based matches for .php and /documentation/ (document regex) are preserved
+    assert "hunt-rce" in matches
+    assert "hunt-aspnet" in matches
+
+    # Generic word overlap false positives must be filtered out
+    assert "vmware-vcenter-attack" not in matches
+    assert "hunt-grpc" not in matches
+    assert "hunt-k8s" not in matches
+
+
+def test_classify_url_fintech_graphql():
+    from nyx.core.analysis import classify_url
+
+    url = "https://api.target.com/payment/graphql?mutation=transferFunds"
+    res = classify_url(url)
+    assert res["status"] == "success"
+    matches = res["matches"]
+    assert "hunt-fintech-graphql" in matches
+    assert "hunt-graphql" in matches
+
+
+def test_knowledge_search_expanded_capabilities():
+    from nyx.core.knowledge import search_knowledge
+
+    # 1. Technology search
+    k8s_res = search_knowledge(technology="k8s")
+    assert any(t["technology"]["name"] == "Kubernetes" for t in k8s_res["matched_technologies"])
+
+    next_res = search_knowledge(technology="nextjs")
+    assert any(t["technology"]["name"] == "Next.js" for t in next_res["matched_technologies"])
+
+    # 2. Vulnerability search
+    fintech_res = search_knowledge(keyword="transferFunds")
+    assert any("GraphQL Financial" in v["vulnerability"]["name"] for v in fintech_res["matched_vulnerabilities"])
+
+    cache_res = search_knowledge(keyword="cache deception")
+    assert any("Cache Deception" in v["vulnerability"]["name"] for v in cache_res["matched_vulnerabilities"])
+
+
+def test_cli_analyze_context_positional_target(capsys, monkeypatch):
+    import sys
+    from nyx_cli.cli import main, cmd_analyze
+    import argparse
+
+    # 1. Direct handler test with target
+    args = argparse.Namespace(analyze_subcommand="context", target="testtarget.com", url=None)
+    ret = cmd_analyze(args)
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "NYX Intelligence Decision Context — testtarget.com" in captured.out
+    assert "Target Domain:    testtarget.com" in captured.out
+
+    # 2. Handler test with target and custom url
+    args_url = argparse.Namespace(analyze_subcommand="context", target="testtarget.com", url="https://testtarget.com/custom-auth")
+    ret_url = cmd_analyze(args_url)
+    assert ret_url == 0
+    captured_url = capsys.readouterr()
+    assert "Endpoint Scope:   https://testtarget.com/custom-auth" in captured_url.out
+
+    # 3. CLI main() execution with positional target
+    monkeypatch.setattr(sys, "argv", ["nyx", "analyze", "context", "targetsite.org"])
+    ret_main = main()
+    assert ret_main == 0
+    captured_main = capsys.readouterr()
+    assert "NYX Intelligence Decision Context — targetsite.org" in captured_main.out
+
+    # 4. Analyze surface remains functional
+    args_srf = argparse.Namespace(analyze_subcommand="surface", target="testtarget.com", manifest=None)
+    ret_srf = cmd_analyze(args_srf)
+    assert ret_srf in (0, 1)  # 0 or 1 depending on manifest presence

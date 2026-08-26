@@ -205,7 +205,7 @@ def main(argv):
         targets = [a if os.path.isabs(a) else os.path.join(REPO, a) for a in argv]
     else:
         targets = [os.path.join(SKILLS_DIR, d) for d in sorted(os.listdir(SKILLS_DIR))
-                   if os.path.isdir(os.path.join(SKILLS_DIR, d))]
+                   if os.path.isdir(os.path.join(SKILLS_DIR, d)) and os.path.isfile(os.path.join(SKILLS_DIR, d, "SKILL.md"))]
 
     all_errors, all_warnings = [], []
     for t in targets:

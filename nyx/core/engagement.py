@@ -354,13 +354,15 @@ def set_engagement_state(
 
 
 def add_memory(
-    type_: str,
-    value: str,
+    type_: str | None = None,
+    value: str | None = None,
     priority: str = "P2",
     category: str = "frameworks",
     endpoint: str = "N/A",
     result: str = "tested",
     base_dir: Path | None = None,
+    mem_type: str | None = None,
+    val: str | None = None,
 ) -> dict[str, Any]:
     d = _get_eng_dir(create=False, base_dir=base_dir)
     if not d.exists():
@@ -369,8 +371,9 @@ def add_memory(
             "message": "No active engagement workspace found.",
         }
 
-    val, _ = _sanitize_text_content(value)
-    mem_type = (type_ or "note").lower()
+    raw_val = value if value is not None else (val or "")
+    val, _ = _sanitize_text_content(raw_val)
+    mem_type = (type_ or mem_type or "note").lower()
 
     if mem_type == "endpoint":
         val = normalize_url(val)
@@ -565,3 +568,4 @@ set_state = set_engagement_state
 get_status = get_engagement_status
 export = export_engagement
 add = add_memory
+record_memory = add_memory

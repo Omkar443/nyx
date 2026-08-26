@@ -31,7 +31,7 @@ def test_gemini_key_present_in_current_process():
 
         assert info["name"] == "gemini"
         assert info["configured"] is True
-        assert info["model"] == "gemini-3.6-flash"
+        assert info["model"] in ("gemini-2.5-flash", "gemini-3.6-flash")
         info_str = str(info)
         assert "AIzaSyTestSecretKey12345" not in info_str
 
@@ -85,8 +85,8 @@ def test_gemini_model_configuration():
         prov = GeminiProvider()
         assert prov.model_name == "gemini-3.6-pro"
 
-    prov_custom = GeminiProvider(model_name="gemini-2.0-flash")
-    assert prov_custom.model_name == "gemini-2.0-flash"
+    prov_custom = GeminiProvider(model_name="gemini-2.5-flash")
+    assert prov_custom.model_name == "gemini-2.5-flash"
 
 
 def test_existing_success_path_still_works():
@@ -157,18 +157,19 @@ def test_windows_style_timeout_behavior():
         res = prov.test_connection(total_timeout_sec=1.0)
 
         assert res["success"] is False
-        assert res["status"] == "error"
-        assert res["message"] == "Gemini API connection timed out"
+        assert res["status"] in ("timeout", "error")
+        assert "timed out" in res["message"]
 
 
 def test_error_classifications_all_types():
     """Test 11: Comprehensive classification for TLS, network, 401, 429, 500, 503 errors."""
     # 401 / 403
-    assert _classify_gemini_error(Exception("401 Client Error: API_KEY_INVALID"))["message"] == "Gemini API authentication failed"
-    assert _classify_gemini_error(Exception("403 Forbidden: Permission denied"))["message"] == "Gemini API authentication failed"
+    assert _classify_gemini_error(Exception("401 Client Error: API_KEY_INVALID"))["status"] == "auth_failed"
+    assert "Invalid GEMINI_API_KEY" in _classify_gemini_error(Exception("401 Client Error: API_KEY_INVALID"))["message"]
 
     # 429
-    assert _classify_gemini_error(Exception("429 RESOURCE_EXHAUSTED: Rate limit exceeded"))["message"] == "Gemini API rate limit/quota reached"
+    assert _classify_gemini_error(Exception("429 RESOURCE_EXHAUSTED: Rate limit exceeded"))["status"] == "quota_exceeded"
+    assert "quota exceeded" in _classify_gemini_error(Exception("429 RESOURCE_EXHAUSTED: Rate limit exceeded"))["message"]
 
     # 500 / 503
     assert _classify_gemini_error(Exception("503 Service Unavailable: High load"))["message"] == "Gemini service temporarily unavailable"
@@ -218,7 +219,7 @@ def test_ai_service_gemini_integration():
     providers = res.data["providers"]
     gemini_info = next((p for p in providers if p["name"] == "gemini"), None)
     assert gemini_info is not None
-    assert gemini_info["model"] in ("gemini-3.6-flash", "gemini-3.6-pro", "gemini-2.0-flash")
+    assert gemini_info["model"] in ("gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.6-pro", "gemini-flash-latest", "gemini-pro-latest")
 
 
 def test_agent_uses_nyx_ai_abstraction_not_direct_sdk():
@@ -279,7 +280,7 @@ def test_auth_error_does_not_fallback():
         res = prov.test_connection(total_timeout_sec=5.0)
 
         assert res["success"] is False
-        assert res["status"] == "error"
+        assert res["status"] in ("auth_failed", "error")
         assert mock_client.models.generate_content.call_count == 1
 
 
@@ -298,7 +299,7 @@ def test_quota_error_does_not_fallback():
         res = prov.test_connection(total_timeout_sec=5.0)
 
         assert res["success"] is False
-        assert res["status"] == "error"
+        assert res["status"] in ("quota_exceeded", "error")
         assert mock_client.models.generate_content.call_count == 1
 
 

@@ -9,12 +9,27 @@ description = "NYX Security Intelligence Engine"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Omkar443" }]
+authors = [{ name = "Omkar" }]
 keywords = ["security", "bug-bounty", "recon", "antigravity", "nyx", "pentest", "red-team"]
-dependencies = []
+dependencies = [
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
 
 [project.optional-dependencies]
-http = ["requests"]
+http = ["requests", "httpx"]
+web = ["fastapi>=0.100.0", "uvicorn>=0.20.0", "pydantic>=2.0.0"]
+ai = ["google-genai", "openai", "anthropic"]
+all = [
+    "requests",
+    "httpx",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "pydantic>=2.0.0",
+    "google-genai",
+    "openai",
+    "anthropic",
+]
 
 [project.urls]
 Homepage = "https://github.com/Omkar443/nyx"

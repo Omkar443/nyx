@@ -73,3 +73,23 @@ def test_mission_run_orchestration(tmp_path: Path, monkeypatch):
 
     assert len(agent_reg2.list_agents()) == len(agents)
     assert len(task_q2.list_tasks()) == len(tasks)
+
+
+def test_mission_run_target_mismatch_error_message(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    # Mock authorization check
+    from nyx.security import authorization
+    monkeypatch.setattr(authorization, "check_authorization", lambda t: (True, "Authorized"))
+
+    # Initialize for target_a
+    res_init = init_mission("target_a.com")
+    assert res_init == 0
+
+    # Attempt to run mission for different target_b without reset
+    res_run = run_mission("target_b.com")
+    assert res_run == 1
+
+    captured = capsys.readouterr()
+    assert "✗ Engagement Initialization Failed: Existing engagement workspace found for target 'target_a.com'" in captured.out
+    assert "Cannot re-initialize for 'target_b.com' without explicit reset/force flag" in captured.out

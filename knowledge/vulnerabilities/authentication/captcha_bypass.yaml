@@ -1,0 +1,27 @@
+vulnerability:
+  name: "CAPTCHA Validation Bypass"
+  category: "authentication"
+  description: "Bypassing anti-automation CAPTCHA controls via parameter omission, token replay, or missing backend single-use verification."
+
+attack_surface: "authentication"
+
+detection_patterns:
+  - "g-recaptcha-response"
+  - "h-captcha-response"
+  - "cf-turnstile-response"
+  - "captcha_token="
+
+validation_steps:
+  - "Intercept a valid form submission protected by CAPTCHA."
+  - "Remove the CAPTCHA response field entirely and replay request."
+  - "Replay a previously solved CAPTCHA token against the same or different endpoint."
+  - "Test sending static, null, or empty CAPTCHA parameter values."
+
+evidence_requirements:
+  - "Successful HTTP 200/302 response when submitting request without valid CAPTCHA challenge."
+
+severity_mapping: "Medium"
+
+related_skills:
+  - "hunt-captcha-bypass"
+  - "hunt-brute-force"

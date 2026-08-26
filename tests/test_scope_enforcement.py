@@ -112,3 +112,59 @@ def test_dashboard_api_structured_scope_data(temp_eng_dir):
     assert d["scope"]["allowed_mode"] == "DRY_RUN"
     assert "authorization" in d
     assert d["authorization"]["status"] == "APPROVED"
+
+
+def test_port_isolation_rejects_different_port(temp_eng_dir):
+    """Test 6: Port isolation — http://127.0.0.1:3000 must reject port 9999."""
+    from nyx.security.authorization import is_hostname_in_scope
+    scope = ["http://127.0.0.1:3000"]
+    assert is_hostname_in_scope("http://127.0.0.1:3000", scope_list=scope) is True
+    assert is_hostname_in_scope("http://127.0.0.1:3000/api/v1", scope_list=scope) is True
+    assert is_hostname_in_scope("http://127.0.0.1:9999", scope_list=scope) is False
+    assert is_hostname_in_scope("127.0.0.1:9999", scope_list=scope) is False
+
+
+def test_host_isolation_rejects_different_host_on_same_port(temp_eng_dir):
+    """Test 7: Host isolation — http://127.0.0.1:3000 must reject evil.com:3000."""
+    from nyx.security.authorization import is_hostname_in_scope
+    scope = ["http://127.0.0.1:3000"]
+    assert is_hostname_in_scope("http://evil.com:3000", scope_list=scope) is False
+    assert is_hostname_in_scope("evil.com:3000", scope_list=scope) is False
+
+
+def test_scheme_isolation_rejects_mismatched_scheme(temp_eng_dir):
+    """Test 8: Scheme isolation — explicit http:// must reject https:// on same port."""
+    from nyx.security.authorization import is_hostname_in_scope
+    scope = ["http://127.0.0.1:3000"]
+    assert is_hostname_in_scope("https://127.0.0.1:3000", scope_list=scope) is False
+
+
+def test_wildcard_domain_isolation_rejects_typosquats(temp_eng_dir):
+    """Test 9: Wildcard domain isolation — *.example.com must reject typosquats."""
+    from nyx.security.authorization import is_hostname_in_scope
+    scope = ["*.example.com"]
+    assert is_hostname_in_scope("api.example.com", scope_list=scope) is True
+    assert is_hostname_in_scope("example.com", scope_list=scope) is True
+    assert is_hostname_in_scope("evil-example.com", scope_list=scope) is False
+    assert is_hostname_in_scope("notexample.com", scope_list=scope) is False
+
+
+def test_ip_exact_isolation(temp_eng_dir):
+    """Test 10: IP address exact matching."""
+    from nyx.security.authorization import is_hostname_in_scope
+    scope = ["127.0.0.1"]
+    assert is_hostname_in_scope("127.0.0.1", scope_list=scope) is True
+    assert is_hostname_in_scope("127.0.0.2", scope_list=scope) is False
+
+
+def test_explicit_exclusion_takes_precedence(temp_eng_dir):
+    """Test 11: Explicit exclusion takes precedence over wildcard scope."""
+    from nyx.security.authorization import is_hostname_in_scope
+    eng_dir = temp_eng_dir / ".engagement"
+    (eng_dir / "target.yaml").write_text(
+        "target:\n  name: example.com\n  scope:\n    - '*.example.com'\n  exclusions:\n    - 'admin.example.com'\n",
+        encoding="utf-8"
+    )
+    assert is_hostname_in_scope("app.example.com", base_dir=temp_eng_dir) is True
+    assert is_hostname_in_scope("admin.example.com", base_dir=temp_eng_dir) is False
+

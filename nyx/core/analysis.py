@@ -17,25 +17,44 @@ SKILL_DESC_CACHE: dict[str, str] = {}
 SKILLS_DIR = REPO_ROOT / "skills"
 REPORTS_DIR = REPO_ROOT / "docs" / "disclosed-reports"
 
+STOPWORDS = {
+    # Generic protocol & web structural words
+    "http", "https", "index", "default", "documentation", "document", "public",
+    # Generic English structural words (4+ letters)
+    "when", "from", "with", "built", "where", "that", "this", "over", "into",
+    "have", "also", "used", "uses", "using", "find", "check", "info", "read",
+    "only", "mode", "more", "some", "such", "than", "then", "very", "were",
+    # Generic security, testing & bug bounty meta-terms
+    "server", "page", "network", "access", "application", "data", "user",
+    "request", "response", "attack", "security", "vulnerability", "vulnerabilities",
+    "test", "testing", "hunt", "hunting", "target", "targets", "skill",
+    "bounty", "chain", "reports", "system", "specific",
+}
+
 URL_PATTERN_TO_SKILLS = [
-    (r"[?&](url|next|redirect|return|callback|target|destination|continue)=", ["hunt-ssrf"]),
-    (r"[?&](id|user|userid|user_id|uid|pid|post|order|invoice|account)=\d", ["hunt-idor"]),
+    (r"[?&](url|next|redirect|return|callback|target|destination|continue)=", ["hunt-ssrf", "hunt-open-redirect"]),
+    (r"[?&](id|user|userid|user_id|uid|pid|post|order|invoice|account|report_id)=\d", ["hunt-idor"]),
     (r"/(api|rest|v[0-9])/", ["hunt-api-misconfig", "hunt-idor"]),
+    (r"/(payment|wallet|fintech|checkout|billing).*/graphql|/graphql.*[?&](mutation|op)=(transfer|pay|refund|withdraw)", ["hunt-fintech-graphql", "hunt-graphql"]),
     (r"/graphql", ["hunt-graphql"]),
-    (r"/(login|signin|signup|register|forgot|reset)", ["hunt-auth-bypass", "hunt-ato"]),
-    (r"/oauth/(authorize|token|callback)", ["hunt-oauth"]),
+    (r"/(login|signin|signup|register|forgot|reset|auth)", ["hunt-auth-bypass", "hunt-ato", "hunt-api-misconfig", "hunt-forgot-password", "hunt-jwt-crypto"]),
+    (r"/oauth/(authorize|token|callback)", ["hunt-oauth", "hunt-ato"]),
     (r"/saml/(acs|sso|metadata)", ["hunt-saml"]),
     (r"/_layouts/15/|/_vti_bin/|/_api/(web|contextinfo)", ["hunt-sharepoint"]),
-    (r"/(file|upload|attachment|avatar|document|media)", ["hunt-file-upload"]),
+    (r"/(file|upload|attachment|avatar|document|media|picture|pictures|photo|photos|image|images|video|videos)", ["hunt-file-upload", "hunt-lfi", "hunt-ssrf"]),
+    (r"/(convert|transform|render|transcode|pdf|webhook|callback)", ["hunt-ssrf", "hunt-file-upload"]),
+    (r"/(contact|merchant|mechanic|message|support|ticket|notify)", ["hunt-brute-force", "hunt-race-condition", "hunt-business-logic", "hunt-ssrf"]),
     (r"/search\?", ["hunt-xss", "hunt-sqli"]),
     (r"[?&]q=|[?&]query=|[?&]s=", ["hunt-xss"]),
     (r"\.(php|aspx?|cgi|jsp)", ["hunt-rce", "hunt-aspnet"]),
-    (r"/(admin|management|debug|test|staging|dev|internal)", ["hunt-auth-bypass"]),
+    (r"/(admin|management|debug|test|staging|dev|internal|actuator|health)", ["hunt-auth-bypass", "hunt-api-misconfig", "hunt-idor"]),
     (r"/jenkins|jnlpJars|/cli", ["hunt-rce"]),
     (r"/functionRouter|/uppercase|/lowercase", ["hunt-rce", "hunt-ssti"]),
-    (r"/(2fa|mfa|otp|verify)", ["hunt-mfa-bypass"]),
-    (r"/(coupon|promo|cart|checkout)", ["hunt-business-logic", "hunt-race-condition"]),
-    (r"/(webhook|callback/event)", ["hunt-business-logic"]),
+    (r"/(2fa|mfa|otp|verify|check-otp)", ["hunt-mfa-bypass", "hunt-brute-force"]),
+    (r"/(coupon|promo|cart|checkout|order|orders|return_order|refund)", ["hunt-business-logic", "hunt-race-condition", "hunt-nosqli", "hunt-api-misconfig"]),
+    (r"/(comment|review|feedback|forum|post|posts)", ["hunt-xss", "hunt-html-injection", "hunt-business-logic", "hunt-idor"]),
+    (r"/(jwt|jwks|\.well-known/jwks)", ["hunt-jwt-crypto", "hunt-source-leak"]),
+    (r"/(chat|chatbot|assistant|prompt|llm)", ["hunt-rag-vector", "hunt-api-misconfig"]),
     (r"/parse-xml|/import-xml|\.xml", ["hunt-xxe"]),
 ]
 
@@ -50,7 +69,8 @@ TECHNOLOGY_SKILL_MAP = {
     "node.js": ["hunt-nodejs", "hunt-rce", "hunt-dom"],
     "nodejs": ["hunt-nodejs", "hunt-rce", "hunt-dom"],
     "express": ["hunt-nodejs", "hunt-api-misconfig"],
-    "graphql": ["hunt-graphql", "hunt-idor", "hunt-brute-force"],
+    "graphql": ["hunt-graphql", "hunt-fintech-graphql", "hunt-idor", "hunt-brute-force"],
+    "fintech": ["hunt-fintech-graphql", "hunt-business-logic", "hunt-race-condition"],
     "grpc": ["hunt-grpc", "hunt-api-misconfig"],
     "sharepoint": ["hunt-sharepoint", "hunt-aspnet", "hunt-ntlm-info"],
     "vcenter": ["hunt-vmware-vcenter-attack", "hunt-rce"],
@@ -134,7 +154,7 @@ def classify_url(url: str) -> dict[str, Any]:
             for s in skill_names:
                 matches.setdefault(s, []).append(f"URL matches /{pattern}/")
 
-    keywords = re.findall(r"[a-z]{4,}", raw.lower())
+    keywords = [kw for kw in re.findall(r"[a-z]{4,}", raw.lower()) if kw not in STOPWORDS]
     for skill, desc in skills.items():
         if skill in matches:
             continue
@@ -292,14 +312,33 @@ def get_surface(
     target: str, manifest: str | Path | None = None
 ) -> dict[str, Any]:
     mpath = Path(manifest) if manifest else None
+    target_clean = re.sub(r"^https?://", "", target).rstrip("/")
+    target_folder = re.sub(r'[:/\\?*|"<>]', '_', target_clean)
+
     if not mpath:
         for base in (REPO_ROOT / "recon", Path.cwd() / "recon"):
-            cand = base / target / "manifest.json"
-            if cand.exists():
-                mpath = cand
+            for cand_name in (target, target_clean, target_folder):
+                cand = base / cand_name / "manifest.json"
+                if cand.exists():
+                    mpath = cand
+                    break
+            if mpath:
                 break
 
     if not mpath or not mpath.exists():
+        if manifest is None:
+            d = _get_eng_dir()
+            if d.exists() and (d / "endpoints.json").exists():
+                try:
+                    eps = json.loads((d / "endpoints.json").read_text(encoding="utf-8"))
+                    return {
+                        "status": "success",
+                        "target": target,
+                        "manifest_path": str(d / "endpoints.json"),
+                        "manifest": {"endpoints": [e.get("url") if isinstance(e, dict) else str(e) for e in eps]}
+                    }
+                except Exception:
+                    pass
         return {
             "status": "error",
             "message": f"No recon manifest for '{target}'. Run 'nyx recon {target}' first.",

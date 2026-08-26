@@ -1,0 +1,26 @@
+vulnerability:
+  name: Relay Node ID Type Confusion IDOR
+  category: graphql
+  description: Insecure Direct Object Reference via Global Object Identification (node interface) by manipulating base64 encoded type/ID handles.
+
+attack_surface: graphql
+
+detection_patterns:
+  - 'node(id: "'
+  - "nodes(ids: ["
+  - "VXNlcjo"
+  - "QWNjb3VudDo"
+
+validation_steps:
+  - "Decode GraphQL node IDs to identify type and database integer mapping (e.g. User:1001)."
+  - "Re-encode alternative user or administrative ID handles."
+  - 'Query node(id: "<encoded_id>") { ... on TargetType { sensitiveFields } } from an unprivileged session.'
+
+evidence_requirements:
+  - "Request containing re-encoded node ID and response disclosing cross-tenant object data."
+
+severity_mapping: High
+
+related_skills:
+  - hunt-graphql
+  - hunt-idor

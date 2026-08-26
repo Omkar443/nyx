@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-09
 **Status:** approved design (scoped to Option A), pre-implementation
-**Repo:** nyx-security/NYX Security Intelligence Engine
+**Repo:** Omkar443/nyx
 
 ## Context
 

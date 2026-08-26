@@ -42,8 +42,8 @@ Open your terminal. Copy-paste the block for your platform:
 # macOS / Linux
 # 1. Get the bundle
 mkdir -p ~/security-research && cd ~/security-research
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 
 # 2. Install (copies 82 skills + 15 commands into NYX AI Code)
 bash scripts/install.sh
@@ -60,8 +60,8 @@ hunt
 # 1. Get the bundle
 New-Item -ItemType Directory -Force -Path "$HOME\security-research"
 cd "$HOME\security-research"
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 
 # 2. Install (copies 82 skills + 15 commands into NYX AI Code)
 pwsh ./scripts/install.ps1
@@ -129,7 +129,7 @@ For example, when you find Juice Shop's `/api/users` endpoint with an `id` param
 
 ### Where to ask for help
 
-- The bundle author: [GitHub Issues](https://github.com/nyx-security/NYX Security Intelligence Engine/issues)
+- The project repository: [GitHub Issues](https://github.com/Omkar443/nyx/issues)
 - HackerOne's bug-bounty Hacker Slack
 - Bugcrowd's Discord
 - Reddit r/bugbounty (read first, search second, ask last)
@@ -396,11 +396,9 @@ Cross-reference this UUID in any chained submissions you file later.
 
 If another pentester wants to replicate this stack, the install steps are in [INSTALL.md](INSTALL.md). The short version:
 
-1. Clone this repo
-2. Run the installer — `bash scripts/install.sh` (macOS/Linux) or `pwsh ./scripts/install.ps1` (Windows) — installs all 82 skills, 15 commands, and the `hunt` scaffold in one step
-3. Set up Burp MCP (BApp Store extension + `claude mcp add burp ...`)
-4. (Optional) Refresh upstream snapshots via `./scripts/install-community-skills.sh` (macOS/Linux) or `pwsh ./scripts/install-community-skills.ps1` (Windows)
-5. (Optional) Set up the skill regenerator with Anthropic + H1 API keys
+1. Clone this repo (`git clone https://github.com/Omkar443/nyx.git`)
+2. Run the installer — `bash scripts/install.sh` (macOS/Linux) or `pwsh ./scripts/install.ps1` (Windows) — installs all 83 skills, 15 commands, and the `hunt` scaffold in one step
+3. Run `nyx doctor` to verify environment and skills readiness
 
 Total setup time: ~10 minutes including Burp MCP.
 
@@ -422,11 +420,9 @@ The validation engagement that produced this stack illustrated all three: the or
 
 ## 8. Limitations and known issues
 
-- **`offensive-osint` is large**, even after refactor. The 15 reference files load on demand, but the SKILL.md still consumes context on every trigger. Future work: split into smaller sub-skills if context becomes a bottleneck.
-- **Per-class `hunt-*` skills overlap on borderline classes.** A finding that's both IDOR and business-logic may trigger two skills. Manageable, but worth knowing.
-- **`public-skills-builder` is rough.** The script needs Python 3.10+, has hardcoded `master` branch references, and requires `--program` for H1 queries. Patches documented in INSTALL.md.
-- **No HackerOne MCP yet.** Burp MCP works; H1 MCP is in shuvonsec's repo but not configured here. Worth adding when you start hunting H1 programs.
-- **No engagement-coordinator skill.** Cross-finding tracking and submission ID management is currently manual via `submissions.txt`. Future skill candidate.
+- **`offensive-osint` is comprehensive.** The 15 modular reference files load on demand to minimize context overhead.
+- **Per-class `hunt-*` skills overlap on borderline classes.** A finding that's both IDOR and business-logic may trigger both skills to ensure complete test coverage.
+- **Cross-Finding Tracking:** Multi-finding campaigns are tracked automatically in `.engagement/state.json` and `nyx findings`.
 
 ---
 
@@ -434,18 +430,9 @@ The validation engagement that produced this stack illustrated all three: the or
 
 If you keep using this and want to extend it:
 
-1. **Per-engagement memory — ✅ now shipped (the autopilot ledger).** The engine auto-captures confirmed findings and dead-class negatives to `~/.claude/bughunter/memory/`, and the autonomous hunt loop can skip provably-wasteful agent calls — re-confirming a finding already confirmed on a prior run, or re-testing a vuln class that never pays off on a stack.
-   - **Off by default = full coverage.** Enable per run with `--use-memory`:
-     ```bash
-     python3 engine/engine.py --scope <engagement>.json --hunt --use-memory
-     ```
-   - `/autopilot` maps modes to it: `--paranoid` (default) / `--normal` → memory **off** (full coverage); `--quick` / `--yolo` → memory **on** (token-saving skips).
-   - A class never hunted on a stack is never skipped, and every skip is logged — coverage is never silently reduced. Manage the store with `/memory-gc`; review a target's history with `/pickup <host>`.
-   - Benefit scales with repeat targets / recurring stacks; expect little effect on a cold start (new or one-off stack).
-2. **HackerOne MCP integration** — wire up the H1 MCP in shuvonsec's repo for live duplicate-search and program intel during reports.
-3. **Specialized `hunt-*` skills** for high-payout niches you focus on (e.g., `hunt-fintech-graphql`, `hunt-healthcare-fhir`).
-4. **A `program-rules-parser` skill** that takes program text and produces a structured `scope.md` automatically.
-5. **Engagement-coordinator skill** that auto-updates `submissions.txt` and surfaces chain candidates.
+1. **Persistent Engagement Memory:** The engine auto-captures confirmed findings and dead-class negatives to `.engagement/`, allowing the mission planner to avoid re-testing already confirmed vectors or unauthenticated duplicates.
+2. **Specialized `hunt-*` skills** for high-payout niches you focus on (e.g., `hunt-fintech-graphql`, `hunt-healthcare-fhir`).
+3. **Automated Program Scope Parser** that takes raw program policy text and produces `.engagement/target.yaml` and `authorization.yaml` automatically.
 
 These are nice-to-haves. The current stack is production-grade as-is.
 

@@ -55,6 +55,13 @@ class ExecutionService(BaseService):
                     details=data,
                 )
 
+            if res.status == ExecutionStatus.COMPLETED.value and res.exit_code == 0:
+                try:
+                    from nyx.core.recon import sync_exec_to_engagement
+                    sync_exec_to_engagement(data, base_dir=self.base_dir)
+                except Exception:
+                    pass
+
             return self.ok(data=data, message=f"Executed tool '{tool_name}' successfully.")
         except Exception as ex:
             return self.fail(message=f"Execution service error: {ex}", error_code="INTERNAL_ERROR")

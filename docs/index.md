@@ -16,7 +16,7 @@ platform CVE chains, and the hygiene, and it stays in scope.
 
 [Get started](#quickstart){: .btn .btn-primary .mr-2 }
 [Browse the skill catalog](./skills.html){: .btn }
-[View on GitHub](https://github.com/nyx-security/NYX Security Intelligence Engine){: .btn }
+[View on GitHub](https://github.com/Omkar443/nyx){: .btn }
 
 ---
 
@@ -36,15 +36,15 @@ platform CVE chains, and the hygiene, and it stays in scope.
 
 ```bash
 # macOS / Linux — clone and install into ~/.claude/
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 bash scripts/install.sh
 ```
 
 ```powershell
 # Windows (PowerShell)
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 pwsh ./scripts/install.ps1
 ```
 
@@ -56,15 +56,15 @@ the relevant skill loads automatically:
   rank the attack surface.
 ```
 
-See the full [Installation guide](https://github.com/nyx-security/NYX Security Intelligence Engine/blob/main/INSTALL.md)
-and [Usage guide](https://github.com/nyx-security/NYX Security Intelligence Engine/blob/main/USAGE.md).
+See the full [Installation guide](https://github.com/Omkar443/nyx/blob/main/INSTALL.md)
+and [Usage guide](https://github.com/Omkar443/nyx/blob/main/USAGE.md).
 
 ## Stay in scope
 
 This bundle is for assets you **own** or are **authorized to assess** (in-scope
 bug-bounty programs, signed-RoE pentests, CTFs, your own lab). It ships
 validation gates that auto-trigger on ambiguity. See the
-[Security policy](https://github.com/nyx-security/NYX Security Intelligence Engine/blob/main/SECURITY.md).
+[Security policy](https://github.com/Omkar443/nyx/blob/main/SECURITY.md).
 
 ---
 

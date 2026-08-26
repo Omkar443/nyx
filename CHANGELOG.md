@@ -1,14 +1,41 @@
-# NYX Security Intelligence Engine - Changelog
+# NYX Security Intelligence Engine — Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes and release milestones for NYX are documented in this file.
 
-## [1.0.0] - 2026-08-13
-### Initial Open Source Release
-- **Core Intelligence Engine**: Consolidated state machine, scope authorization, evidence vault, and skill routing.
-- **Execution Infrastructure**: Controlled tool sandbox, command policy, timeouts, and artifact normalization.
-- **AI Agent Integration & MCP**: Provider abstraction (Gemini, NYX AI, GPT, Local LLMs), MCP tool/resource schemas, and AI policy enforcement.
-- **Web Operations Platform**: FastAPI REST API, WebSocket live streaming, and React + TypeScript dashboard views.
-- **Autonomous Multi-Agent Fleet**: Specialized research agents (`ReconAgent`, `WebAgent`, `APIAgent`, `TechnologyAgent`, `ValidationAgent`, `ReportingAgent`, `DynamicAgent`) with mandatory Human Approval Gates.
-- **Distributed Worker Architecture**: HMAC mutual authentication, remote worker node dispatch, and SHA-256 evidence synchronization.
-- **Browser & Runtime Intelligence**: Playwright session management, CDP-ready hooks, and Runtime Intelligence Graph constructor.
-- **Continuous Security Intelligence**: Historical asset graph snapshots, automated surface change detection, alerting, research opportunity matching, and knowledge protection backups.
+---
+
+## [1.0.0] — Open Source Release
+
+First public release of NYX. This release includes a full pre-release audit covering security hygiene, licensing, AI provider reliability, and empirical detection benchmarking against two independent, publicly-documented vulnerable applications.
+
+### Fixed
+- **Critical: fresh-install crash.** `pyproject.toml` was missing `pyyaml` and `python-dotenv` as declared dependencies despite the code requiring them at import time — every clean install would fail on first run (`nyx doctor`). Now installs and runs cleanly on a bare environment.
+- **AI provider error classification.** Gemini quota exhaustion (429) and Grok zero-credit billing (403) were previously reported as generic "timeout" / "authentication failed" errors. Both now surface actionable, specific messages (retry windows, billing links, correct auth-failure vs. no-credits distinction).
+- **Dead model references.** Removed defaults pointing to deprecated `gemini-2.0-flash` / `gemini-1.5-flash` (both return 404 from Google's API); updated to `gemini-2.5-flash`.
+- **License inconsistency.** `NOTICE` incorrectly claimed MIT + CC BY 4.0 dual licensing; harmonized with the actual Apache-2.0 license in `LICENSE`/`pyproject.toml`.
+- **Missing third-party attribution.** Vendored MIT-licensed skills (from `shuvonsec/claude-bug-bounty`) lacked the required accompanying license text. Added `LICENSE-THIRD-PARTY.md` with full attribution.
+- **Scope-matching edge cases.** Hardened `is_hostname_in_scope()` with explicit port, scheme, and host isolation logic; added adversarial regression tests (port bypass, host bypass, scheme bypass, typosquat rejection, exclusion precedence).
+
+### Added
+- **Content discovery recon stage.** New wordlist-based unlinked-path discovery (`ffuf` adapter, with graceful stdlib fallback when `ffuf` isn't installed).
+- **SPA JavaScript bundle parsing.** Recon now extracts client-side API routes referenced in JS bundles (React/Vue/Angular/Next.js), closing a major discovery gap for microservice/SPA-style targets.
+- **Generalized knowledge routing.** 16 previously-unrouted vulnerability classes (mass assignment, business logic/pricing tampering, file upload abuse, LFI/path traversal, JWT attacks, security.txt discovery, infrastructure fingerprinting) now route to existing skills based on structural/parameter patterns rather than hardcoded URLs — verified against endpoints on domains never seen during development.
+- **Documented, reproducible benchmarks.** `docs/benchmarks/juice-shop.md` and `docs/benchmarks/crapi.md` — full methodology, ground truth source, and exact CLI reproduction steps for two independently-maintained vulnerable applications.
+
+### Known Limitations (see README for full detail)
+- No coverage for static dependency/SCA scanning, Web3/blockchain interaction, or client-side-only (DOM/steganographic) vulnerability classes — outside NYX's HTTP-evidence execution model by design.
+- Multi-step exploit chains (e.g. asymmetric JWT key confusion, blind SQLi extraction, race conditions, multi-turn LLM/agent state manipulation) are detected as risk indicators but not always autonomously chained to full validation — current ceiling of the AI advisory layer.
+
+### Benchmark Results
+| Target | True Positive Rate | False Positives |
+|---|---|---|
+| OWASP Juice Shop v20.2.0 | 68.8% (75/109) | 0% |
+| OWASP crAPI | 81.0% (17/21) | 0% |
+
+Full traces, methodology, and reproduction steps: `docs/benchmarks/`.
+
+### Verification
+- 214/214 automated tests passing, 0 regressions.
+- Clean install verified from a bare virtual environment.
+- Graceful degradation confirmed for missing external tools (`subfinder`, `ffuf`, `httpx` fall back automatically; `nuclei`/`nmap`/`katana` fail with clear, actionable errors).
+- Full repository secrets/credential/identity audit — clean.

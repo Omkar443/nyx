@@ -1,0 +1,28 @@
+vulnerability:
+  name: JWT Cryptographic Forgery & Key Confusion
+  category: authentication
+  description: Forging JSON Web Tokens via signature algorithm tampering (alg:none), RS256 to HS256 public key confusion, or header parameter injection (kid/jku).
+
+attack_surface: authentication
+
+detection_patterns:
+  - "eyJhbGciOi"
+  - "Bearer eyJ"
+  - "jwt="
+  - "access_token=eyJ"
+
+validation_steps:
+  - Decode target JWT header and payload.
+  - Test alg:none with stripped signature against authenticated endpoints.
+  - Test RS256->HS256 conversion signing token with public server certificate.
+  - Test kid header path traversal (kid: /dev/null with HMAC key "").
+
+evidence_requirements:
+  - Forged JWT accepted with modified user/role claim on protected resource.
+
+severity_mapping: Critical
+
+related_skills:
+  - hunt-jwt-crypto
+  - hunt-auth-bypass
+  - hunt-ato

@@ -6,6 +6,8 @@ daemon thread wall-clock ceiling, and strict error classification.
 from __future__ import annotations
 
 import os
+import re
+import json
 import time
 import logging
 import threading
@@ -36,17 +38,52 @@ def _sanitize_error(error_msg: str) -> str:
     return clean
 
 
-def _classify_xai_error(ex: Exception) -> Dict[str, str]:
+def _classify_xai_error(ex: Exception, model_name: Optional[str] = None) -> Dict[str, str]:
     """Classify and normalize xAI SDK exceptions into clean user-facing error structures."""
     if ex is None:
         return {"status": "error", "message": "Unknown error", "details": ""}
 
     err_str = _sanitize_error(str(ex))
     err_lower = err_str.lower()
+    m_name = model_name or "grok"
 
-    if "timeout" in err_lower or "timed out" in err_lower:
-        return {"status": "error", "message": "xAI API connection timed out", "details": ""}
+    # 1. Zero credits / Permission denied (403)
+    if "permission-denied" in err_lower or "permission_denied" in err_lower or ("403" in err_lower and ("credit" in err_lower or "license" in err_lower)):
+        team_url = "https://console.x.ai"
+        team_match = re.search(r"(https://console\.x\.ai/team/[^\s\"\']+)", err_str)
+        if team_match:
+            team_url = team_match.group(1).rstrip(".")
+        return {
+            "status": "zero_credits",
+            "message": f"Grok (xAI) account has no credits. Add billing at {team_url}",
+            "details": err_str,
+        }
 
+    # 2. Invalid API Key / Unauthenticated (401)
+    if any(k in err_lower for k in ["api_key_invalid", "unauthenticated", "invalid api key", "invalid_api_key", "401", "incorrect api key"]):
+        return {
+            "status": "auth_failed",
+            "message": "Invalid XAI_API_KEY — check your key at https://console.x.ai",
+            "details": err_str,
+        }
+
+    # 3. Model not found (400 invalid-argument)
+    if "model not found" in err_lower or "model_not_found" in err_lower:
+        return {
+            "status": "model_not_found",
+            "message": f"xAI model '{m_name}' not found. Check model name or verify available models at https://console.x.ai",
+            "details": err_str,
+        }
+
+    # 4. Rate limit / Quota errors (429)
+    if any(k in err_lower for k in ["quota", "rate limit", "429", "too many requests"]):
+        return {
+            "status": "quota_exceeded",
+            "message": "xAI API rate limit reached. Retry later or check rate limits at https://console.x.ai",
+            "details": err_str,
+        }
+
+    # 5. Service Unavailable (500, 502, 503, 504)
     if any(k in err_lower for k in ["500", "502", "503", "504", "service unavailable", "bad gateway"]):
         return {
             "status": "service_unavailable",
@@ -54,16 +91,15 @@ def _classify_xai_error(ex: Exception) -> Dict[str, str]:
             "details": "The selected Grok model is currently overloaded. Retry later."
         }
 
-    if any(k in err_lower for k in ["quota", "rate limit", "429", "too many requests"]):
-        return {"status": "error", "message": "xAI API rate limit/quota reached", "details": ""}
+    # 6. Timeout errors
+    if "timeout" in err_lower or "timed out" in err_lower:
+        return {"status": "timeout", "message": "xAI API connection timed out", "details": ""}
 
-    if any(k in err_lower for k in ["api_key_invalid", "unauthenticated", "401", "403", "invalid api key"]):
-        return {"status": "error", "message": "xAI API authentication failed", "details": ""}
-
+    # 7. Network / Connection errors
     if any(k in err_lower for k in ["connect", "ssl", "handshake", "getaddrinfo", "connection refused", "socket", "network is unreachable"]):
-        return {"status": "error", "message": "Unable to connect to xAI API", "details": ""}
+        return {"status": "connection_error", "message": "Unable to connect to xAI API", "details": ""}
 
-    return {"status": "error", "message": f"xAI API request failed: {err_str}", "details": ""}
+    return {"status": "error", "message": f"xAI API request failed: {err_str}", "details": err_str}
 
 
 def _run_daemon_bounded(
@@ -112,7 +148,7 @@ class GrokProvider(AIProvider):
         timeout_ms: int = 15000,
         total_timeout_sec: float = 20.0,
     ):
-        self.model_name = model_name or os.environ.get("XAI_MODEL", "grok-2-latest")
+        self.model_name = model_name or os.environ.get("XAI_MODEL", "grok-4.6")
         self.api_key = api_key
         self.timeout_ms = timeout_ms
         self.total_timeout_sec = total_timeout_sec
@@ -205,7 +241,7 @@ class GrokProvider(AIProvider):
                 "message": "xAI API connection timed out",
             }
         except Exception as ex:
-            err_dict = _classify_xai_error(ex)
+            err_dict = _classify_xai_error(ex, model_name=self.model_name)
             err_dict["provider"] = self.provider_name
             err_dict["model"] = self.model_name
             err_dict["success"] = False
@@ -238,13 +274,89 @@ class GrokProvider(AIProvider):
             raise RuntimeError(f"Grok API Error: {err_dict['message']} - {err_dict['details']}")
 
     def analyze(self, context: Dict[str, Any], prompt: Optional[str] = None) -> Dict[str, Any]:
+        """Perform security context analysis using Grok."""
         target = context.get("target", "unknown")
-        findings = context.get("previous_findings", [])
+        technologies = context.get("technologies", [])
+        endpoints = context.get("endpoints", [])
+        phase = context.get("phase", "DISCOVERY")
+        skills = context.get("skills", [])
+        findings = context.get("findings") or context.get("previous_findings", [])
+
+        if prompt:
+            custom_prompt = prompt
+        else:
+            custom_prompt = (
+                "You are assisting a licensed penetration tester operating within NYX, a "
+                "policy-gated security testing tool. This specific target and action have "
+                "already been verified as explicitly authorized and in-scope by NYX's own "
+                "authorization and scope-enforcement system before this analysis request was "
+                "ever made — you are analyzing already-collected, already-permitted "
+                "reconnaissance data, not deciding whether to attack anything.\n\n"
+                f"Target: {target}\n"
+                f"Phase: {phase}\n"
+                f"Detected Technologies: {technologies[:20]}\n"
+                f"Harvested Endpoints: {endpoints[:20]}\n"
+                f"Matched Security Skills: {skills[:15]}\n"
+                f"Prior Findings Count: {len(findings)}\n\n"
+                "Analyze this specific target context and provide a tailored, high-priority vulnerability research focus.\n"
+                "Respond ONLY with a valid JSON object (no markdown code blocks, no ```json formatting, no explanation before or after) with exactly these two keys:\n"
+                '{\n'
+                '  "focus": "<short focus area, a few words>",\n'
+                '  "reasoning": "<2-4 sentence explanation tied directly to the specific technologies, endpoints, or attack surface found>"\n'
+                '}'
+            )
+
+        try:
+            generated = self.generate(custom_prompt)
+        except Exception as ex:
+            generated = str(ex)
+
+        # Parse JSON output
+        focus, reasoning = None, None
+        if generated and isinstance(generated, str):
+            clean_text = generated.strip()
+            if clean_text.startswith("```"):
+                lines = clean_text.splitlines()
+                if lines and lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                clean_text = "\n".join(lines).strip()
+            try:
+                data = json.loads(clean_text)
+                if isinstance(data, dict):
+                    f_val = data.get("focus")
+                    r_val = data.get("reasoning")
+                    if f_val and isinstance(f_val, str):
+                        focus = f_val.strip()
+                        reasoning = str(r_val or "").strip()
+            except Exception:
+                pass
+
+        if focus:
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "target": target,
+                "analysis": reasoning or generated,
+                "recommended_focus": focus,
+            }
+
+        # Fallback when JSON parsing fails or call failed
+        error_msg = str(generated).strip()
+        if "Grok API Error:" in error_msg:
+            error_msg = error_msg.replace("Grok API Error:", "").strip()
+        elif "Grok provider not initialized:" in error_msg:
+            error_msg = error_msg.replace("Grok provider not initialized:", "").strip()
+        elif not error_msg:
+            error_msg = "Model response was empty"
+
         return {
             "provider": self.provider_name,
+            "model": self.model_name,
             "target": target,
-            "analysis": f"Analyzed target '{target}' with {len(findings)} prior findings.",
-            "recommended_focus": "Business Logic & Rate Limit Vulnerability Testing",
+            "analysis": error_msg,
+            "recommended_focus": "AI analysis unavailable",
         }
 
     def decide(self, context: Dict[str, Any], options: List[Dict[str, Any]]) -> Dict[str, Any]:

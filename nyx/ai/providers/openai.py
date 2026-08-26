@@ -1,11 +1,103 @@
 """
 NYX OpenAI GPT Provider Integration
+Integrates OpenAI using the official openai Python SDK with bounded timeouts,
+daemon thread wall-clock ceiling, and strict error classification.
 """
 from __future__ import annotations
 
+import os
 import json
+import logging
+import threading
 from typing import Any, Dict, List, Optional
 from nyx.ai.base import AIProvider
+
+logger = logging.getLogger(__name__)
+
+try:
+    import openai
+    import httpx
+    HAS_OPENAI_SDK = True
+except ImportError:
+    openai = None  # type: ignore
+    httpx = None  # type: ignore
+    HAS_OPENAI_SDK = False
+
+
+def _sanitize_error(error_msg: str) -> str:
+    """Strip any accidental key disclosure from error messages."""
+    if not error_msg:
+        return ""
+    clean = str(error_msg)
+    for env_var in ["OPENAI_API_KEY"]:
+        key_val = os.environ.get(env_var)
+        if key_val and len(key_val) > 4:
+            clean = clean.replace(key_val, "[REDACTED]")
+    return clean
+
+
+def _classify_openai_error(ex: Exception) -> Dict[str, str]:
+    """Classify and normalize OpenAI SDK exceptions into clean user-facing error structures."""
+    if ex is None:
+        return {"status": "error", "message": "Unknown error", "details": ""}
+
+    err_str = _sanitize_error(str(ex))
+    err_lower = err_str.lower()
+
+    if "timeout" in err_lower or "timed out" in err_lower:
+        return {"status": "error", "message": "OpenAI API connection timed out", "details": ""}
+
+    if any(k in err_lower for k in ["500", "502", "503", "504", "service unavailable", "bad gateway"]):
+        return {
+            "status": "service_unavailable",
+            "message": "OpenAI service temporarily unavailable",
+            "details": "The selected OpenAI model is currently overloaded. Retry later."
+        }
+
+    if any(k in err_lower for k in ["quota", "rate limit", "429", "too many requests"]):
+        return {"status": "error", "message": "OpenAI API rate limit/quota reached", "details": ""}
+
+    if any(k in err_lower for k in ["api_key_invalid", "unauthenticated", "401", "403", "invalid api key"]):
+        return {"status": "error", "message": "OpenAI API authentication failed", "details": "Please check your OPENAI_API_KEY environment variable."}
+
+    if any(k in err_lower for k in ["connect", "ssl", "handshake", "networkerror", "socket"]):
+        return {"status": "error", "message": "Unable to connect to OpenAI API", "details": ""}
+
+    return {"status": "error", "message": f"OpenAI API request failed: {err_str}", "details": ""}
+
+
+def _run_daemon_bounded(
+    func,
+    args=(),
+    kwargs=None,
+    total_timeout_sec: float = 20.0,
+) -> Any:
+    """Execute func in a daemon thread with hard wall-clock ceiling."""
+    kwargs = kwargs or {}
+    result_container = []
+    exception_container = []
+
+    def _worker():
+        try:
+            res = func(*args, **kwargs)
+            result_container.append(res)
+        except Exception as ex:
+            exception_container.append(ex)
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(timeout=total_timeout_sec)
+
+    if t.is_alive():
+        raise TimeoutError(f"OpenAI API connection timed out after {total_timeout_sec} seconds")
+
+    if exception_container:
+        raise exception_container[0]
+
+    if result_container:
+        return result_container[0]
+
+    raise TimeoutError(f"OpenAI API connection timed out after {total_timeout_sec} seconds")
 
 
 class OpenAIProvider(AIProvider):
@@ -13,23 +105,225 @@ class OpenAIProvider(AIProvider):
 
     provider_name: str = "openai"
 
-    def __init__(self, model_name: str = "gpt-4o", api_key: Optional[str] = None):
-        self.model_name = model_name
+    def __init__(
+        self,
+        model_name: Optional[str] = None,
+        api_key: Optional[str] = None,
+        timeout_ms: int = 15000,
+        total_timeout_sec: float = 20.0,
+    ):
+        self.model_name = model_name or os.environ.get("OPENAI_MODEL", "gpt-4o")
         self.api_key = api_key
+        self.timeout_ms = timeout_ms
+        self.total_timeout_sec = total_timeout_sec
+
+    def _get_client(self) -> tuple[Optional[Any], Optional[str]]:
+        if not HAS_OPENAI_SDK:
+            return None, "openai Python SDK is not installed (pip install openai)"
+
+        key = self.api_key or os.environ.get("OPENAI_API_KEY")
+        if not key:
+            return None, "OPENAI_API_KEY environment variable is not configured in the current process environment"
+
+        try:
+            http_client = httpx.Client(
+                timeout=httpx.Timeout(self.timeout_ms / 1000.0, connect=10.0),
+                transport=httpx.HTTPTransport(retries=0),
+            )
+            client = openai.OpenAI(
+                api_key=key,
+                timeout=self.timeout_ms / 1000.0,
+                max_retries=0,
+                http_client=http_client,
+            )
+            return client, None
+        except Exception as e:
+            return None, f"Failed to instantiate OpenAI client: {e}"
+
+    def get_info(self) -> Dict[str, Any]:
+        """Return provider status and configuration info without leaking credentials."""
+        client, err = self._get_client()
+        is_configured = bool(self.api_key or os.environ.get("OPENAI_API_KEY"))
+        status = "ready" if (client and is_configured) else ("unavailable" if not is_configured else "error")
+
+        return {
+            "name": self.provider_name,
+            "type": self.__class__.__name__,
+            "status": status,
+            "configured": is_configured,
+            "model": self.model_name,
+            "error": err,
+        }
+
+    def test_connection(self, timeout_ms: int = 15000, total_timeout_sec: float = 20.0) -> Dict[str, Any]:
+        info = self.get_info()
+        if info["status"] != "ready":
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "success": False,
+                "status": info["status"],
+                "message": info.get("error", "Not configured properly"),
+            }
+
+        client, err = self._get_client()
+        if not client:
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "success": False,
+                "status": "error",
+                "message": str(err),
+            }
+
+        def _do_test():
+            response = client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "You are a test client."},
+                    {"role": "user", "content": "Say OK if you can read this."}
+                ],
+                max_tokens=10,
+            )
+            return response.choices[0].message.content
+
+        logger.info(f"OpenAI test_connection request started (model: {self.model_name})")
+        try:
+            text = _run_daemon_bounded(_do_test, total_timeout_sec=total_timeout_sec)
+            logger.info("OpenAI response received successfully")
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "success": True,
+                "status": "ready",
+                "message": "OpenAI API connection successful",
+            }
+        except TimeoutError:
+            logger.error("OpenAI API connection timed out")
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "success": False,
+                "status": "error",
+                "message": "OpenAI API connection timed out",
+            }
+        except Exception as ex:
+            err_dict = _classify_openai_error(ex)
+            err_dict["provider"] = self.provider_name
+            err_dict["model"] = self.model_name
+            err_dict["success"] = False
+            logger.error(f"OpenAI API error category: {err_dict['status']}")
+            return err_dict
 
     def generate(self, prompt: str, options: Optional[Dict[str, Any]] = None) -> str:
-        if "mission" in prompt.lower() or "plan" in prompt.lower():
-            return "Recommended Mission:\n1. Passive recon & DNS discovery\n2. Service version fingerprinting\n3. Web application logic audit"
-        return f"[OpenAI Provider ({self.model_name})] Generated response for prompt: {prompt[:50]}..."
+        client, err = self._get_client()
+        if not client:
+            raise ValueError(f"OpenAI provider not initialized: {err}")
+
+        def _do_generate():
+            response = client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content
+
+        logger.info(f"OpenAI generate request started (model: {self.model_name})")
+        try:
+            res = _run_daemon_bounded(_do_generate, total_timeout_sec=self.total_timeout_sec)
+            logger.info("OpenAI response received successfully")
+            return res
+        except TimeoutError:
+            logger.error("OpenAI API connection timed out")
+            raise RuntimeError("OpenAI API Error: OpenAI API connection timed out")
+        except Exception as ex:
+            err_dict = _classify_openai_error(ex)
+            logger.error(f"OpenAI API error category: {err_dict['status']}")
+            raise RuntimeError(f"OpenAI API Error: {err_dict['message']} - {err_dict['details']}")
 
     def analyze(self, context: Dict[str, Any], prompt: Optional[str] = None) -> Dict[str, Any]:
+        """Perform security context analysis using OpenAI."""
         target = context.get("target", "unknown")
-        findings = context.get("previous_findings", [])
+        technologies = context.get("technologies", [])
+        endpoints = context.get("endpoints", [])
+        phase = context.get("phase", "DISCOVERY")
+        skills = context.get("skills", [])
+        findings = context.get("findings") or context.get("previous_findings", [])
+
+        if prompt:
+            custom_prompt = prompt
+        else:
+            custom_prompt = (
+                "You are assisting a licensed penetration tester operating within NYX, a "
+                "policy-gated security testing tool. This specific target and action have "
+                "already been verified as explicitly authorized and in-scope by NYX's own "
+                "authorization and scope-enforcement system before this analysis request was "
+                "ever made — you are analyzing already-collected, already-permitted "
+                "reconnaissance data, not deciding whether to attack anything.\n\n"
+                f"Target: {target}\n"
+                f"Phase: {phase}\n"
+                f"Detected Technologies: {technologies[:20]}\n"
+                f"Harvested Endpoints: {endpoints[:20]}\n"
+                f"Matched Security Skills: {skills[:15]}\n"
+                f"Prior Findings Count: {len(findings)}\n\n"
+                "Analyze this specific target context and provide a tailored, high-priority vulnerability research focus.\n"
+                "Respond ONLY with a valid JSON object (no markdown code blocks, no ```json formatting, no explanation before or after) with exactly these two keys:\n"
+                '{\n'
+                '  "focus": "<short focus area, a few words>",\n'
+                '  "reasoning": "<2-4 sentence explanation tied directly to the specific technologies, endpoints, or attack surface found>"\n'
+                '}'
+            )
+
+        try:
+            generated = self.generate(custom_prompt)
+        except Exception as ex:
+            generated = str(ex)
+
+        # Parse JSON output
+        focus, reasoning = None, None
+        if generated and isinstance(generated, str):
+            clean_text = generated.strip()
+            if clean_text.startswith("```"):
+                lines = clean_text.splitlines()
+                if lines and lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                clean_text = "\n".join(lines).strip()
+            try:
+                data = json.loads(clean_text)
+                if isinstance(data, dict):
+                    f_val = data.get("focus")
+                    r_val = data.get("reasoning")
+                    if f_val and isinstance(f_val, str):
+                        focus = f_val.strip()
+                        reasoning = str(r_val or "").strip()
+            except Exception:
+                pass
+
+        if focus:
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "target": target,
+                "analysis": reasoning or generated,
+                "recommended_focus": focus,
+            }
+
+        # Fallback when JSON parsing fails or call failed
+        error_msg = str(generated).strip()
+        if "OpenAI API Error:" in error_msg:
+            error_msg = error_msg.replace("OpenAI API Error:", "").strip()
+        elif "OpenAI provider not initialized:" in error_msg:
+            error_msg = error_msg.replace("OpenAI provider not initialized:", "").strip()
+        elif not error_msg:
+            error_msg = "Model response was empty"
+
         return {
             "provider": self.provider_name,
+            "model": self.model_name,
             "target": target,
-            "analysis": f"Analyzed target '{target}' with {len(findings)} prior findings.",
-            "recommended_focus": "Business Logic & Rate Limit Vulnerability Testing",
+            "analysis": error_msg,
+            "recommended_focus": "AI analysis unavailable",
         }
 
     def decide(self, context: Dict[str, Any], options: List[Dict[str, Any]]) -> Dict[str, Any]:

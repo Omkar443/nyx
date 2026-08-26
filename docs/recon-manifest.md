@@ -1,8 +1,6 @@
 # Recon → Hunt Manifest
 
-`manifest.json` is the data contract between the **recon** phase
-([NYX AI-OSINT](https://github.com/nyx-security/NYX AI-OSINT) · `offensive-osint` ·
-`nyx recon`) and the **hunt** phase (NYX Security Intelligence Engine · `hunt` · `nyx surface` · `/hunt`).
+`manifest.json` is the data contract between the **recon** phase (`offensive-osint`, `nyx recon`) and the **hunt** phase (NYX Security Intelligence Engine, `hunt`, `nyx surface`, `/hunt`).
 One file, written to `recon/<target>/manifest.json`, that the hunt side ingests so recon
 output flows straight into the engagement instead of being re-typed.
 

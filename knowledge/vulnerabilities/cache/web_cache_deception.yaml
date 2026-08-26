@@ -1,0 +1,27 @@
+vulnerability:
+  name: Path Normalization Web Cache Deception
+  category: cache
+  description: Tricking caching proxies (Cloudflare, Fastly, Akamai) into caching authenticated dynamic responses by appending static file extensions with path normalization discrepancies.
+
+attack_surface: cache
+
+detection_patterns:
+  - "/account/settings/test.css"
+  - "/api/user/profile/wcd.js"
+  - "/my-account;%2f..%2ftest.jpg"
+  - "/user/info%23.png"
+
+validation_steps:
+  - "Identify dynamic authenticated endpoints returning sensitive user profile or token data."
+  - "Append static extensions (/profile/nonexistent.css, /profile;%2f..%2fstyle.css) from an authenticated session."
+  - "Verify if proxy returns cache headers (CF-Cache-Status: HIT, X-Cache: HIT, Age: >0)."
+  - "Fetch the exact same URL from an unauthenticated session and verify if authenticated data is returned."
+
+evidence_requirements:
+  - "Authenticated request producing cache HIT header."
+  - "Unauthenticated request returning the cached victim profile/token response."
+
+severity_mapping: High
+
+related_skills:
+  - hunt-cache-poison

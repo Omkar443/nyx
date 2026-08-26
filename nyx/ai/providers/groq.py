@@ -6,6 +6,7 @@ daemon thread wall-clock ceiling, and strict error classification.
 from __future__ import annotations
 
 import os
+import json
 import time
 import logging
 import threading
@@ -238,13 +239,89 @@ class GroqProvider(AIProvider):
             raise RuntimeError(f"Groq API Error: {err_dict['message']} - {err_dict['details']}")
 
     def analyze(self, context: Dict[str, Any], prompt: Optional[str] = None) -> Dict[str, Any]:
+        """Perform security context analysis using Groq."""
         target = context.get("target", "unknown")
-        findings = context.get("previous_findings", [])
+        technologies = context.get("technologies", [])
+        endpoints = context.get("endpoints", [])
+        phase = context.get("phase", "DISCOVERY")
+        skills = context.get("skills", [])
+        findings = context.get("findings") or context.get("previous_findings", [])
+
+        if prompt:
+            custom_prompt = prompt
+        else:
+            custom_prompt = (
+                "You are assisting a licensed penetration tester operating within NYX, a "
+                "policy-gated security testing tool. This specific target and action have "
+                "already been verified as explicitly authorized and in-scope by NYX's own "
+                "authorization and scope-enforcement system before this analysis request was "
+                "ever made — you are analyzing already-collected, already-permitted "
+                "reconnaissance data, not deciding whether to attack anything.\n\n"
+                f"Target: {target}\n"
+                f"Phase: {phase}\n"
+                f"Detected Technologies: {technologies[:20]}\n"
+                f"Harvested Endpoints: {endpoints[:20]}\n"
+                f"Matched Security Skills: {skills[:15]}\n"
+                f"Prior Findings Count: {len(findings)}\n\n"
+                "Analyze this specific target context and provide a tailored, high-priority vulnerability research focus.\n"
+                "Respond ONLY with a valid JSON object (no markdown code blocks, no ```json formatting, no explanation before or after) with exactly these two keys:\n"
+                '{\n'
+                '  "focus": "<short focus area, a few words>",\n'
+                '  "reasoning": "<2-4 sentence explanation tied directly to the specific technologies, endpoints, or attack surface found>"\n'
+                '}'
+            )
+
+        try:
+            generated = self.generate(custom_prompt)
+        except Exception as ex:
+            generated = str(ex)
+
+        # Parse JSON output
+        focus, reasoning = None, None
+        if generated and isinstance(generated, str):
+            clean_text = generated.strip()
+            if clean_text.startswith("```"):
+                lines = clean_text.splitlines()
+                if lines and lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                clean_text = "\n".join(lines).strip()
+            try:
+                data = json.loads(clean_text)
+                if isinstance(data, dict):
+                    f_val = data.get("focus")
+                    r_val = data.get("reasoning")
+                    if f_val and isinstance(f_val, str):
+                        focus = f_val.strip()
+                        reasoning = str(r_val or "").strip()
+            except Exception:
+                pass
+
+        if focus:
+            return {
+                "provider": self.provider_name,
+                "model": self.model_name,
+                "target": target,
+                "analysis": reasoning or generated,
+                "recommended_focus": focus,
+            }
+
+        # Fallback when JSON parsing fails or call failed
+        error_msg = str(generated).strip()
+        if "Groq API Error:" in error_msg:
+            error_msg = error_msg.replace("Groq API Error:", "").strip()
+        elif "Groq provider not initialized:" in error_msg:
+            error_msg = error_msg.replace("Groq provider not initialized:", "").strip()
+        elif not error_msg:
+            error_msg = "Model response was empty"
+
         return {
             "provider": self.provider_name,
+            "model": self.model_name,
             "target": target,
-            "analysis": f"Analyzed target '{target}' with {len(findings)} prior findings.",
-            "recommended_focus": "Business Logic & Rate Limit Vulnerability Testing",
+            "analysis": error_msg,
+            "recommended_focus": "AI analysis unavailable",
         }
 
     def decide(self, context: Dict[str, Any], options: List[Dict[str, Any]]) -> Dict[str, Any]:

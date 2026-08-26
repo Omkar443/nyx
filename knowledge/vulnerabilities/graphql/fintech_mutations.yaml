@@ -1,0 +1,33 @@
+vulnerability:
+  name: GraphQL Financial Mutation & Batching Race
+  category: graphql
+  description: Unauthorized execution of financial transactions or balance manipulation via GraphQL mutations, field-level auth gaps, or alias-batching concurrency.
+
+attack_surface: graphql
+
+detection_patterns:
+  - "transferFunds"
+  - "withdrawBalance"
+  - "applyDiscount"
+  - "processPayment"
+  - "redeemReward"
+  - "deposit"
+  - "creditBalance"
+
+validation_steps:
+  - Identify financial or ledger-altering mutations in the GraphQL schema.
+  - Test mutation execution with missing, altered, or cross-tenant authentication tokens.
+  - Execute alias-batching requests to test for race conditions on non-atomic database transactions.
+  - Verify if transaction limits can be bypassed via negative amounts or fractional currency values.
+
+evidence_requirements:
+  - GraphQL mutation payload and response showing successful balance alteration or unauthorized transfer.
+  - Concurrency proof demonstrating double-credit or double-redemption.
+
+severity_mapping: Critical
+
+related_skills:
+  - hunt-fintech-graphql
+  - hunt-graphql
+  - hunt-race-condition
+  - hunt-business-logic

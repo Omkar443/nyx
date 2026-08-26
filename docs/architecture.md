@@ -8,7 +8,7 @@ The NYX Security Intelligence Engine bundle maps to a 6-phase workflow that supp
 
 ![architecture overview](assets/architecture-overview.svg)
 
-The "Source" column in the per-phase tables below tags each skill: **`original`** = author's work in this repo, `community` = community-contributed (v3), `vendored` = from [shuvonsec/claude-bug-bounty](https://github.com/shuvonsec/claude-bug-bounty) (MIT). Of 82 skills: 54 original, 20 community (v3), 8 vendored.
+The "Source" column in the per-phase tables below tags each skill: **`original`** = core NYX intelligence, `community` = specialized domain workflows, `foundation` = foundational research patterns (see [credits.md](credits.md)). Of 83 skills: 55 original, 20 community, 8 foundation.
 
 ## Alternate view — 3-layer capability stack
 
@@ -251,5 +251,4 @@ Tools the skills call into during the workflow.
 
 - [USAGE.md](../USAGE.md) — full usage walkthrough with worked example
 - [INSTALL.md](../INSTALL.md) — step-by-step setup
-- [docs/credits.md](credits.md) — full attribution to upstream sources
-- [shuvonsec/claude-bug-bounty](https://github.com/shuvonsec/claude-bug-bounty) — vendored foundation
+- [docs/credits.md](credits.md) — full attribution to open-source and research sources

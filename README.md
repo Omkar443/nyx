@@ -6,100 +6,122 @@
 
 <p align="center">
   <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.9+"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/AI%20Provider-Neutral-purple.svg" alt="AI Provider Neutral"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-190%20Loaded-brightgreen.svg" alt="190 Security Skills"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Quality%20Gate-7--Question-orange.svg" alt="7-Question Gate"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-214%20Passed-brightgreen.svg" alt="214 Tests Passing"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-83%20Validated-blueviolet.svg" alt="83 Security Skills"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Knowledge%20Assets-33%20Databases-blue.svg" alt="33 Knowledge Databases"></a>
+  <a href="docs/benchmarks/"><img src="https://img.shields.io/badge/Benchmarks-68.8%25%20%7C%2081.0%25-informational.svg" alt="Empirical Benchmarks"></a>
 </p>
 
 ---
 
-## Overview
+## What is NYX?
 
-**NYX Security Intelligence Engine** (`nyx`) is an open-source, AI-model-neutral security research, threat intelligence, and tool orchestration framework. Designed for senior bug hunters, red-team operators, and application security engineers, NYX transforms raw LLM capabilities into an autonomous security researcher equipped with 190 specialized vulnerability playbooks, persistent engagement memory, SHA-256 evidence verification, and distributed execution nodes.
+**NYX** (`nyx`) is an open-source **Security Research & Bug Bounty Intelligence Platform** designed for application security engineers, bug bounty hunters, and red teams.
 
-Whether backed by **Google Gemini**, **Anthropic Claude**, **OpenAI GPT-4**, or **Local LLMs (Ollama / vLLM)**, NYX maintains strict scope boundary enforcement, eliminates false positives through empirical validation gates, and streamlines the full lifecycle from discovery to report generation.
+Unlike raw LLM prompts that suffer from hallucinations, lost context, and unverified claims, NYX combines **83 specialized offensive security skills**, **33 structured domain knowledge databases**, **multi-provider AI advisory reasoning**, **deterministic mission planning**, **real tool execution adapters**, and a strict **7-Question Empirical Validation Gate**.
 
----
-
-## Key Highlights & Pillars
-
-- ⚡ **First-Run Automatic Dependency Bootstrap**: Preflight environment manager detects, installs, and builds Python and Node.js/frontend dependencies automatically across Windows, Linux, and WSL2.
-- 🎯 **Explicit Scope Policy Enforcement**: Strict scope validation (`CONFIGURED`, `UNCONFIGURED`, `OUT_OF_SCOPE`). Automatically blocks active execution on unconfigured scopes while allowing safe dry-runs.
-- 🛡️ **190 Specialized Security Skills**: Per-vulnerability playbooks covering Web (SQLi, XSS, SSRF, IDOR, LFI, XXE, CORS), API (GraphQL, gRPC, WebSocket), Cloud (AWS, Azure, GCP, IMDS), Enterprise Identity (M365/Entra ID, Okta), Infrastructure (vCenter, SharePoint, Enterprise VPNs), and Mobile Red Teaming (Android APK, iOS IPA).
-- 🧠 **AI Model Neutrality**: Unified abstraction layer supporting Gemini, Claude, OpenAI, and Local Ollama / vLLM endpoints with dynamic switching.
-- 💾 **Persistent Engagement Memory**: Maintains structured JSON ledgers (`.engagement/`) tracking discovered subdomains, mapped technology stacks, tested attack vectors, and failed hypotheses.
-- 🔒 **SHA-256 Cryptographic Evidence Vault**: Stores tamper-evident HTTP request/response logs, screenshots, and console traces with automated PII redaction.
-- 🌐 **Distributed Worker Nodes**: Remote execution engine with HMAC-authenticated task dispatch for distributed recon, fuzzing, and surface probes.
-- 🌐 **Dynamic Browser Runtime Engine**: Playwright-backed headless browser automation for JavaScript single-page application (SPA) mapping, DOM mutation tracking, and authenticated session state capture.
-- 🎯 **7-Question Quality Gate**: Empirical validation workflow that enforces strict proof-of-impact, scope verification, and duplicate check before generating bug bounty reports.
+NYX ensures that every reported finding is backed by **real HTTP request/response traffic, SHA-256 evidence hashing, and strict scope verification**—with **zero fake execution and zero hallucinated bugs**.
 
 ---
 
-## Architecture Flow Diagram
+## Empirical Benchmark Baseline
 
-```mermaid
-flowchart TD
-    subgraph Client ["Interface & Dispatch Layer"]
-        CLI["NYX CLI (nyx)"]
-        WEB["React Web Dashboard"]
-        REST["FastAPI REST & WebSocket Server"]
-        BOOT["First-Run Environment Bootstrap"]
-    end
+NYX is evaluated against independently-maintained vulnerable applications with published, objective ground truths:
 
-    subgraph Governance ["Authorization & Scope Engine"]
-        SCOPE["Scope Policy Gating (CONFIGURED | UNCONFIGURED | OUT_OF_SCOPE)"]
-        AUTH["Authorization Guard (.engagement/authorization.yaml)"]
-        STATE["Workflow State Machine (DISCOVERY | ANALYSIS | VALIDATION | REPORTING)"]
-    end
+| Benchmark Target | Architecture | True Positive Rate | False Positives | Full Methodology |
+|---|---|---|---|---|
+| **OWASP Juice Shop v20.2.0** | Monolithic Node / Express / Angular | **68.8%** (75 / 109) | **0%** (0 FP) | [docs/benchmarks/juice-shop.md](docs/benchmarks/juice-shop.md) |
+| **OWASP crAPI** | Microservices / Reverse Proxy / Multi-DB | **81.0%** (17 / 21) | **0%** (0 FP) | [docs/benchmarks/crapi.md](docs/benchmarks/crapi.md) |
 
-    subgraph Intelligence ["NYX Intelligence & Reasoning Core"]
-        ROUTER["Skill Classifier & Router"]
-        KNOWLEDGE["190 Security Skills Catalog"]
-        MEMORY["Persistent Engagement Memory (.engagement/endpoints.json)"]
-        DIFF["Asset Graph & Diff Engine"]
-        AI_MGR["AI Provider Abstraction Manager"]
-    end
+*Full reproduction command sequences and ground truth matrices are documented in [docs/benchmarks/](docs/benchmarks/).*
 
-    subgraph AI_Providers ["Supported AI Models"]
-        GEMINI["Google Gemini"]
-        CLAUDE["Anthropic Claude"]
-        OPENAI["OpenAI GPT-4"]
-        LOCAL["Local LLMs (Ollama / vLLM)"]
-    end
+---
 
-    subgraph Execution ["Execution & Dynamic Runtime Engine"]
-        SANDBOX["Subprocess Sandbox Executor"]
-        BROWSER["Playwright Dynamic Browser Runtime"]
-        WORKERS["Distributed Worker Fleet (HMAC Auth)"]
-    end
+## Core Architecture & Invariants
 
-    subgraph Lifecycle ["Finding Lifecycle & Quality Gate"]
-        DUP_CHK["Duplicate Vector Check"]
-        GATE["7-Question Quality Gate"]
-        VAULT["SHA-256 Evidence Vault (.engagement/evidence/)"]
-        REPORTS["Platform Report Generator (H1 / Bugcrowd / Intigriti / Immunefi)"]
-    end
+NYX operates on a strict separation of concerns where AI advises, policy governs, deterministic planners schedule, and real evidence validates:
 
-    Client --> BOOT
-    BOOT --> Governance
-    Governance --> Intelligence
-    Intelligence --> AI_Providers
-    AI_Providers --> Execution
-    Execution --> Lifecycle
-    Lifecycle --> REPORTS
 ```
+┌────────────────────────────────────────────────────────┐
+│                   1. CONTEXT ENGINE                    │
+│    (Target Domain, Scope Boundaries, Detected Stack)   │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│               2. KNOWLEDGE & SKILL BASE                │
+│   (83 Security Skills + 33 Structured Domain YAMLs)    │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│                 3. AI ADVISORY LAYER                   │
+│   (Gemini, Grok, Groq, Claude, OpenAI, Local Ollama)   │
+│   * Advisory only: Cannot authorize or bypass policy   │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│            4. DETERMINISTIC MISSION PLANNER            │
+│   (Context-aware action scheduling & decision graph)   │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│             5. AUTHORIZATION & SCOPE GATE              │
+│    (Fail-closed pre-execution policy enforcement)      │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│               6. REAL EXECUTION ADAPTERS               │
+│      (httpx, katana, subfinder, ffuf, nuclei, nmap)    │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│            7. EVIDENCE VAULT & VALIDATION              │
+│   (SHA-256 Hashing, 7-Question Gate, 8-Class Status)   │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│         8. PERSISTENT ENGAGEMENT MEMORY                │
+│   (Tested vectors, finding lifecycle & report drafts)  │
+└────────────────────────────────────────────────────────┘
+```
+
+### The 10 Security Invariants
+1. **AI is Advisory Only:** AI generates hypotheses and reasoning, but cannot directly invoke unapproved shell commands or override scope.
+2. **Knowledge is Non-Executable:** Knowledge files provide structured attack patterns and citations without executable code.
+3. **Planner is Deterministic:** Mission plans follow strict rule-based trees and historical memory ledgers.
+4. **Policy Gate is Authoritative:** Active attacks require explicit authorization (`authorized: true`) and in-scope hosts.
+5. **Real Subprocess Execution:** No mock/simulated scan results in production workflows.
+6. **Empirical Evidence Required:** Findings require raw HTTP request/response traces or OOB callback logs to be marked `CONFIRMED`.
+7. **Infrastructure Failure $
+eq$ Negative Security:** Timeouts and connection drops are classified as `failed_infrastructure`, never as "not vulnerable".
+8. **Surface Detection $
+eq$ Finding Confirmation:** Finding an endpoint (e.g., `/graphql` or `/admin`) never manufactures a vulnerability finding without proof.
+9. **Zero-Hallucination Gate:** The 7-Question Gate automatically filters out self-XSS, rate-limit noise, missing best-practice headers, and unproven claims.
+10. **100% Repository Independence:** Zero third-party proprietary runtime locks.
+
+---
+
+## Key Features
+
+- 🛡️ **83 Validated Security Skills:** Modular playbooks covering Web, API, Cloud IAM, M365/Entra, Okta, Mobile (APK/iOS), CI/CD, Container/K8s, and Business Logic.
+- 📚 **33 Structured Knowledge Databases:** Verified vulnerability patterns and attack vectors mapped to real-world disclosed bug bounty research.
+- 🎯 **Fail-Closed Scope Policy:** Enforces boundary checks (`CONFIGURED`, `UNCONFIGURED`, `OUT_OF_SCOPE`). Blocks active scans on unverified targets while allowing dry-run plan reviews.
+- 🔌 **Native Tool Adapters:** Subprocess execution harnesses for `httpx`, `katana`, `subfinder`, `ffuf`, `nuclei`, and `nmap` with timeout isolation and environment sanitization.
+- 🧠 **Multi-Provider AI Abstraction:** Native support for **Google Gemini**, **xAI Grok**, and **Groq** with actionable quota/error classification; **Anthropic Claude**, **OpenAI**, and **Local LLMs (Ollama)** with deterministic offline fallback.
+- 💾 **Persistent Engagement Memory:** Tracks discovered assets, technology stacks, and tested vectors in `.engagement/` to prevent duplicate scanning.
+- ⚖️ **Deterministic 7-Question Gate:** Triage engine that scores findings based on real-world impact, unauthenticated reachability, and program terms.
+- 📄 **Multi-Platform Report Generator:** Automatically drafts formatted vulnerability submissions for **HackerOne**, **Bugcrowd**, **Intigriti**, and enterprise red-team deliverables.
 
 ---
 
 ## Installation & Quickstart
 
 ### Prerequisites
-- **Python**: 3.9+ (Windows, Linux, WSL2, or macOS)
-- **Node.js**: 18+ (Auto-detected & bootstrapped if missing)
+- **Python**: 3.10+ (Tested through Python 3.14 on Linux, macOS, Windows, and WSL2)
+- **Git**
 
-### 1. Editable Installation from Source
+### 1. Installation from Source
 
 ```bash
 git clone https://github.com/Omkar443/nyx.git
@@ -113,177 +135,232 @@ python -m pip install -e .
 nyx doctor
 ```
 
-*Expected Output:*
+*Example Output:*
 ```text
 ======================================================================
 NYX Security Intelligence Engine Environment Doctor
 ======================================================================
 System
-  OS              ✓ WINDOWS / WSL2 / LINUX
-  Architecture    ✓ AMD64
+  OS              ✓ WINDOWS / LINUX / MACOS
+  Architecture    ✓ AMD64 / ARM64
 
 Python
-  Version         ✓ 3.14.3
-  pip             ✓
+  Version         ✓ 3.10+
+  pip             ✓ OK
 
 Python Packages
-  NYX             ✓
-  FastAPI         ✓
-  Uvicorn         ✓
+  NYX Core        ✓ READY
+  FastAPI         ✓ OK
+  Uvicorn         ✓ OK
 
-Frontend
-  Node.js         ✓ v24.14.0
-  npm             ✓
-  Dependencies    ✓
-  Build           ✓
-
-Security
-  Workspace       ✓ READY
-  Configuration   ✓ OK
-
-Loaded Security Skills: 190
+Security Knowledge
+  Validated Skills:    83
+  Knowledge Bases:     33
 
 Result:
-✓ NYX environment is ready
+✓ NYX environment is fully operational and release-ready
 ```
 
 ---
 
-## Usage Walkthrough
+## Standard Workflow
 
 ### Step 1: Initialize an Engagement Workspace
 
 ```bash
-nyx mission init target.com
+nyx engagement init target.com
 ```
 
-### Step 2: Perform Passive Recon & Surface Ranking
+### Step 2: Configure Authorization & Scope
+
+Inspect `.engagement/target.yaml` and confirm authorized boundaries in `.engagement/authorization.yaml`:
+
+```yaml
+# .engagement/authorization.yaml
+authorized: true
+mode: "RESEARCH"
+```
+
+### Step 3: Run Passive Recon & Surface Ranking
 
 ```bash
-# Run passive subdomain discovery & HTTP live probing
+# Discover subdomains, unlinked paths, and SPA JS API endpoints
 nyx recon target.com
 
-# Rank the attack surface from recon manifest
+# Rank attack surfaces based on discovered routes
 nyx surface target.com
 ```
 
-### Step 3: Classify Target Endpoint to Security Skills
+### Step 4: Classify Endpoints Against Security Skills
 
 ```bash
-nyx classify "https://api.target.com/v1/users/42?next=https://evil.com"
+nyx classify "https://api.target.com/v1/graphql"
 ```
 
-### Step 4: Run Controlled Tool Execution
+### Step 5: Automated Intelligence Planning & Execution
 
 ```bash
-# Dry-run execution on unconfigured or active target
-nyx exec subfinder target.com --dry-run
+# Generate a deterministic mission plan
+nyx ai plan target.com
+
+# Execute the plan under policy boundaries (dry-run or live)
+nyx ai execute target.com --dry-run
 ```
 
-### Step 5: Run Quality Gate Triage on a Finding
+### Step 6: Validate Evidence & Triage Findings
 
 ```bash
-nyx triage database/findings/FH-2026-001.md
+# Evaluate empirical evidence through the 7-Question Quality Gate
+nyx triage .engagement/findings/FH-2026-001/finding.json
 ```
 
-### Step 6: Export Bug Bounty / Client Report
+### Step 7: Export Submission-Ready Report
 
 ```bash
-nyx report database/findings/FH-2026-001.md --platform bugcrowd --out draft.md
+# Export platform-formatted report (choices: h1, bugcrowd, intigriti, redteam)
+nyx report FH-2026-001 --platform bugcrowd --out draft_report.md
 ```
 
-### Step 7: Launch Web Platform & Dashboard
+### Step 8: Web Dashboard UI (Optional)
 
 ```bash
-# nyx web automatically bootstraps Node.js/frontend dependencies on first launch!
 nyx web --port 8000
 ```
 
 ---
 
-## CLI Command Matrix
-
-| Command | Subcommands / Arguments | Description |
-|---|---|---|
-| `nyx doctor` | None | Verify system, Python environment, skills, frontend build, and workspace readiness |
-| `nyx engagement` | `init <target>`, `status`, `export` | Manage persistent target workspace, scope boundaries, and ledger |
-| `nyx mission` | `init <target>`, `status`, `run <target>` | Initialize or run automated end-to-end security research missions |
-| `nyx recon` | `<target>` | Passive subdomain enumeration, DNS resolution, and live HTTP probing |
-| `nyx surface` | `<target>` | Rank attack surface endpoints based on recon manifest data |
-| `nyx classify` | `<url>` | Match URL parameters and path structures to the 190 security skills |
-| `nyx exec` | `<tool> <target> [--dry-run]` | Policy-gated tool execution harness with scope status validation |
-| `nyx memory` | `add`, `search`, `import-burp <file>` | Manage engagement memory ledger and import Burp XML HTTP history |
-| `nyx evidence` | `list`, `show <id>`, `verify <id>`, `add` | Manage cryptographic SHA-256 evidence vault items |
-| `nyx triage` | `<finding.md>` | Execute the 7-Question Quality Gate triage evaluation |
-| `nyx report` | `<finding.md> --platform <h1\|bugcrowd...>` | Generate platform-formatted bug bounty submission drafts |
-| `nyx web` | `--port 8000 --host 0.0.0.0` | Launch FastAPI web server & React Dashboard UI (auto-bootstrapped) |
-| `nyx monitor` | `start`, `status` | Continuous attack surface monitoring and asset diffing engine |
-| `nyx workers` | `list`, `register`, `status`, `run` | Manage & run distributed HMAC-authenticated worker execution nodes |
-
----
-
 ## Supported AI Providers
 
-NYX is completely model-neutral and can be configured with your preferred AI provider:
+NYX is model-neutral. Configure your preferred AI provider via environment variables or `.env`:
 
 ```bash
-# Configure via Environment Variables or .env file
-export NYX_AI_PROVIDER="gemini"         # choices: gemini, claude, openai, local
+# Provider Choices: gemini, grok, groq, claude, openai, local
+export NYX_AI_PROVIDER="gemini"
+
+# Provider Keys (only configure the one you use)
 export GEMINI_API_KEY="AIzaSy..."
+export GROK_API_KEY="xai-..."
+export GROQ_API_KEY="gsk_..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-..."
 export LOCAL_LLM_URL="http://localhost:11434/v1"
 ```
 
+*Note: If no API key is provided, NYX automatically falls back to its deterministic rule engine with 100% functionality.*
+
 ---
 
-## Comprehensive Security Skill Catalog (190 Skills)
+## Security Skill Catalog (83 Validated Skills)
 
-NYX includes an extensive library of specialized security skills automatically loaded based on context:
-
-| Category | Count | Key Skills & Playbooks |
-|---|---|---|
+| Domain | Count | Key Skills & Playbooks |
+|---|:---:|---|
 | **Web Application Vulnerabilities** | 13 | `hunt-xss`, `hunt-sqli`, `hunt-ssrf`, `hunt-idor`, `hunt-lfi`, `hunt-ssti`, `hunt-xxe`, `hunt-csrf`, `hunt-cors`, `hunt-open-redirect`, `hunt-html-injection`, `hunt-nosqli`, `hunt-dom` |
-| **Authentication & Session** | 7 | `hunt-auth-bypass`, `hunt-session`, `hunt-oauth`, `hunt-saml`, `hunt-mfa-bypass`, `hunt-ato`, `hunt-forgot-password` |
-| **API & Protocols** | 15 | `hunt-graphql`, `hunt-grpc`, `hunt-websocket`, `hunt-api-misconfig`, `hunt-host-header`, `hunt-rce`, `hunt-brute-force`, `hunt-captcha-bypass`, `hunt-shadow-api`, `hunt-spa-api`, `hunt-ldap` |
-| **Concurrency & Complex** | 6 | `hunt-race-condition`, `hunt-http-smuggling`, `hunt-deserialization`, `hunt-cache-poison`, `hunt-exceptional-conditions`, `hunt-rag-vector` |
+| **Authentication & Identity** | 7 | `hunt-auth-bypass`, `hunt-session`, `hunt-oauth`, `hunt-saml`, `hunt-mfa-bypass`, `hunt-ato`, `hunt-forgot-password` |
+| **API & Modern Protocols** | 11 | `hunt-graphql`, `hunt-grpc`, `hunt-websocket`, `hunt-api-misconfig`, `hunt-host-header`, `hunt-rce`, `hunt-brute-force`, `hunt-captcha-bypass`, `hunt-shadow-api`, `hunt-spa-api`, `hunt-ldap` |
+| **Concurrency & Complex Vectors** | 6 | `hunt-race-condition`, `hunt-http-smuggling`, `hunt-deserialization`, `hunt-cache-poison`, `hunt-exceptional-conditions`, `hunt-rag-vector` |
 | **Framework Specific** | 4 | `hunt-nextjs`, `hunt-nodejs`, `hunt-laravel`, `hunt-springboot` |
 | **Enterprise Identity & Cloud** | 3 | `m365-entra-attack`, `okta-attack`, `cloud-iam-deep` |
 | **Enterprise Infrastructure** | 4 | `vmware-vcenter-attack`, `enterprise-vpn-attack`, `hunt-sharepoint`, `hunt-aspnet` |
-| **Red Team Tradecraft** | 4 | `redteam-mindset`, `apk-redteam-pipeline`, `ios-redteam-pipeline`, `supply-chain-attack-recon` |
+| **Red Team Tradecraft & Mobile** | 4 | `redteam-mindset`, `apk-redteam-pipeline`, `ios-redteam-pipeline`, `supply-chain-attack-recon` |
 | **Recon & OSINT** | 4 | `web2-recon`, `offensive-osint`, `hunt-subdomain`, `recon-scope-triage` |
-| **Workflow & Reporting** | 11 | `bb-methodology`, `triage-validation`, `evidence-hygiene`, `report-writing`, `bugcrowd-reporting`, `redteam-report-template`, `mid-engagement-ir-detection`, `security-arsenal`, `web3-audit`, `meme-coin-audit` |
+| **DeFi & Smart Contracts** | 2 | `web3-audit`, `meme-coin-audit` |
+| **Methodology & Quality Assurance** | 11 | `bb-methodology`, `triage-validation`, `evidence-hygiene`, `report-writing`, `bugcrowd-reporting`, `redteam-report-template`, `mid-engagement-ir-detection`, `security-arsenal`, `hunt-dispatch`, `hunt-misc`, `hunt-fintech-graphql` |
+| **Infrastructure & Cloud Config** | 3 | `hunt-cloud-misconfig`, `hunt-k8s`, `hunt-cicd` |
+| **Network & Directory Surface** | 3 | `hunt-tls-network`, `hunt-ntlm-info`, `hunt-source-leak` |
+| **Total Validated Skills** | **83** | **100% Passing Skill Linter (0 errors)** |
 
 ---
 
-## Security Policy, Scope & Authorized-Use Posture
+## Test Suite & Verification
 
-NYX is calibrated specifically for authorized external-perimeter security research, bug bounty hunting, CTFs, and red-team engagements under explicit Rules of Engagement (RoE):
+NYX is backed by an automated regression test suite covering all security domains, policy enforcement gates, and failure taxonomies:
 
-- 🔒 **Target Scope Verification**: Automatically validates `.engagement/target.yaml` and `.engagement/authorization.yaml` before executing active probes. Unconfigured target scopes restrict executions to safe dry-runs.
-- 🎯 **7-Question Quality Gate (`nyx triage`)**: Enforces proof-of-impact, accepted program terms, and scope verification before report generation.
-- 🛡️ **External Perimeter Focus**: Explicitly excludes internal Active Directory attacks (BloodHound, Kerberoasting, DCSync), C2 frameworks, LSASS dumping, and EDR evasion.
-- 🔐 **Cryptographic Evidence Vault (`nyx evidence`)**: Auto-redacts session cookies, authorization headers, and user PII before writing evidence artifacts.
+```bash
+python -m pytest
+```
 
-For full details on authorized use, explicit exclusions, supply-chain verification, and responsible disclosure, see the full [NYX Security Policy](SECURITY.md).
+```text
+============================== test session starts ==============================
+platform win32 / linux -- Python 3.10+
+collected 214 items
+
+tests/test_content_discovery.py .......                                  [  3%]
+tests/test_environment_bootstrap.py ................                     [ 10%]
+tests/test_exec_sync.py ............                                     [ 16%]
+tests/test_fixes_regression.py .............                             [ 22%]
+tests/test_gemini_provider.py .....................                      [ 32%]
+tests/test_grok_provider.py ........                                     [ 35%]
+tests/test_groq_provider.py ........                                     [ 39%]
+tests/test_mission_orchestration.py ..                                   [ 40%]
+tests/test_phase3_intelligence_planning.py ..........                    [ 45%]
+tests/test_phase4_execution_validation.py ..........                     [ 50%]
+tests/test_phase5_evaluation_hardening.py .............................. [ 64%]
+....                                                                     [ 65%]
+tests/test_planner_execution.py ................                         [ 73%]
+tests/test_provider_analysis.py ............                             [ 78%]
+tests/test_release_block_1.py ......                                     [ 81%]
+tests/test_router_generalization.py ....                                 [ 83%]
+tests/test_scope_enforcement.py ...........                              [ 88%]
+tests/test_surface_ranking.py ....                                       [ 90%]
+tests/test_web_auth.py .......                                           [ 93%]
+tests/test_websocket_frontend_auth.py ...                                [ 95%]
+tests/test_worker_runtime.py ..........                                  [100%]
+
+====================== 214 passed, 2 warnings in 86.06s ========================
+```
 
 ---
 
-## Documentation Roadmap
+## Scope & Known Limitations
 
-- 📖 [Installation Guide](INSTALL.md)
-- 📖 [Usage & Workflow Guide](USAGE.md)
-- 📖 [Security Policy & Rules](SECURITY.md)
-- 📖 [Contributing Guidelines](CONTRIBUTING.md)
-- 📖 [Changelog](CHANGELOG.md)
+NYX is built for empirical, HTTP-observable web and API security testing — reconnaissance, vulnerability detection, and evidence-based validation over HTTP/HTTPS. It is not a general security scanner, and it does not claim coverage outside that model.
+
+To keep this honest, NYX was benchmarked against two independently-maintained vulnerable applications with published ground truths:
+
+1. **OWASP Juice Shop (v20.2.0)**: **75 / 109** actionable vulnerabilities found and validated (**68.8%**), **0%** false positives.
+2. **OWASP crAPI**: **17 / 21** actionable vulnerabilities found and validated (**81.0%**), **0%** false positives.
+
+### What NYX does not currently do
+
+**Outside NYX's execution model entirely:**
+NYX's evidence and validation model is built around HTTP request/response analysis. It does not currently perform:
+- Static dependency / software composition analysis (SCA) — e.g. detecting vulnerable or typosquatted npm/pip packages by inspecting the dependency tree
+- Blockchain / Web3 transaction analysis — smart contract interaction, wallet operations, or on-chain state inspection
+- Client-side-only analysis — browser DOM automation, image/steganographic forensics, or any vulnerability class with no observable HTTP evidence
+
+If your target's risk surface depends heavily on these categories, pair NYX with a dedicated SCA tool (e.g. `npm audit`, Snyk) or Web3-specific auditing tooling — NYX is not a substitute for those.
+
+**Within scope, but beyond current reasoning depth:**
+NYX's AI advisory and deterministic planner currently perform strongest on single-step and moderate-complexity findings backed by direct empirical evidence. They are less reliable on vulnerabilities requiring multi-stage exploitation chains — for example: blind SQL injection requiring extensive boolean/time-based extraction, asymmetric JWT RS256 -> HS256 key confusion re-signing, complex multi-turn LLM/agent prompt manipulation, race-condition exploitation, template-engine sandbox escapes, or credential/TOTP derivation chains spanning multiple requests and state transitions. NYX will typically flag related risk indicators (e.g. an endpoint accepting unsanitized input) but may not autonomously complete a multi-step exploit chain to full validation. Manual follow-up by a researcher is recommended for high-complexity findings NYX surfaces but does not fully validate.
+
+### What NYX is reliable for
+
+Based on the benchmarks, NYX consistently and correctly detects and validates: broken object level authorization (BOLA) / IDOR, business logic and pricing/coupon manipulation, OTP/MFA rate-limit bypasses, JWT misconfiguration (`alg:none`, basic secret leakage), file upload bypasses (size/type/path traversal), local file inclusion (LFI), SSRF, information disclosure via misconfigured endpoints, mass assignment, NoSQL injection, and unlinked/unreferenced asset discovery.
+
+We publish these benchmark methodologies openly:
+- [docs/benchmarks/juice-shop.md](docs/benchmarks/juice-shop.md) (Juice Shop benchmark trace)
+- [docs/benchmarks/crapi.md](docs/benchmarks/crapi.md) (crAPI benchmark trace)
 
 ---
 
-## License & Credits
+## Responsible Use & Security Policy
 
-- **Code License**: [Apache License 2.0](LICENSE)
-- **Content License**: [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-CONTENT)
-- **Project Lead & Author**: [Omkar443](https://github.com/Omkar443)
+NYX is built strictly for **authorized security research, defensive posture evaluation, bug bounty programs, and authorized penetration testing**:
+
+- **Authorization Gate:** Active scans require verified ownership or explicit written authorization.
+- **Privacy & Hygiene:** Session cookies, Authorization headers, and sensitive customer PII are automatically redacted before evidence storage.
+- **Out-of-Scope Exclusions:** NYX explicitly rejects internal Active Directory credential dumping, malware delivery, and EDR disruption tradecraft.
+
+For vulnerability reporting and disclosure guidelines, see [SECURITY.md](SECURITY.md).
+
+---
+
+## License
+
+- **Source Code**: [Apache License 2.0](LICENSE)
+- **Security Knowledge & Content**: [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-CONTENT)
+- **Third-Party & Vendored Notices**: [LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md)
+- **Author & Maintainer**: [Omkar](https://github.com/Omkar443)
 
 <p align="center">
   <b>NYX Security Intelligence Engine</b> — <i>"Empowering Security Researchers with Autonomous Intelligence & Empirical Rigor."</i>

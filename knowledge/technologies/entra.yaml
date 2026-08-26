@@ -1,0 +1,20 @@
+technology:
+  name: Entra ID / Microsoft 365
+  category: identity_provider
+  description: Microsoft cloud identity platform (Azure AD / Entra ID) providing tenant authentication, SSO, and OAuth token issuance.
+
+attack_surface:
+  - "login.microsoftonline.com"
+  - "autodiscover."
+  - "/common/oauth2/token"
+
+common_vulnerabilities:
+  - User enumeration via AADSTS error codes
+  - Smart Lockout spray evasion
+  - Conditional Access bypass via device registration / user agent
+  - ROPC password spraying
+
+related_skills:
+  - m365-entra-attack
+  - hunt-auth-bypass
+  - hunt-oauth

@@ -6,7 +6,7 @@ This report documents git remote and history configurations for the open-source 
 ---
 
 ## 2. Remote Configuration
-- **Active Origin**: `https://github.com/nyx-security/nyx.git`
+- **Active Origin**: `https://github.com/Omkar443/nyx.git`
 - **Upstream References**: Purged / Initialized for independent release.
 
 ---

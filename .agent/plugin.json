@@ -1,12 +1,12 @@
 {
-  "name": "NYX Security Intelligence Engine",
-  "description": "82-skill bug-hunting & external red-team bundle for NYX Agent — 57 hunt-* web/vuln-class + framework skills, enterprise platform attack chains (M365/Entra, Okta, SharePoint, vCenter, SSL-VPN, APK/iOS), recon/OSINT, reporting & validation gates, and Burp MCP integration. Skills auto-load by topic; 15 slash commands included.",
-  "version": "2.1.0",
+  "name": "NYX",
+  "description": "NYX Security Intelligence Engine — Autonomous Security Research, AI Mission Planning, and Bug Bounty Platform.",
+  "version": "1.0.0",
   "author": {
-    "name": "Sachin Sharma",
-    "url": "https://github.com/nyx-security"
+    "name": "Omkar",
+    "url": "https://github.com/Omkar443"
   },
-  "homepage": "https://nyx-security.github.io/NYX Security Intelligence Engine",
-  "repository": "https://github.com/nyx-security/nyx",
-  "license": "MIT"
+  "homepage": "https://github.com/Omkar443/nyx",
+  "repository": "https://github.com/Omkar443/nyx",
+  "license": "Apache-2.0"
 }

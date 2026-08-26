@@ -17,24 +17,29 @@ def score_endpoint(url: str, technology: list[str] | None = None, parameters: li
     score = 20
     research_areas = set()
 
-    # Authentication surface
-    if re.search(r"login|auth|signin|signup|sso|oauth|saml", url_lower):
+    # Registration & Authentication surface
+    if re.search(r"register|signup|registration|user/create|login|auth|signin|sso|oauth|saml|password|token", url_lower):
         score += 30
-        research_areas.update(["authentication", "authorization"])
+        research_areas.update(["authentication", "authorization", "mass_assignment"])
+
+    # Business Logic, E-commerce & Financial surface
+    if re.search(r"basket|cart|checkout|order|pay|payment|wallet|membership|coupon|discount|promo|quantity|price|rating|feedback", url_lower):
+        score += 30
+        research_areas.update(["business_logic", "financial_tampering", "input_validation"])
 
     # API surface
     if re.search(r"api/|/v1/|/v2/|/graphql", url_lower):
         score += 25
         research_areas.update(["api", "authorization"])
 
-    # File management surface
-    if re.search(r"upload|avatar|file|import|export", url_lower):
+    # File management & serving surface
+    if re.search(r"upload|avatar|file|import|export|ftp/|download", url_lower):
         score += 25
-        research_areas.update(["file_handling", "input_validation"])
+        research_areas.update(["file_handling", "path_traversal", "input_validation"])
 
     # Technology presence
     techs = technology or []
-    if any(t in ("ASP.NET", "Spring Boot", "GraphQL") for t in techs):
+    if any(t in ("ASP.NET", "Spring Boot", "GraphQL", "Node.js", "Express") for t in techs):
         score += 20
 
     # Parameter input presence
@@ -45,7 +50,7 @@ def score_endpoint(url: str, technology: list[str] | None = None, parameters: li
 
     if params:
         score += 15
-        if any(p in ("id", "token", "user", "query") for p in params):
+        if any(p in ("id", "token", "user", "query", "quantity", "price", "role", "file", "path") for p in params):
             score += 10
 
     priority = "HIGH" if score >= 60 else ("MEDIUM" if score >= 40 else "LOW")

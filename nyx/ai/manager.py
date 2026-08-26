@@ -65,9 +65,30 @@ class AIManager:
         return prov.generate(prompt, options=options)
 
     def analyze(self, context: Dict[str, Any], prompt: Optional[str] = None, provider_name: Optional[str] = None) -> Dict[str, Any]:
-        """Perform security context analysis using active or specified provider."""
+        """Perform security context analysis using active or specified provider with strict fail-safe validation."""
         prov = self.get_provider(provider_name)
-        return prov.analyze(context, prompt=prompt)
+        target = context.get("target", "unknown")
+        try:
+            res = prov.analyze(context, prompt=prompt)
+            if isinstance(res, dict):
+                focus = res.get("recommended_focus")
+                analysis_text = res.get("analysis")
+                if focus and analysis_text and isinstance(focus, str) and isinstance(analysis_text, str):
+                    return res
+        except Exception as ex:
+            return {
+                "provider": prov.provider_name,
+                "target": target,
+                "recommended_focus": "AI analysis unavailable — using deterministic methodology",
+                "analysis": f"AI provider execution error: {str(ex)}",
+            }
+
+        return {
+            "provider": prov.provider_name,
+            "target": target,
+            "recommended_focus": "AI analysis unavailable — using deterministic methodology",
+            "analysis": "AI response was empty or malformed — using deterministic methodology",
+        }
 
     def decide(self, context: Dict[str, Any], options: List[Dict[str, Any]], provider_name: Optional[str] = None) -> Dict[str, Any]:
         """Make a security action decision using active or specified provider."""

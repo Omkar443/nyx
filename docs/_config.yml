@@ -7,8 +7,8 @@ description: >-
   patterns, enterprise attack matrices, Burp MCP integration.
 remote_theme: just-the-docs/just-the-docs
 
-url: "https://nyx-security.github.io"
-baseurl: "/NYX Security Intelligence Engine"
+url: "https://Omkar443.github.io"
+baseurl: "/nyx"
 
 # Search (just-the-docs built-in)
 search_enabled: true
@@ -19,7 +19,7 @@ search:
 # Repo links in the nav footer
 aux_links:
   "GitHub":
-    - "https://github.com/nyx-security/nyx"
+    - "https://github.com/Omkar443/nyx"
   "Sponsor — Atlas Cloud":
     - "https://www.atlascloud.ai/console/coding-plan"
 aux_links_new_tab: true

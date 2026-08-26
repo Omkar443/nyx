@@ -74,7 +74,7 @@ When running NYX, you load 82 security skills into your AI agent's context windo
 If you discover a security vulnerability within the NYX repository itself (e.g., in Python CLI modules, execution sandboxes, web API endpoints, or installer scripts):
 
 1. **Do NOT** open a public issue containing zero-day details.
-2. Report the vulnerability directly via [GitHub Security Advisories](https://github.com/Omkar443/nyx/security/advisories) or contact maintainer **Omkar443** via GitHub.
+2. Report the vulnerability directly via [GitHub Security Advisories](https://github.com/Omkar443/nyx/security/advisories) or contact maintainer **Omkar** via GitHub.
 3. Include clear step-by-step reproduction steps, proof-of-concept details, and potential impact.
 
 *Note: Please do not submit reports containing unauthorized exploitation evidence against third-party targets.*
@@ -95,6 +95,6 @@ When NYX assists in discovering a vulnerability on an authorized target:
 
 ## License & Liability
 
-NYX Security Intelligence Engine is provided **"as is"** under the [MIT License](LICENSE), without warranty of any kind. The maintainers and contributors assume no liability for misuse, unauthorized testing, legal consequences, or operational damages resulting from the use of this software.
+NYX Security Intelligence Engine is provided **"as is"** under the [Apache License 2.0](LICENSE), without warranty of any kind. The maintainers and contributors assume no liability for misuse, unauthorized testing, legal consequences, or operational damages resulting from the use of this software.
 
 *If you are ever uncertain whether a target host or testing vector is authorized: **STOP and verify in writing before proceeding.***

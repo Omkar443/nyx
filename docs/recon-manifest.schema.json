@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/nyx-security/nyx/blob/main/docs/recon-manifest.schema.json",
+  "$id": "https://github.com/Omkar443/nyx/blob/main/docs/recon-manifest.schema.json",
   "title": "Recon → Hunt Manifest",
   "description": "Data contract between the recon phase (nyx recon / offensive-osint) and the hunt phase (hunt / nyx surface / /hunt).",
   "type": "object",

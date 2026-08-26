@@ -1,0 +1,20 @@
+technology:
+  name: Kubernetes
+  category: container_orchestration
+  description: Cloud-native container orchestration platform exposing control plane APIs, Kubelet ports, and ServiceAccount tokens.
+
+attack_surface:
+  - ":6443"
+  - ":10250"
+  - ":2379"
+  - ":10255"
+
+common_vulnerabilities:
+  - Kubelet 10250 unauthenticated WebSocket /exec
+  - Kubernetes API anonymous access
+  - Leaky Vessels (CVE-2024-21626) container escape
+  - ServiceAccount token privilege escalation
+
+related_skills:
+  - hunt-k8s
+  - cloud-iam-deep

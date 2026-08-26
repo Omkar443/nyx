@@ -107,6 +107,27 @@ tools:
       format: "text"
     output_format: "text"
     required_permissions:
+  ffuf:
+    binary: "ffuf"
+    type: "fuzzer"
+    category:
+      - "safe_active"
+      - "content_discovery"
+      - "directory_fuzzing"
+    description: "Fast web fuzzer for directory and unlinked content discovery."
+    purpose: "Brute-force common paths and discover unlinked files"
+    execution_class: "SAFE_ACTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-u", "-w", "-json", "-mc", "-fc", "-t", "-rate", "-silent"]
+    timeout: 180
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: "nyx.execution.adapters.ffuf.FfufAdapter"
+    output:
+      format: "json"
+    output_format: "json"
+    required_permissions:
       - "SAFE_ACTIVE"
 
   curl:

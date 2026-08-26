@@ -22,5 +22,21 @@
     "skill_hint": "hunt-idor",
     "auth": "user",
     "objective": "Register a new user (POST /api/Users) and log in (POST /rest/user/login) to obtain a bearer token, then read the shopping basket of a DIFFERENT user. The basket API is GET /rest/basket/{id} with the Authorization: Bearer <token> header. Success = you retrieve a basket whose id is not the one bound to your own account."
+  },
+  {
+    "key": "fintech-transfer-race",
+    "oracle_name": "GraphQL Balance Transfer Race",
+    "category": "Race Condition",
+    "skill_hint": "hunt-fintech-graphql",
+    "auth": "user",
+    "objective": "Execute concurrent aliased transferFunds mutations to verify whether balance deduction is atomic. Success = balance overdraft or duplicate transfer execution."
+  },
+  {
+    "key": "cache-deception-profile",
+    "oracle_name": "Path Normalization Web Cache Deception",
+    "category": "Web Cache Deception",
+    "skill_hint": "hunt-cache-poison",
+    "auth": "user",
+    "objective": "Append a static extension to an authenticated profile endpoint to deceive proxy into caching dynamic user data. Success = unauthenticated request retrieves cached victim profile."
   }
 ]

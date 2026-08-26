@@ -11,6 +11,7 @@ from nyx.execution.adapters.httpx import HttpxAdapter
 from nyx.execution.adapters.katana import KatanaAdapter
 from nyx.execution.adapters.nuclei import NucleiAdapter
 from nyx.execution.adapters.nmap import NmapAdapter
+from nyx.execution.adapters.ffuf import FfufAdapter
 
 _ADAPTER_REGISTRY: dict[str, Type[ToolAdapter]] = {
     "subfinder": SubfinderAdapter,
@@ -18,6 +19,7 @@ _ADAPTER_REGISTRY: dict[str, Type[ToolAdapter]] = {
     "katana": KatanaAdapter,
     "nuclei": NucleiAdapter,
     "nmap": NmapAdapter,
+    "ffuf": FfufAdapter,
 }
 
 
@@ -48,5 +50,6 @@ __all__ = [
     "KatanaAdapter",
     "NucleiAdapter",
     "NmapAdapter",
+    "FfufAdapter",
     "get_adapter",
 ]

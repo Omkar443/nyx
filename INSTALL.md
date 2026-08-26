@@ -36,8 +36,8 @@ New-Item -ItemType Directory -Force -Path "$HOME\security-research"
 cd "$HOME\security-research"
 
 # both
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 ```
 
 ## Step 2 — Run the installer
@@ -115,67 +115,18 @@ Verify in a fresh `claude` session:
 
 You should see `burp · ✓ connected`.
 
-## Step 4 — (Optional) Refresh vendored skills from upstream
+## Step 4 — Verify Environment & Skills
 
-The bundle ships a frozen snapshot of shuvonsec's skills. To pull the latest from upstream and re-bundle:
-
-```bash
-# macOS / Linux
-chmod +x scripts/install-community-skills.sh
-./scripts/install-community-skills.sh
-
-# Windows (PowerShell)
-pwsh ./scripts/install-community-skills.ps1
-```
-
-This clones `shuvonsec/claude-bug-bounty` into `~/security-research/community-skills/` and runs its installer. Useful when you want fresher hunt patterns; not needed for first-time setup.
-
-> **Windows note:** the upstream `shuvonsec/claude-bug-bounty` ships its own bash
-> installer. `install-community-skills.ps1` runs it through Git-for-Windows `bash`
-> if available, and skips it (with a notice) otherwise. Install Git for Windows
-> (https://git-scm.com).
-
-## Step 5 — (Optional) Set up the skill regenerator
-
-If you want to regenerate `hunt-*` per-class skills from fresh disclosed HackerOne reports periodically:
+Run `nyx doctor` to verify that all skills, adapters, and CLI components are ready:
 
 ```bash
-cd ~/security-research
-git clone https://github.com/shuvonsec/public-skills-builder.git
-cd public-skills-builder
-
-# Need Python 3.10+ — use Homebrew on macOS
-brew install python@3.12
-/opt/homebrew/bin/python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt 2>/dev/null || pip install anthropic httpx pydantic requests
-
-# Configure API keys
-cp .env.example .env
-# Edit .env:
-#   ANTHROPIC_API_KEY=sk-ant-...
-#   H1_API_KEY=your_h1_username:your_h1_token
+nyx doctor
+nyx skills
 ```
 
-> **Important**: Anthropic API and NYX AI Max are separate billing systems. Max gives you NYX AI Code access; the API is pay-per-token. You need both keys (`console.anthropic.com/billing` for the API key) to run the generator.
+All 83 security playbooks and 247 knowledge entries are bundled natively with zero external download dependencies required.
 
-Run the generator:
-
-```bash
-python3 public_skills_builder.py --source h1-public --program shopify --limit 200
-```
-
-Other H1 programs with high disclosed-report counts: `gitlab`, `hackerone`, `mail-ru`, `valve`, `uber`, `twitter`. The generator outputs flat `.md` files in `skills/` — you'll need to wrap each in its own folder structure (`hunt-name/SKILL.md`) before installing to `~/.claude/skills/`.
-
-### Known issues with public-skills-builder
-
-| Issue | Fix |
-|---|---|
-| `unsupported operand type: str \| None` | Python <3.10 — install 3.12 via Homebrew |
-| `Filter parameters must contain at least one program handle` | Add `--program <handle>` |
-| `Could not fetch ngalongc/bug-bounty-reference` | Hardcoded `master` branch URLs — patch script to try `main` first |
-
-## Step 6 — Smoke-test
+## Step 5 — Smoke-test
 
 Open a fresh `claude` session in any folder:
 
@@ -250,12 +201,8 @@ pwsh ./scripts/install.ps1 -Uninstall
 ```
 
 This removes the bundle's skills, slash commands, the `hunt.sh`/`hunt.ps1` script, and its
-shell-rc source line. Skills you also installed from the **sister bundle**
-[NYX AI-OSINT](https://github.com/nyx-security/NYX AI-OSINT) — `offensive-osint`
-and `osint-methodology` — are **kept** if NYX AI-OSINT's manifest still claims them,
-so uninstalling one bundle never breaks the other. (Install backups under
-`~/.claude/install-backups/` are left in place; delete them manually if you want.)
+shell-rc source line. (Install backups under `~/.claude/install-backups/` are left in place; delete them manually if you want.)
 
-If you installed via the **plugin** instead of the script: `/plugin uninstall NYX Security Intelligence Engine@nyx-security`.
+If you installed via the **plugin** instead of the script: `/plugin uninstall NYX@omkar`.
 
 Burp MCP, if you wired it, is removed separately: `claude mcp remove burp`.

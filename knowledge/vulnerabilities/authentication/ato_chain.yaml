@@ -1,0 +1,30 @@
+vulnerability:
+  name: "Account Takeover (ATO) Vulnerability Chain"
+  category: "authentication"
+  description: "Chaining broken authentication primitives, OAuth state tampering, or password reset flaws to achieve full unauthorized account takeover."
+
+attack_surface: "authentication"
+
+detection_patterns:
+  - "/oauth/callback"
+  - "/auth/reset-password"
+  - "/api/user/email/change"
+  - "/auth/magic-link"
+
+validation_steps:
+  - "Identify an authentication or account recovery state transition."
+  - "Test for OAuth redirect_uri parameter tampering or wildcard matching."
+  - "Verify if password reset tokens are leaked in response bodies or lack single-use invalidation."
+  - "Demonstrate complete login into victim account without victim credentials."
+
+evidence_requirements:
+  - "HTTP request/response trace showing token theft or state overwrite."
+  - "Authenticated session established as victim user."
+
+severity_mapping: "Critical"
+
+related_skills:
+  - "hunt-ato"
+  - "hunt-oauth"
+  - "hunt-forgot-password"
+  - "hunt-auth-bypass"

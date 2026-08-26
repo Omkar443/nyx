@@ -729,8 +729,8 @@ git commit -m "docs(commands): rewrite memory commands to the autopilot ledger"
 
 - [ ] **Step 1: Trim the vendored-commands claim in `docs/credits.md`**
 
-`docs/credits.md` currently lists `/remember`, `/memory-gc`, `/pickup` among "Vendored slash
-commands | shuvonsec/claude-bug-bounty (MIT)". Those three now describe an **original**
+`docs/credits.md` currently lists `/remember`, `/memory-gc`, `/pickup` among "Foundation slash
+commands (MIT)". Those three describe an **original**
 ledger backend, not the vendored interface. Edit the credits so they are no longer listed as
 vendored: move `/remember`, `/memory-gc`, `/pickup` out of the vendored list, and add one line
 under the author's original work, e.g.:

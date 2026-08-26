@@ -36,7 +36,12 @@ def build_command(tool_name: str, target: str, extra_args: list[str] | None = No
     if tool_name.lower() == "subfinder":
         cmd_list.extend(["-d", target, "-silent"])
     elif tool_name.lower() == "httpx":
-        cmd_list.extend(["-u", target, "-silent"])
+        from nyx.execution.adapters.httpx import is_python_httpx_cli
+        if is_python_httpx_cli():
+            target_url = target if target.startswith(("http://", "https://")) else f"https://{target}"
+            cmd_list.append(target_url)
+        else:
+            cmd_list.extend(["-u", target, "-silent"])
     elif tool_name.lower() == "katana":
         cmd_list.extend(["-u", target, "-silent"])
     elif tool_name.lower() == "nuclei":

@@ -1,0 +1,27 @@
+vulnerability:
+  name: "PostMessage Origin Check Bypass & Timing Race"
+  category: "client_side"
+  description: "Cross-window postMessage listeners with missing origin validation, wildcard trust (*), or race conditions where handlers process the first message before origin state is initialized."
+
+attack_surface: "client_side"
+
+detection_patterns:
+  - "window.addEventListener('message'"
+  - "window.addEventListener(\"message\""
+  - "event.data"
+  - "postMessage("
+
+validation_steps:
+  - "Inspect client-side JavaScript for message event listeners."
+  - "Check whether event.origin is validated using strict equality against trusted domains."
+  - "Create a proof-of-concept HTML iframe that posts malicious payload objects from an untrusted origin."
+  - "Verify if sensitive client-side state is altered or actions are triggered in the victim frame."
+
+evidence_requirements:
+  - "Browser console log or DOM state change confirming message acceptance from untrusted origin."
+
+severity_mapping: "Medium"
+
+related_skills:
+  - "hunt-dom"
+  - "hunt-xss"

@@ -27,15 +27,15 @@ One command installs the skills to every harness's path (copy install; existing 
 
 ```bash
 # macOS / Linux
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 bash scripts/install.sh --all          # NYX AI + ~/.agents/skills (Codex/OpenCode) + ~/.hermes/skills
 ```
 
 ```powershell
 # Windows (PowerShell)
-git clone https://github.com/nyx-security/NYX Security Intelligence Engine.git
-cd NYX Security Intelligence Engine
+git clone https://github.com/Omkar443/nyx.git
+cd nyx
 pwsh ./scripts/install.ps1 -All         # NYX AI + ~/.agents/skills (Codex/OpenCode) + ~/.hermes/skills
 ```
 

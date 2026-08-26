@@ -1,0 +1,29 @@
+vulnerability:
+  name: SharePoint Server Precondition Bypass & ToolShell RCE
+  category: sharepoint
+  description: Authentication and authorization bypass on on-prem SharePoint farms chaining anonymous SOAP endpoints (Authentication.asmx), ToolShell (CVE-2025-53770), and SafeControl reflection flaws.
+
+attack_surface: enterprise_platform
+
+detection_patterns:
+  - "/_layouts/15/"
+  - "/_vti_bin/Authentication.asmx"
+  - "/_api/contextinfo"
+  - "SPRequestGuid:"
+  - "MicrosoftSharePointTeamServices:"
+
+validation_steps:
+  - Verify SharePoint response headers (SPRequestGuid, MicrosoftSharePointTeamServices).
+  - Probe /_vti_bin/Authentication.asmx for anonymous SOAP authentication bridging.
+  - Test FormDigest anonymous issuance on /_api/contextinfo.
+  - Evaluate SafeControl reflection enumeration via Picker.aspx and ToolShell preconditions.
+
+evidence_requirements:
+  - Evidence of anonymous FormDigest issuance or unauthenticated SOAP state traversal.
+
+severity_mapping: Critical
+
+related_skills:
+  - hunt-sharepoint
+  - hunt-aspnet
+  - hunt-ntlm-info

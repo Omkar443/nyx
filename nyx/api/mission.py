@@ -66,7 +66,8 @@ def run_mission(target: str) -> int:
     # Step 2: Engagement Initialization
     res_eng = engagement.init_engagement(target)
     if isinstance(res_eng, dict) and res_eng.get("status") == "error":
-        say(color("✗ Engagement Initialization Failed", "red"))
+        err_msg = res_eng.get("message", "Engagement Initialization Failed")
+        say(color(f"✗ Engagement Initialization Failed: {err_msg}", "red"))
         return 1
     say(color("✓ Engagement initialized", "green"))
 

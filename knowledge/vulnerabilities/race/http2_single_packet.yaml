@@ -1,0 +1,29 @@
+vulnerability:
+  name: HTTP/2 Single-Packet Concurrency Race
+  category: race
+  description: Sub-millisecond state-machine race conditions exploited via HTTP/2 single-packet synchronization (first-sequence-sync) to achieve coupon double-redemption, gift-card double-spend, or OTP validation bypass.
+
+attack_surface: business_logic
+
+detection_patterns:
+  - "/api/coupons/apply"
+  - "/api/giftcard/redeem"
+  - "/api/auth/otp/verify"
+  - "/api/wallet/withdraw"
+
+validation_steps:
+  - Identify non-idempotent state transitions (balance updates, single-use vouchers, OTP verifications).
+  - Prepare 20-50 identical requests in a single HTTP/2 TCP frame using single-packet sync.
+  - Dispatch concurrent requests and analyze server response codes and state changes.
+  - Verify if state alteration occurred multiple times beyond permitted limit.
+
+evidence_requirements:
+  - Multiple successful HTTP 200/201 responses from a single-use transaction.
+  - Database/profile screenshot or log showing duplicate balance credit or coupon stacking.
+
+severity_mapping: High
+
+related_skills:
+  - hunt-race-condition
+  - hunt-business-logic
+  - hunt-mfa-bypass

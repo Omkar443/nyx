@@ -44,8 +44,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Iterable
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = lambda *args, **kwargs: None
 
+from nyx.infrastructure.filesystem import REPO_ROOT
 from nyx.application.analysis_service import AnalysisService
 from nyx.application.engagement_service import EngagementService
 from nyx.application.evidence_service import EvidenceService
@@ -62,7 +66,7 @@ REPORTS_DIR = REPO_ROOT / "docs" / "disclosed-reports"
 # Clone mode = the live repo is present (skills/ on disk). Otherwise we're
 # pip-installed and fall back to the bundled nyx/data/skill_index.json.
 CLONE_MODE = SKILLS_DIR.is_dir() and any(SKILLS_DIR.iterdir()) if SKILLS_DIR.exists() else False
-REPO_URL = "https://github.com/nyx-security/NYX Security Intelligence Engine"
+REPO_URL = "https://github.com/Omkar443/nyx"
 
 _BUNDLED_INDEX: dict | None = None
 
@@ -463,6 +467,16 @@ def cmd_recon(args: argparse.Namespace) -> int:
                 say(f"  • {color(res['name'], 'bold')} [{res['type']}] Priority: {res['priority']}")
             return 0
 
+        elif sub_cmd in ("content", "paths"):
+            t_url = extra or "http://127.0.0.1:3000"
+            from nyx.recon.content_discovery import run_content_discovery
+            res = run_content_discovery([t_url])
+            section(f"Content Discovery & Unlinked Path Probing: {t_url}")
+            say(f"Discovered {len(res)} unlinked paths/endpoints:\n")
+            for item in res:
+                say(f"  [{color(str(item.get('status')), 'green')}] {item.get('url')} ({item.get('title') or item.get('server', '')})")
+            return 0
+
     d = _get_eng_dir()
     if not d.exists():
         say(color("  Notice: No active engagement workspace found (.engagement/).", "yellow"))
@@ -487,6 +501,7 @@ def cmd_recon(args: argparse.Namespace) -> int:
     say(f"  Subdomains:        {res.get('subdomains_count')}")
     say(f"  Resolved:          {res.get('resolved_count')}")
     say(f"  HTTP-live:         {res.get('live_count')}")
+    say(f"  Content-paths:     {res.get('content_discovery_count', 0)}")
     say(f"  Output:            {res.get('out_dir')}")
     tot_disc = res.get("sync_total", 0)
     if tot_disc > 0:
@@ -1592,6 +1607,49 @@ def cmd_memory(args: argparse.Namespace) -> int:
                     say(f"    {match_line}")
         return 0
 
+    elif subcmd == "list":
+        section("Engagement Memory Inventory")
+        mtype = getattr(args, "type", "all")
+        eng_dir = Path(".engagement")
+        if not eng_dir.exists():
+            say(color("  [error] No active engagement workspace found in .engagement/", "red"))
+            return 1
+
+        if mtype in ("all", "endpoint"):
+            ep_file = eng_dir / "endpoints.json"
+            eps = json.loads(ep_file.read_text(encoding="utf-8")) if ep_file.exists() else []
+            say(color(f"  Endpoints ({len(eps)}):", "bold"))
+            for ep in eps[:20]:
+                say(f"    • [{ep.get('priority', 'P2')}] {ep.get('url')} (Status: {ep.get('status', 'N/A')})")
+            if len(eps) > 20:
+                say(f"    ... and {len(eps) - 20} more")
+
+        if mtype in ("all", "technology"):
+            tech_file = eng_dir / "technologies.json"
+            techs = json.loads(tech_file.read_text(encoding="utf-8")) if tech_file.exists() else {}
+            flat_techs = [f"{cat}:{item}" for cat, items in techs.items() if isinstance(items, list) for item in items]
+            say(color(f"  Technologies ({len(flat_techs)}):", "bold"))
+            for t in flat_techs:
+                say(f"    • {t}")
+
+        if mtype in ("all", "vector"):
+            vec_file = eng_dir / "tested_vectors.json"
+            vecs = json.loads(vec_file.read_text(encoding="utf-8")) if vec_file.exists() else []
+            say(color(f"  Tested Vectors ({len(vecs)}):", "bold"))
+            for v in vecs[:15]:
+                say(f"    • {v.get('vector')} on {v.get('endpoint')} -> {v.get('result')}")
+            if len(vecs) > 15:
+                say(f"    ... and {len(vecs) - 15} more")
+
+        if mtype in ("all", "note"):
+            notes_file = eng_dir / "notes.md"
+            if notes_file.exists():
+                lines = [l for l in notes_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+                say(color(f"  Notes ({len(lines)} entries):", "bold"))
+                for line in lines[:10]:
+                    say(f"    {line}")
+        return 0
+
     return 0
 
 
@@ -2448,7 +2506,15 @@ def cmd_ai(args: argparse.Namespace) -> int:
         if not target:
             say(color("  [error] Target is required for planning (e.g. nyx ai plan example.com)", "red"))
             return 1
-        res = service.plan_mission(target)
+        provider = getattr(args, "provider", None)
+        if not provider and sys.argv and "--provider" in sys.argv:
+            try:
+                p_idx = sys.argv.index("--provider")
+                if p_idx + 1 < len(sys.argv):
+                    provider = sys.argv[p_idx + 1]
+            except Exception:
+                pass
+        res = service.plan_mission(target, provider_name=provider)
         if not res.is_success:
             say(color(f"  [error] {res.error}", "red"))
             return 1
@@ -2457,13 +2523,69 @@ def cmd_ai(args: argparse.Namespace) -> int:
         say(f"Provider:          {color(plan.get('provider', ''), 'bold')}")
         say(f"Phase:             {plan.get('phase')}")
         rec_foc = plan.get('recommended_focus', '')
-        say(f"Recommended Focus: {color(rec_foc, 'yellow')}")
+        if rec_foc == "AI analysis unavailable":
+            say(f"Recommended Focus: {color(rec_foc, 'yellow')}")
+        else:
+            say(f"Recommended Focus: {color(rec_foc, 'cyan')}")
+        if plan.get("analysis"):
+            say(f"Analysis:          {plan.get('analysis')}")
         say("")
         say("Recommended Mission:")
         for step in plan.get("steps", []):
             perm = color("[PERMITTED]", "green") if step.get("permitted") else color("[BLOCKED]", "red")
             say(f"  {step.get('step')}. {color(step.get('name', ''), 'bold')} ({step.get('action')}) {perm}")
             say(f"     Tool: {step.get('tool')} | Description: {step.get('description')}")
+        return 0
+
+    elif subcmd == "execute":
+        if not target:
+            say(color("  [error] Target is required for execution (e.g. nyx ai execute example.com)", "red"))
+            return 1
+        active_perm = getattr(args, "active_permitted", False) or ("--active-permitted" in sys.argv if sys.argv else False)
+        provider = getattr(args, "provider", None)
+        if not provider and sys.argv and "--provider" in sys.argv:
+            try:
+                p_idx = sys.argv.index("--provider")
+                if p_idx + 1 < len(sys.argv):
+                    provider = sys.argv[p_idx + 1]
+            except Exception:
+                pass
+        res = service.execute_mission(target, provider_name=provider, active_permitted=active_perm)
+        if not res.is_success:
+            say(color(f"  [error] {res.error}", "red"))
+            return 1
+        exec_data = res.data or {}
+        section(f"NYX AI Mission Execution — {target}")
+        say(f"Target:         {color(target, 'cyan')}")
+        say(f"Executed Steps: {exec_data.get('executed_steps', 0)}")
+        say("")
+        say("Step Execution Results:")
+        for step in exec_data.get("step_results", []):
+            step_num = step.get("step", "")
+            step_name = step.get("name", "")
+            tool_name = step.get("tool", "")
+            step_res = step.get("result", {})
+
+            stat_summary = "COMPLETED"
+            if isinstance(step_res, dict):
+                status_val = step_res.get("status", "")
+                if step_res.get("dry_run"):
+                    stat_summary = f"{status_val or 'COMPLETED'} (dry-run)"
+                elif status_val == "skipped":
+                    stat_summary = f"skipped — {step_res.get('reason', 'no pending findings')}"
+                elif "classified_count" in step_res:
+                    stat_summary = f"success — classified {step_res.get('classified_count')} endpoint(s)"
+                elif "category" in step_res:
+                    stat_summary = f"success — category: {step_res.get('category')}"
+                elif "triaged_count" in step_res:
+                    stat_summary = f"success — triaged {step_res.get('triaged_count')} finding(s)"
+                elif status_val:
+                    stat_summary = status_val
+
+            stat_color = "green" if ("success" in stat_summary.lower() or "completed" in stat_summary.lower()) else ("yellow" if "skipped" in stat_summary.lower() else "red")
+            tool_str = f" [Tool: {tool_name}]" if tool_name else ""
+            say(f"  {step_num}. {color(step_name, 'bold')}{tool_str}")
+            say(f"     Status: {color(stat_summary, stat_color)}")
         return 0
 
     elif subcmd == "test":
@@ -2671,7 +2793,16 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     subcmd = getattr(args, "analyze_subcommand", None)
 
     if subcmd == "context":
-        target = getattr(args, "target", None)
+        d = _get_eng_dir()
+        t_name = getattr(args, "target", None)
+        if not t_name and d.exists():
+            t_file = d / "target.yaml"
+            if t_file.exists():
+                for line in t_file.read_text(encoding="utf-8").splitlines():
+                    if line.strip().startswith("domain:") or line.strip().startswith("name:"):
+                        t_name = line.split(":", 1)[1].strip().strip('"').strip("'")
+                        break
+        target = t_name
         url = getattr(args, "url", None)
         res = service.get_decision_context(url=url or f"https://{target or 'example.com'}/login.aspx")
         if target and not url:
@@ -2852,6 +2983,9 @@ def cmd_exec(args: argparse.Namespace) -> int:
 
     if tool_name == "status" or subcmd == "status":
         eid = target or getattr(args, "execution_id", "")
+        if not eid:
+            say(color("  [error] Execution ID is required (e.g. nyx exec status EXEC-XXXXXXXX). Use 'nyx exec history' to see recent execution IDs.", "red"))
+            return 1
         res = service.get_status(eid)
         if not res.is_success:
             say(color(f"  [error] {res.error}", "red"))
@@ -2908,6 +3042,10 @@ def cmd_exec(args: argparse.Namespace) -> int:
     if res.get("stderr") and res.get("exit_code") != 0:
         say(color(f"Error Output: {res.get('stderr')[:500]}", "red"))
 
+    meta = res.get("metadata") or {}
+    if isinstance(meta, dict) and meta.get("warning"):
+        say(color(f"Warning: {meta.get('warning')}", "yellow"))
+
     return 0 if (res.get("dry_run") or res.get("exit_code") == 0) else 1
 
 
@@ -2918,7 +3056,7 @@ def cmd_surface(args: argparse.Namespace) -> int:
     manifest = getattr(args, "manifest", None)
     res = service.rank_surface(target, manifest=manifest)
     if res.get("status") == "error":
-        say(color(f"  [error] {res.get('error')}", "red"))
+        say(color(f"  [error] {res.get('message') or res.get('error')}", "red"))
         return 1
     section(f"NYX Attack Surface Ranking — {target}")
     for item in res.get("rankings", []):
@@ -3107,7 +3245,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     say("\nAI Providers")
     from nyx.ai.providers.gemini import HAS_GENAI
     gemini_key_set = bool(os.environ.get("GEMINI_API_KEY"))
-    gemini_model = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+    gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
     say(f"  Gemini SDK       {'✓ Installed' if HAS_GENAI else '✗ Not installed (pip install google-genai)'}")
     say(f"  Gemini API Key   {'✓ Configured in current process' if gemini_key_set else '✗ Not configured in current process'}")
@@ -3115,7 +3253,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     from nyx.ai.providers.grok import HAS_XAI_SDK
     grok_key_set = bool(os.environ.get("XAI_API_KEY"))
-    grok_model = os.environ.get("XAI_MODEL", "grok-2-latest")
+    grok_model = os.environ.get("XAI_MODEL", "grok-4.6")
 
     say(f"  Grok SDK         {'✓ Installed' if HAS_XAI_SDK else '✗ Not installed (pip install openai)'}")
     say(f"  Grok API Key     {'✓ Configured in current process' if grok_key_set else '✗ Not configured in current process'}")
@@ -3157,6 +3295,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    try:
+        load_dotenv(REPO_ROOT / ".env", override=False)
+    except Exception:
+        pass
+
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -3255,6 +3398,10 @@ def main() -> int:
     p_mem_search.add_argument("query", help="search query term")
     p_mem_search.set_defaults(func=cmd_memory)
 
+    p_mem_list = p_mem_sub.add_parser("list", help="list items in persistent engagement memory")
+    p_mem_list.add_argument("--type", choices=["all", "endpoint", "technology", "vector", "note"], default="all", help="memory type filter")
+    p_mem_list.set_defaults(func=cmd_memory)
+
     p_ev = sub.add_parser("evidence", help="manage finding evidence storage")
     p_ev_sub = p_ev.add_subparsers(dest="ev_subcommand", required=True)
 
@@ -3323,7 +3470,7 @@ def main() -> int:
     p_anz_sub = p_anz.add_subparsers(dest="analyze_subcommand", required=True)
 
     p_anz_ctx = p_anz_sub.add_parser("context", help="display security intelligence context for target")
-    p_anz_ctx.add_argument("--target", help="target domain")
+    p_anz_ctx.add_argument("target", nargs="?", help="target domain")
     p_anz_ctx.add_argument("--url", help="specific target endpoint URL")
     p_anz_ctx.set_defaults(func=cmd_analyze)
 
@@ -3600,7 +3747,14 @@ def main() -> int:
 
     p_ai_plan = p_ai_sub.add_parser("plan", help="generate policy-validated AI mission plan")
     p_ai_plan.add_argument("target", help="target domain")
+    p_ai_plan.add_argument("--provider", default=None, help="AI provider to use (gemini, openai, grok, groq, local, claude). Defaults to the active provider.")
     p_ai_plan.set_defaults(func=cmd_ai)
+
+    p_ai_execute = p_ai_sub.add_parser("execute", help="execute a policy-validated AI mission plan")
+    p_ai_execute.add_argument("target", help="target domain")
+    p_ai_execute.add_argument("--provider", default=None, help="AI provider to use (gemini, openai, grok, groq, local, claude). Defaults to the active provider.")
+    p_ai_execute.add_argument("--active-permitted", action="store_true", help="allow ACTIVE-class execution steps, not just dry-run")
+    p_ai_execute.set_defaults(func=cmd_ai)
 
     p_ai_stat = p_ai_sub.add_parser("status", help="show NYX AI integration status")
     p_ai_stat.set_defaults(func=cmd_ai)
@@ -3608,11 +3762,17 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return 0
+
     # Enforce strict state command permissions
-    ok, err_msg = check_state_permission(args.command, args)
-    if not ok:
-        say(color(err_msg, "red"))
-        return 1
+    cmd_name = getattr(args, "command", None)
+    if cmd_name:
+        ok, err_msg = check_state_permission(cmd_name, args)
+        if not ok:
+            say(color(err_msg, "red"))
+            return 1
 
     return args.func(args)
 

@@ -40,7 +40,11 @@ class ContextEngine:
             if tf.exists():
                 try:
                     tech_data = json.loads(tf.read_text(encoding="utf-8"))
-                    if isinstance(tech_data, list):
+                    if isinstance(tech_data, dict):
+                        for cat, items in tech_data.items():
+                            if isinstance(items, list):
+                                technologies.extend(items)
+                    elif isinstance(tech_data, list):
                         technologies = [t.get("name") if isinstance(t, dict) else str(t) for t in tech_data]
                 except Exception:
                     pass
@@ -72,7 +76,9 @@ class ContextEngine:
         # 5. Findings
         findings = []
         if d.exists():
-            ff = d / "database" / "findings.json"
+            ff = d / "findings.json"
+            if not ff.exists():
+                ff = d / "database" / "findings.json"
             if ff.exists():
                 try:
                     findings = json.loads(ff.read_text(encoding="utf-8"))
@@ -82,7 +88,9 @@ class ContextEngine:
         # 6. Previous Failed Approaches
         failed_approaches = []
         if d.exists():
-            mf = d / "database" / "ai_memory.json"
+            mf = d / "ai_memory.json"
+            if not mf.exists():
+                mf = d / "database" / "ai_memory.json"
             if mf.exists():
                 try:
                     mem = json.loads(mf.read_text(encoding="utf-8"))
@@ -90,14 +98,41 @@ class ContextEngine:
                 except Exception:
                     pass
 
-        return {
+        # 7. Tested Vectors
+        tested_vectors = []
+        if d.exists():
+            vf = d / "tested_vectors.json"
+            if vf.exists():
+                try:
+                    tested_vectors = json.loads(vf.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+        raw_context = {
             "target": target,
             "in_scope": in_scope,
-            "phase": state_info.get("phase", "DISCOVERY"),
+            "phase": state_info.get("state", "DISCOVERY"),
             "mode": state_info.get("mode", "research"),
             "technologies": technologies,
             "endpoints": endpoints[:50],  # Limit cap
             "skills": skills[:20],
+            "findings": findings,
             "previous_findings": findings,
             "failed_approaches": failed_approaches,
+            "tested_vectors": tested_vectors,
         }
+
+        # 8. Context-Aware Knowledge Retrieval
+        from nyx.core.knowledge import retrieve_context_knowledge
+        try:
+            raw_context["relevant_knowledge"] = retrieve_context_knowledge(raw_context)
+        except Exception:
+            raw_context["relevant_knowledge"] = {
+                "matched_technologies": [],
+                "matched_vulnerabilities": [],
+                "recommended_skills": [],
+                "attack_surfaces": [],
+                "related_cves": [],
+            }
+
+        return raw_context

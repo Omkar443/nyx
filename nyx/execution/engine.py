@@ -166,7 +166,7 @@ class ExecutionEngine:
         # 4. Adapter Resolution & Command Validation
         adapter = get_adapter(tool_name, adapter_path=adapter_path)
         if adapter:
-            valid_input, err_msg = adapter.validate(clean_target, args_list)
+            valid_input, err_msg = adapter.validate(target, args_list)
             if not valid_input:
                 end_time = datetime.now().isoformat()
                 res = ExecutionResult(
@@ -191,9 +191,9 @@ class ExecutionEngine:
                 store_execution_artifacts(res)
                 return res
 
-            cmd_list = adapter.build_command(clean_target, args_list)
+            cmd_list = adapter.build_command(target, args_list)
         else:
-            valid_cmd, cmd_err, cmd_list = build_command(tool_name, clean_target, args_list)
+            valid_cmd, cmd_err, cmd_list = build_command(tool_name, target, args_list)
             if not valid_cmd:
                 end_time = datetime.now().isoformat()
                 res = ExecutionResult(

@@ -1,0 +1,25 @@
+vulnerability:
+  name: "Email Domain Spoofing via Missing or Permissive DMARC"
+  category: "infrastructure"
+  description: "Missing or p=none DMARC policies allowing attackers to send spoofed phishing emails appearing to originate from the target organization's verified domain."
+
+attack_surface: "infrastructure"
+
+detection_patterns:
+  - "_dmarc."
+  - "v=DMARC1; p=none"
+  - "v=spf1 ~all"
+  - "v=spf1 ?all"
+
+validation_steps:
+  - "Query TXT record for _dmarc.<target-domain>."
+  - "Verify if record is absent or configured with p=none or sp=none without DKIM alignment."
+  - "Verify whether mail exchanger accepts and delivers emails with spoofed sender headers to inboxes."
+
+evidence_requirements:
+  - "DNS query output demonstrating missing or p=none DMARC record and email delivery receipt."
+
+severity_mapping: "Medium"
+
+related_skills:
+  - "hunt-tls-network"

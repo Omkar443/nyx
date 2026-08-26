@@ -21,12 +21,16 @@ class AnalysisService:
         matches = res.get("matches", {})
         skills = list(matches.keys())
         category = "WEB_ENDPOINT"
-        if any(s in ("hunt-ssrf", "hunt-open-redirect") for s in skills):
-            category = "REDIRECT_SSRF_SURFACE"
-        elif any(s in ("hunt-idor", "hunt-api-misconfig", "hunt-graphql") for s in skills):
-            category = "API_IDOR_SURFACE"
+        if "graphql" in target_url.lower() or any(s in ("hunt-graphql", "hunt-fintech-graphql") for s in skills):
+            category = "GRAPHQL_SURFACE"
         elif any(s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth") for s in skills):
             category = "AUTH_IDENTITY_SURFACE"
+        elif any(s in ("hunt-file-upload", "hunt-lfi") for s in skills):
+            category = "FILE_UPLOAD_SURFACE"
+        elif any(s in ("hunt-ssrf", "hunt-open-redirect") for s in skills):
+            category = "REDIRECT_SSRF_SURFACE"
+        elif any(s in ("hunt-idor", "hunt-api-misconfig") for s in skills):
+            category = "API_IDOR_SURFACE"
 
         return {
             "status": "success",

@@ -1,0 +1,29 @@
+vulnerability:
+  name: Cloud Metadata & IMDS Credential Theft via SSRF
+  category: ssrf
+  description: Server-Side Request Forgery reaching cloud instance metadata services (AWS IMDSv1/v2, GCP metadata, Azure Managed Identity) to extract IAM session credentials or access tokens.
+
+attack_surface: ssrf
+
+detection_patterns:
+  - "169.254.169.254"
+  - "metadata.google.internal"
+  - "169.254.169.254/metadata/identity/oauth2/token"
+  - "url=http://"
+  - "callback=http://"
+
+validation_steps:
+  - Identify URL-fetching, webhook, PDF rendering, or import features.
+  - Probe http://169.254.169.254/latest/meta-data/iam/security-credentials/ (AWS).
+  - Probe http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token with Metadata-Flavor: Google header.
+  - Probe http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/ (Azure).
+
+evidence_requirements:
+  - HTTP response demonstrating retrieval of cloud role credentials, token JSON, or instance identity document.
+
+severity_mapping: Critical
+
+related_skills:
+  - hunt-ssrf
+  - hunt-cloud-misconfig
+  - cloud-iam-deep
