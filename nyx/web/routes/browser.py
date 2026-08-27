@@ -38,12 +38,14 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 
 @router.post("/start", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def start_browser_session(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: BrowserService = Depends(get_browser_service),
 ) -> Dict[str, Any]:
     """Start a new managed browser session."""
-    _, data = _parse_res(service.start_session(target=target))
-    await emit_event("browser_session_started", data={"target": target})
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.start_session(target=active_target))
+    await emit_event("browser_session_started", data={"target": active_target})
     return data
 
 
@@ -70,10 +72,12 @@ async def list_auth_flows(service: BrowserService = Depends(get_browser_service)
 
 @router.post("/agent/dynamic", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def run_dynamic_agent(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: BrowserService = Depends(get_browser_service),
 ) -> Dict[str, Any]:
     """Run dynamic browser testing research agent."""
-    _, data = _parse_res(service.run_dynamic_agent(target=target))
-    await emit_event("dynamic_agent_executed", data={"target": target})
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.run_dynamic_agent(target=active_target))
+    await emit_event("dynamic_agent_executed", data={"target": active_target})
     return data

@@ -1,0 +1,1462 @@
+{
+  "state": {
+    "state": "REPORTING",
+    "mode": "RESEARCH",
+    "completed": [
+      "engagement_init",
+      "DISCOVERY",
+      "ANALYSIS",
+      "VALIDATION",
+      "REPORTING"
+    ],
+    "history": [
+      {
+        "previous_state": "DISCOVERY",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:05:26.694324",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:05:27.161053",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:05:27.587190",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "REPORTING",
+        "timestamp": "2026-08-27T15:05:28.112727",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "REPORTING",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:26.374028",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:10:26.395507",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:26.420273",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:10:26.443158",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:10:26.469936",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:26.493409",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:26.522880",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "REPORTING",
+        "timestamp": "2026-08-27T15:10:26.545462",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "REPORTING",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:27.666459",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "REPORTING",
+        "timestamp": "2026-08-27T15:10:30.131006",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "REPORTING",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:45.318397",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:10:45.347922",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:10:45.398347",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:10:52.617887",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "ANALYSIS",
+        "timestamp": "2026-08-27T15:43:19.781480",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "ANALYSIS",
+        "new_state": "VALIDATION",
+        "timestamp": "2026-08-27T15:43:20.240560",
+        "reason": "Workflow state change (RESEARCH mode)"
+      },
+      {
+        "previous_state": "VALIDATION",
+        "new_state": "REPORTING",
+        "timestamp": "2026-08-27T15:43:20.710130",
+        "reason": "Workflow state change (RESEARCH mode)"
+      }
+    ],
+    "updated_at": "2026-08-27T15:43:24.018109"
+  },
+  "technologies": {
+    "frameworks": [
+      "uvicorn"
+    ],
+    "servers": [],
+    "APIs": [],
+    "authentication": [],
+    "cloud": [],
+    "databases": []
+  },
+  "endpoints": [
+    {
+      "url": "https://127.0.0.1",
+      "host": "127.0.0.1",
+      "ips": [
+        "127.0.0.1"
+      ],
+      "status": null,
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon"
+      ],
+      "added_at": "2026-08-27T15:01:40.989089"
+    },
+    {
+      "url": "http://127.0.0.1:3000/",
+      "host": "127.0.0.1:3000",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon"
+      ],
+      "added_at": "2026-08-27T15:02:32.540178"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.env",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540219"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.git/HEAD",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540245"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.git/config",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540266"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.gitignore",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540284"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.sigma",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540302"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.well-known/jwks.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540319"
+    },
+    {
+      "url": "http://127.0.0.1:3000/.well-known/security.txt",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540336"
+    },
+    {
+      "url": "http://127.0.0.1:3000/access.log",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540352"
+    },
+    {
+      "url": "http://127.0.0.1:3000/actuator",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540368"
+    },
+    {
+      "url": "http://127.0.0.1:3000/actuator/env",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540385"
+    },
+    {
+      "url": "http://127.0.0.1:3000/actuator/health",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540401"
+    },
+    {
+      "url": "http://127.0.0.1:3000/admin",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540416"
+    },
+    {
+      "url": "http://127.0.0.1:3000/administrator",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540443"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api-docs",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "Swagger UI",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540459"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540485"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Addresss",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540500"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/BasketItems",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540515"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Cards",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540530"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Challenges",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540545"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Complaints",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540559"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Deliverys",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540575"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Feedbacks",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540590"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Hints",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540610"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Products",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540632"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Quantitys",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540648"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Recycles",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540662"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/SecurityAnswers",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540678"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/SecurityQuestions",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540693"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/Users",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.540707"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/auth",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540722"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/docs",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540737"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/graphql",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540775"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/mechanic",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540791"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/merchant",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540806"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/shop",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540840"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/user",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540855"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/v1",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540884"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/v2",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540918"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/v3",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540933"
+    },
+    {
+      "url": "http://127.0.0.1:3000/api/vehicle",
+      "host": "127.0.0.1",
+      "status": 500,
+      "server": "",
+      "title": "HTTP 500",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540947"
+    },
+    {
+      "url": "http://127.0.0.1:3000/auth",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.540976"
+    },
+    {
+      "url": "http://127.0.0.1:3000/backup.sql",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541013"
+    },
+    {
+      "url": "http://127.0.0.1:3000/backup.zip",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541043"
+    },
+    {
+      "url": "http://127.0.0.1:3000/backup",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541078"
+    },
+    {
+      "url": "http://127.0.0.1:3000/chatbot",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541093"
+    },
+    {
+      "url": "http://127.0.0.1:3000/chatbot/conversation",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "SPA Discovered API Endpoint",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "spa_js_bundle_extraction",
+      "added_at": "2026-08-27T15:02:32.541124"
+    },
+    {
+      "url": "http://127.0.0.1:3000/community",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541160"
+    },
+    {
+      "url": "http://127.0.0.1:3000/composer.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541175"
+    },
+    {
+      "url": "http://127.0.0.1:3000/config.js",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541191"
+    },
+    {
+      "url": "http://127.0.0.1:3000/config.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541221"
+    },
+    {
+      "url": "http://127.0.0.1:3000/crossdomain.xml",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541236"
+    },
+    {
+      "url": "http://127.0.0.1:3000/debug.log",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541272"
+    },
+    {
+      "url": "http://127.0.0.1:3000/docs",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541287"
+    },
+    {
+      "url": "http://127.0.0.1:3000/dump.sql",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541317"
+    },
+    {
+      "url": "http://127.0.0.1:3000/elmah.axd",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541353"
+    },
+    {
+      "url": "http://127.0.0.1:3000/error.log",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541368"
+    },
+    {
+      "url": "http://127.0.0.1:3000/files",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541384"
+    },
+    {
+      "url": "http://127.0.0.1:3000/ftp/acquisitions.md",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541400"
+    },
+    {
+      "url": "http://127.0.0.1:3000/ftp/legal.md",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541430"
+    },
+    {
+      "url": "http://127.0.0.1:3000/graphiql",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541445"
+    },
+    {
+      "url": "http://127.0.0.1:3000/graphql",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541480"
+    },
+    {
+      "url": "http://127.0.0.1:3000/health",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541520"
+    },
+    {
+      "url": "http://127.0.0.1:3000/identity",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541555"
+    },
+    {
+      "url": "http://127.0.0.1:3000/legal.md",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541571"
+    },
+    {
+      "url": "http://127.0.0.1:3000/login",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541587"
+    },
+    {
+      "url": "http://127.0.0.1:3000/mailhog",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541602"
+    },
+    {
+      "url": "http://127.0.0.1:3000/metrics",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541617"
+    },
+    {
+      "url": "http://127.0.0.1:3000/oauth",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541632"
+    },
+    {
+      "url": "http://127.0.0.1:3000/openapi.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541646"
+    },
+    {
+      "url": "http://127.0.0.1:3000/openapi.yaml",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541661"
+    },
+    {
+      "url": "http://127.0.0.1:3000/package-lock.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541677"
+    },
+    {
+      "url": "http://127.0.0.1:3000/package.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541692"
+    },
+    {
+      "url": "http://127.0.0.1:3000/pom.xml",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541708"
+    },
+    {
+      "url": "http://127.0.0.1:3000/robots.txt",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541724"
+    },
+    {
+      "url": "http://127.0.0.1:3000/server-status",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541739"
+    },
+    {
+      "url": "http://127.0.0.1:3000/settings.py",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541756"
+    },
+    {
+      "url": "http://127.0.0.1:3000/sitemap.xml",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541771"
+    },
+    {
+      "url": "http://127.0.0.1:3000/sso",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541786"
+    },
+    {
+      "url": "http://127.0.0.1:3000/status",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541802"
+    },
+    {
+      "url": "http://127.0.0.1:3000/swagger-ui.html",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541818"
+    },
+    {
+      "url": "http://127.0.0.1:3000/swagger-ui",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541833"
+    },
+    {
+      "url": "http://127.0.0.1:3000/swagger.json",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541849"
+    },
+    {
+      "url": "http://127.0.0.1:3000/swagger.yaml",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541864"
+    },
+    {
+      "url": "http://127.0.0.1:3000/swagger.yml",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541880"
+    },
+    {
+      "url": "http://127.0.0.1:3000/trace.axd",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541897"
+    },
+    {
+      "url": "http://127.0.0.1:3000/uploads",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541913"
+    },
+    {
+      "url": "http://127.0.0.1:3000/web.config",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541929"
+    },
+    {
+      "url": "http://127.0.0.1:3000/workshop",
+      "host": "127.0.0.1",
+      "status": 200,
+      "server": "",
+      "title": "OWASP Juice Shop",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-27T15:02:32.541944"
+    },
+    {
+      "url": "https://example.com/",
+      "host": "example.com",
+      "status": 200,
+      "server": "cloudflare",
+      "title": "Example Domain",
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon"
+      ],
+      "added_at": "2026-08-27T15:10:26.303701"
+    },
+    {
+      "url": "https://example.com",
+      "host": "example.com",
+      "ips": [
+        "104.20.23.154",
+        "172.66.147.243"
+      ],
+      "status": null,
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon"
+      ],
+      "added_at": "2026-08-27T15:10:26.303723"
+    }
+  ],
+  "tested_vectors": [],
+  "findings": [
+    {
+      "finding_id": "FH-2026-001",
+      "task_id": "",
+      "agent_id": "",
+      "target": "127.0.0.1:3000",
+      "title": "SQL Injection in Product Search Query Parameter",
+      "severity": "high",
+      "status": "VALIDATING",
+      "endpoint": "http://127.0.0.1:3000/rest/products/search",
+      "parameter": "q",
+      "vulnerability": "SQLi",
+      "tag": "sqli,juice-shop,database",
+      "description": "Unsanitized user input in the 'q' query parameter allows arbitrary SQL query execution via SQLite UNION injection.",
+      "evidence_ids": [],
+      "created_at": "2026-08-27T15:01:51.779480",
+      "updated_at": "2026-08-27T15:01:51.779480",
+      "confidence": 60
+    }
+  ]
+}

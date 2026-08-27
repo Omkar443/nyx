@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 from nyx.execution.adapters.base import ToolAdapter
+from nyx.infrastructure.tools import get_tool_executable_vector
 
 
 class NmapAdapter(ToolAdapter):
@@ -18,7 +19,8 @@ class NmapAdapter(ToolAdapter):
         return True, "Valid"
 
     def build_command(self, target: str, arguments: list[str] | None = None) -> list[str]:
-        cmd = ["nmap", target]
+        tool_vec = get_tool_executable_vector("nmap") or ["nmap"]
+        cmd = list(tool_vec) + [target]
         if arguments:
             cmd.extend(arguments)
         else:

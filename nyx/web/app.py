@@ -101,14 +101,28 @@ def create_app() -> FastAPI:
     async def health_check() -> Dict[str, Any]:
         """Unauthenticated health check endpoint."""
         tok = get_or_create_api_token()
+        try:
+            from nyx.core import skills as nyx_skills
+            live_skills = nyx_skills.load_skills()
+            s_count = len(live_skills)
+        except Exception:
+            s_count = 0
+
+        try:
+            from nyx.core.engagement import get_engagement_target
+            active_target = get_engagement_target() or os.environ.get("NYX_TARGET") or "No active target"
+        except Exception:
+            active_target = os.environ.get("NYX_TARGET", "No active target")
+
         return {
             "status": "ok",
             "version": "1.0.0",
             "app_name": "NYX Security Operations Dashboard",
             "workspace_active": True,
-            "target": os.environ.get("NYX_TARGET", "example.com"),
+            "target": active_target,
             "authentication_enabled": bool(tok),
             "api_token": tok,
+            "skills_count": s_count,
         }
 
     # Authenticated WebSocket Endpoint

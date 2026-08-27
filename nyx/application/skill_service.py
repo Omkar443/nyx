@@ -18,9 +18,31 @@ class SkillService(BaseService):
         """Structured ServiceResult container for skill catalog listing."""
         try:
             sk_list = nyx_skills.list_skills(category=category)
-            return self.ok(data={"skills": sk_list, "count": len(sk_list)}, message=f"Retrieved {len(sk_list)} skills.")
+            return self.ok(
+                data={"skills": sk_list, "count": len(sk_list), "skill_count": len(sk_list)},
+                message=f"Retrieved {len(sk_list)} skills."
+            )
         except Exception as ex:
             return self.fail(message=f"Error listing skills: {ex}", error_code="SKILL_ERROR")
+
+    def get_skills_stats_result(self) -> ServiceResult:
+        """Structured ServiceResult container for dynamic skill inventory statistics."""
+        try:
+            sk_list = nyx_skills.list_skills()
+            categories: dict[str, int] = {}
+            for s in sk_list:
+                cat = s.get("category", "general")
+                categories[cat] = categories.get(cat, 0) + 1
+            return self.ok(
+                data={
+                    "skill_count": len(sk_list),
+                    "count": len(sk_list),
+                    "categories": categories,
+                },
+                message=f"Skill inventory: {len(sk_list)} active skills."
+            )
+        except Exception as ex:
+            return self.fail(message=f"Error retrieving skill statistics: {ex}", error_code="SKILL_ERROR")
 
     def get_skill(self, name: str) -> dict | None:
         return nyx_skills.get_skill(name)
@@ -33,3 +55,12 @@ class SkillService(BaseService):
             return self.fail(message=f"Skill '{name}' not found.", error_code="NOT_FOUND")
         except Exception as ex:
             return self.fail(message=f"Error reading skill '{name}': {ex}", error_code="SKILL_ERROR")
+
+    def recommend_skills_result(self, url: str = "", technology: str | None = None) -> ServiceResult:
+        try:
+            matched = nyx_skills.recommend_skills(url=url, technology=technology)
+            if not matched and technology:
+                matched = [s for s in nyx_skills.list_skills() if technology.lower() in (s.get("description", "") + s.get("name", "")).lower()]
+            return self.ok(data={"skills": matched, "count": len(matched)}, message=f"Matched {len(matched)} skills.")
+        except Exception as ex:
+            return self.fail(message=f"Error recommending skills: {ex}", error_code="SKILL_ERROR")

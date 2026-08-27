@@ -4,7 +4,7 @@ NYX Command Builder & Validation Layer
 from __future__ import annotations
 import shlex
 from pathlib import Path
-from nyx.infrastructure.tools import get_cmd_path, has_cmd
+from nyx.infrastructure.tools import get_tool_executable_vector, has_cmd
 from nyx.api.tools import load_tools_registry
 
 
@@ -16,20 +16,20 @@ def build_command(tool_name: str, target: str, extra_args: list[str] | None = No
 
     if not t_config:
         # Check standard binary discovery
-        cmd_path = get_cmd_path(tool_name)
-        if not cmd_path:
-            return False, f"Tool '{tool_name}' not found in registry or PATH.", []
-        cmd_list = [cmd_path, target]
+        cmd_vec = get_tool_executable_vector(tool_name)
+        if not cmd_vec:
+            return False, f"Tool '{tool_name}' not found on system PATH or WSL.", []
+        cmd_list = list(cmd_vec) + [target]
         if extra_args:
             cmd_list.extend(extra_args)
         return True, "", cmd_list
 
     binary = t_config.get("binary", tool_name)
-    cmd_path = get_cmd_path(binary)
-    if not cmd_path:
-        return False, f"Binary '{binary}' for tool '{tool_name}' is not installed or discoverable.", []
+    cmd_vec = get_tool_executable_vector(binary) or get_tool_executable_vector(tool_name)
+    if not cmd_vec:
+        return False, f"Binary '{binary}' for tool '{tool_name}' is not installed or discoverable on PATH or WSL.", []
 
-    cmd_list = [cmd_path]
+    cmd_list = list(cmd_vec)
     allowed_args = t_config.get("allowed_args", [])
 
     # Target argument placement

@@ -15,6 +15,8 @@ from nyx.web.routes.fleet import router as fleet_router
 from nyx.web.routes.workers import router as workers_router
 from nyx.web.routes.browser import router as browser_router
 from nyx.web.routes.continuous import router as continuous_router
+from nyx.web.routes.settings import router as settings_router
+from nyx.web.routes.engine import router as engine_router
 
 ALL_ROUTERS = [
     auth_router,
@@ -29,6 +31,8 @@ ALL_ROUTERS = [
     workers_router,
     browser_router,
     continuous_router,
+    settings_router,
+    engine_router,
 ]
 
 __all__ = ["ALL_ROUTERS"]

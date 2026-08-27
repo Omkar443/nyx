@@ -48,6 +48,17 @@ class ExecutionService(BaseService):
                     error_code="EXECUTION_BLOCKED",
                     details=data,
                 )
+            if res.status == ExecutionStatus.UNAVAILABLE.value:
+                return self.fail(
+                    message=res.stderr or res.error_message or f"Tool '{tool_name}' is unavailable on the system.",
+                    error_code="TOOL_UNAVAILABLE",
+                    details=data,
+                )
+            if res.status == ExecutionStatus.SKIPPED.value:
+                return self.ok(
+                    data=data,
+                    message=res.error_message or f"Tool '{tool_name}' was skipped for target '{target}'.",
+                )
             if res.exit_code != 0 and res.status == ExecutionStatus.FAILED.value:
                 return self.fail(
                     message=res.error_message or res.stderr or f"Tool '{tool_name}' execution failed.",
@@ -106,8 +117,8 @@ class ExecutionService(BaseService):
         except Exception as ex:
             return self.fail(message=f"Error getting execution status: {ex}", error_code="STATUS_ERROR")
 
-    def get_history(self, limit: int = 50) -> ServiceResult:
-        """Retrieve execution history log entries."""
+    def get_history(self, limit: int = 50, target: str | None = None) -> ServiceResult:
+        """Retrieve execution history log entries, optionally filtered by target domain / host."""
         try:
             d = _get_eng_dir(create=False, base_dir=self.base_dir)
             db_file = d / "database" / "executions.json"
@@ -116,8 +127,18 @@ class ExecutionService(BaseService):
 
             history = json.loads(db_file.read_text(encoding="utf-8"))
             if isinstance(history, list):
+                if target:
+                    from nyx.security.authorization import parse_target_tuple
+                    _, t_host, _ = parse_target_tuple(target)
+                    filtered = []
+                    for h in history:
+                        h_target = h.get("target", "")
+                        _, h_host, _ = parse_target_tuple(h_target)
+                        if (t_host and h_host == t_host) or (target.lower() in h_target.lower()) or (h_target.lower() in target.lower()):
+                            filtered.append(h)
+                    history = filtered
                 sliced = history[-limit:] if limit > 0 else history
-                return self.ok(data={"history": sliced, "count": len(sliced), "total": len(history)})
+                return self.ok(data={"history": list(reversed(sliced)), "count": len(sliced), "total": len(history)})
             return self.ok(data={"history": [], "count": 0})
         except Exception as ex:
             return self.fail(message=f"Error reading execution history: {ex}", error_code="HISTORY_ERROR")

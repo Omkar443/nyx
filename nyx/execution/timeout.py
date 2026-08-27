@@ -30,5 +30,8 @@ def run_with_timeout(cmd_list: list[str], timeout_sec: int = 60, cwd: Path | str
             proc.kill()
             stdout, stderr = proc.communicate()
             return -1, stdout or "", f"Command execution timed out after {timeout_sec} seconds.", True
+    except FileNotFoundError as e:
+        tool_bin = cmd_list[0] if cmd_list else "unknown"
+        return 127, "", f"[PROCESS NOT STARTED] Executable '{tool_bin}' not found on system path: {e}", False
     except Exception as e:
-        return 1, "", str(e), False
+        return 1, "", f"[EXECUTION ERROR] {e}", False

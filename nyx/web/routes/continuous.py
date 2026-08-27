@@ -38,13 +38,15 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 
 @router.post("/monitor/start", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def start_monitoring_job(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     job_type: str = Query("recon_refresh", description="Monitoring job type"),
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """Start a continuous monitoring job."""
-    _, data = _parse_res(service.start_monitoring_job(target=target, job_type=job_type))
-    await emit_event("monitoring_job_started", data={"target": target, "job_type": job_type})
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.start_monitoring_job(target=active_target, job_type=job_type))
+    await emit_event("monitoring_job_started", data={"target": active_target, "job_type": job_type})
     return data
 
 
@@ -57,7 +59,7 @@ async def get_monitoring_status(service: ContinuousService = Depends(get_continu
 
 @router.get("/assets/history", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_asset_history(
-    target: Optional[str] = Query(None, description="Target filter"),
+    target: str | None = Query(None, description="Target filter"),
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """Get historical asset graph snapshots."""
@@ -67,7 +69,7 @@ async def get_asset_history(
 
 @router.get("/changes", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def list_changes(
-    target: Optional[str] = Query(None, description="Target filter"),
+    target: str | None = Query(None, description="Target filter"),
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """List detected security change events."""
@@ -77,7 +79,7 @@ async def list_changes(
 
 @router.get("/alerts", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def list_alerts(
-    target: Optional[str] = Query(None, description="Target filter"),
+    target: str | None = Query(None, description="Target filter"),
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """List active security alerts."""
@@ -87,7 +89,7 @@ async def list_alerts(
 
 @router.get("/research/opportunities", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def list_research_opportunities(
-    target: Optional[str] = Query(None, description="Target filter"),
+    target: str | None = Query(None, description="Target filter"),
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """List prioritized security research opportunities."""

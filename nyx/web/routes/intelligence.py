@@ -27,21 +27,25 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 
 @router.get("/intelligence/context", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_intelligence_context(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: AIService = Depends(get_ai_service),
 ) -> Dict[str, Any]:
     """Retrieve aggregated target security context for AI reasoning."""
-    _, data = _parse_res(service.get_context(target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.get_context(active_target))
     return data
 
 
 @router.get("/intelligence/surface", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_intelligence_surface(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: AnalysisService = Depends(get_analysis_service),
 ) -> Dict[str, Any]:
     """Retrieve attack surface ranking intelligence."""
-    _, data = _parse_res(service.rank_surface(target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.rank_surface(active_target))
     return data
 
 
@@ -50,18 +54,28 @@ async def list_skills_catalog(
     category: Optional[str] = Query(None, description="Optional category filter"),
     service: SkillService = Depends(get_skill_service),
 ) -> Dict[str, Any]:
-    """List available NYX security research skills catalog."""
+    """List available NYX security research skills catalog with dynamic count."""
     _, data = _parse_res(service.get_skills_result(category=category))
+    return data
+
+
+@router.get("/skills/stats", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def get_skills_stats(
+    service: SkillService = Depends(get_skill_service),
+) -> Dict[str, Any]:
+    """Retrieve dynamic, live skill inventory count and category distribution."""
+    _, data = _parse_res(service.get_skills_stats_result())
     return data
 
 
 @router.get("/skills/recommend", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def recommend_skills(
+    url: Optional[str] = Query(None, description="Target endpoint or path"),
     tech: Optional[str] = Query(None, description="Technology name"),
     service: SkillService = Depends(get_skill_service),
 ) -> Dict[str, Any]:
-    """Recommend security research skills based on detected tech stack."""
-    _, data = _parse_res(service.get_skills_result(category=tech))
+    """Recommend security research skills based on detected tech stack or URL patterns."""
+    _, data = _parse_res(service.recommend_skills_result(url=url or "", technology=tech))
     return data
 
 

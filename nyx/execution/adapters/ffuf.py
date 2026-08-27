@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any
 from nyx.execution.adapters.base import ToolAdapter
+from nyx.infrastructure.tools import get_tool_executable_vector
 
 
 class FfufAdapter(ToolAdapter):
@@ -22,7 +23,8 @@ class FfufAdapter(ToolAdapter):
         if "FUZZ" not in target_url:
             target_url = f"{target_url}/FUZZ"
 
-        cmd = ["ffuf", "-u", target_url, "-json", "-mc", "200,204,301,302,307,401,403"]
+        tool_vec = get_tool_executable_vector("ffuf") or ["ffuf"]
+        cmd = list(tool_vec) + ["-u", target_url, "-json", "-mc", "200,204,301,302,307,401,403"]
         if arguments:
             cmd.extend(arguments)
         return cmd

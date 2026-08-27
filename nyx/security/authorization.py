@@ -66,23 +66,44 @@ def get_engagement_scope(base_dir: Path | None = None) -> list[str]:
                         for item in sc:
                             if item and isinstance(item, str):
                                 scopes.append(item.lower().strip())
+                                _, h, _ = parse_target_tuple(item)
+                                if h:
+                                    scopes.append(h.lower().strip())
                     elif isinstance(sc, str):
                         scopes.append(sc.lower().strip())
+                        _, h, _ = parse_target_tuple(sc)
+                        if h:
+                            scopes.append(h.lower().strip())
                     if "domain" in t_obj and isinstance(t_obj["domain"], str):
                         scopes.append(t_obj["domain"].lower().strip())
+                        _, h, _ = parse_target_tuple(t_obj["domain"])
+                        if h:
+                            scopes.append(h.lower().strip())
                     if "name" in t_obj and isinstance(t_obj["name"], str):
                         scopes.append(t_obj["name"].lower().strip())
+                        _, h, _ = parse_target_tuple(t_obj["name"])
+                        if h:
+                            scopes.append(h.lower().strip())
 
                 sc = data.get("scope", [])
                 if isinstance(sc, list):
                     for item in sc:
                         if item and isinstance(item, str):
                             scopes.append(item.lower().strip())
+                            _, h, _ = parse_target_tuple(item)
+                            if h:
+                                scopes.append(h.lower().strip())
                 elif isinstance(sc, str):
                     scopes.append(sc.lower().strip())
+                    _, h, _ = parse_target_tuple(sc)
+                    if h:
+                        scopes.append(h.lower().strip())
                 tgt = data.get("target")
                 if tgt and isinstance(tgt, str):
                     scopes.append(tgt.lower().strip())
+                    _, h, _ = parse_target_tuple(tgt)
+                    if h:
+                        scopes.append(h.lower().strip())
         except Exception:
             pass
 
@@ -107,23 +128,28 @@ def parse_target_tuple(target_str: str) -> tuple[str | None, str, int | None]:
     port = None
 
     if "://" in t:
-        try:
-            parsed = urllib.parse.urlparse(t)
-            scheme = parsed.scheme or None
-            host = parsed.hostname or ""
-            port = parsed.port
-        except Exception:
-            host = t
-    else:
-        if ":" in t and not t.startswith("*."):
-            parts = t.split(":")
-            host = parts[0]
+        s_part = t.split("://", 1)[0]
+        if s_part in ("http", "https", "ws", "wss", "ftp", "grpc"):
             try:
-                port = int(parts[1].split("/")[0])
-            except ValueError:
-                port = None
+                parsed = urllib.parse.urlparse(t)
+                scheme = parsed.scheme or None
+                host = parsed.hostname or ""
+                port = parsed.port
+                return scheme, host.rstrip("."), port
+            except Exception:
+                pass
         else:
-            host = t.split("/")[0]
+            t = t.replace("http://", "").replace("https://", "")
+
+    if ":" in t and not t.startswith("*."):
+        parts = t.split(":")
+        host = parts[0]
+        try:
+            port = int(parts[1].split("/")[0])
+        except ValueError:
+            port = None
+    else:
+        host = t.split("/")[0]
 
     return scheme, host.rstrip("."), port
 

@@ -25,10 +25,14 @@ def extract_hostname(target_str: str) -> str:
 
 
 def is_strict_scope_match(hostname: str, scope_list: list[str]) -> bool:
-    clean_host = extract_hostname(hostname)
-    if not clean_host:
+    if not hostname:
         return False
-    return is_hostname_in_scope(clean_host, scope_list)
+    if is_hostname_in_scope(hostname, scope_list):
+        return True
+    clean_host = extract_hostname(hostname)
+    if clean_host and is_hostname_in_scope(clean_host, scope_list):
+        return True
+    return False
 
 
 def check_policy(
@@ -48,8 +52,8 @@ def check_policy(
     scope_list = get_engagement_scope()
 
     # Scope check
-    if scope_list and clean_target:
-        if not is_strict_scope_match(clean_target, scope_list):
+    if scope_list:
+        if not (is_strict_scope_match(target, scope_list) or is_strict_scope_match(clean_target, scope_list)):
             return False, "Target outside authorized engagement scope", "OUT_OF_SCOPE"
         scope_status = "CONFIGURED"
     else:

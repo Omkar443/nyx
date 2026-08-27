@@ -21,9 +21,21 @@ class ReconService:
         proxy: str | None = None,
         burp: bool = False,
     ) -> dict[str, Any]:
-        return core_recon.run_recon(
+        res = core_recon.run_recon(
             target=target, out_dir=out_dir, proxy=proxy, burp=burp
         )
+        is_ok = res.get("status") == "success"
+        endpoints_count = res.get("sync_total") or (res.get("content_discovery_count", 0) + res.get("live_count", 0))
+        return {
+            "success": is_ok,
+            "data": {
+                **res,
+                "endpoints_count": endpoints_count,
+            },
+            "endpoints_count": endpoints_count,
+            "error": None if is_ok else res.get("message", "Recon error"),
+            "code": "OK" if is_ok else "RECON_ERROR"
+        }
 
     def sync_to_engagement(
         self, target: str, subs: set, resolved: dict, live: list

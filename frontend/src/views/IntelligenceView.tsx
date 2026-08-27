@@ -1,322 +1,191 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Brain, Sparkles, Target, Shield, BookOpen, Search, Play, CheckCircle, RefreshCw } from 'lucide-react';
 import { fetchApi } from '../api/client';
-import { Bot, BookOpen, Search, Sparkles, Code2, Brain, Database, Cpu, Globe, Layers, Shield, Zap, Target, Activity } from 'lucide-react';
-export const IntelligenceView: React.FC = () => {
-  const [providers, setProviders] = useState<any[]>([]);
-  const [activeProvider, setActiveProvider] = useState<string>('gemini');
-  const [context, setContext] = useState<any>(null);
-  const [skills, setSkills] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+import { useSkills } from '../hooks/useSkills';
+import { useApp } from '../context/AppContext';
+
+export function IntelligenceView() {
+  const { target, viewParams, setCurrentView } = useApp();
+  const { skills, count: skillsCount } = useSkills();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'skills' | 'planner'>('planner');
+
+  // AI Playbook Planner
+  const [planTarget, setPlanTarget] = useState(viewParams?.target || target);
+  const [vulnClass, setVulnClass] = useState('SQL Injection');
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [planResult, setPlanResult] = useState<any | null>(null);
 
   useEffect(() => {
-    async function loadData() {
-      const pRes = await fetchApi('/api/v1/ai/providers');
-      if (pRes.success && pRes.data?.providers) setProviders(pRes.data.providers);
+    if (viewParams?.target) setPlanTarget(viewParams.target);
+  }, [viewParams]);
 
-      const cRes = await fetchApi('/api/v1/intelligence/context?target=example.com');
-      if (cRes.success) setContext(cRes.data);
-
-      const sRes = await fetchApi('/api/v1/skills');
-      if (sRes.success && sRes.data?.skills) setSkills(sRes.data.skills);
-    }
-    loadData();
-  }, []);
-
-  async function handleSearch(e: React.FormEvent) {
+  async function handleSynthesizePlan(e: React.FormEvent) {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
-    const res = await fetchApi(`/api/v1/knowledge/search?query=${encodeURIComponent(searchQuery)}`);
-    if (res.success && res.data?.results) setSearchResults(res.data.results);
+    setIsPlanning(true);
+    try {
+      const res = await fetchApi('/api/v1/ai/plan', {
+        method: 'POST',
+        body: JSON.stringify({
+          target: planTarget,
+          vulnerability_type: vulnClass,
+          context: { target: planTarget }
+        })
+      });
+      setPlanResult(res?.data || res);
+    } finally {
+      setIsPlanning(false);
+    }
   }
 
-  const getProviderIcon = (provider: string) => {
-    switch (provider.toLowerCase()) {
-      case 'gemini':
-        return Sparkles;
-      case 'claude':
-        return Brain;
-      case 'openai':
-        return Cpu;
-      case 'local':
-        return Database;
-      default:
-        return Bot;
-    }
-  };
-
-  const getSkillIcon = (category: string = 'security') => {
-    switch (category.toLowerCase()) {
-      case 'recon':
-        return Globe;
-      case 'web':
-        return Layers;
-      case 'api':
-        return Zap;
-      case 'cloud':
-        return Database;
-      case 'network':
-        return Activity;
-      default:
-        return Shield;
-    }
-  };
+  const filteredSkills = skills.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="nyx-intelligence-view">
-      {/* File Update Progress */}
+    <div className="space-y-5 animate-fadeInUp">
+      {/* ========== HEADER ========== */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-[#F2F2F2] tracking-tight">
+            Intelligence &amp; AI Playbook Planner
+          </h1>
+          <p className="text-sm text-[#707070] mt-0.5 flex items-center gap-2">
+            <Brain className="w-3.5 h-3.5 text-[#555555]" />
+            Automated hypothesis reasoning, 7-Question constraints, and {skillsCount} security attack skills
+          </p>
+        </div>
 
-      {/* Page Header */}
-      <div className="nyx-page-header">
-        <div className="nyx-page-header-content">
-          <div className="flex items-center gap-4">
-            <div className="nyx-page-icon nyx-page-icon-purple">
-              <Brain className="w-6 h-6 text-[#7C3AED]" />
-            </div>
-            <div>
-              <h1 className="nyx-page-title">Intelligence & AI Orchestration</h1>
-              <p className="nyx-page-subtitle">Provider-agnostic security intelligence engine & research skills catalog</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#7C3AED]" />
-            <span className="nyx-badge nyx-badge-info">AI ENHANCED</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setActiveTab('planner')} 
+            className={`text-xs py-1.5 px-3 rounded font-mono ${activeTab === 'planner' ? 'bg-[#ebb94b] text-black font-bold' : 'bg-[#2A2A2A] text-[#CCCCCC]'}`}
+          >
+            AI Playbook Planner
+          </button>
+          <button 
+            onClick={() => setActiveTab('skills')} 
+            className={`text-xs py-1.5 px-3 rounded font-mono ${activeTab === 'skills' ? 'bg-[#ebb94b] text-black font-bold' : 'bg-[#2A2A2A] text-[#CCCCCC]'}`}
+          >
+            Skills Catalog ({skillsCount})
+          </button>
         </div>
       </div>
 
-      {/* Intelligence Stats */}
-      <div className="nyx-stats-overview">
-        <div className="nyx-stat-card">
-          <div className="nyx-stat-icon nyx-stat-icon-purple">
-            <Bot className="w-4 h-4 text-[#7C3AED]" />
-          </div>
-          <div>
-            <div className="nyx-stat-value">{providers.length}</div>
-            <div className="nyx-stat-label">AI Providers</div>
-          </div>
-        </div>
-        <div className="nyx-stat-card">
-          <div className="nyx-stat-icon nyx-stat-icon-cyan">
-            <BookOpen className="w-4 h-4 text-[#00D9FF]" />
-          </div>
-          <div>
-            <div className="nyx-stat-value">{skills.length}</div>
-            <div className="nyx-stat-label">Skills Catalog</div>
-          </div>
-        </div>
-        <div className="nyx-stat-card">
-          <div className="nyx-stat-icon nyx-stat-icon-green">
-            <Target className="w-4 h-4 text-[#00FF88]" />
-          </div>
-          <div>
-            <div className="nyx-stat-value">{context?.endpoints_count ?? 0}</div>
-            <div className="nyx-stat-label">Indexed Endpoints</div>
-          </div>
-        </div>
-      </div>
+      {/* ========== TAB: AI PLAYBOOK PLANNER ========== */}
+      {activeTab === 'planner' && (
+        <div className="space-y-4">
+          <div className="card space-y-3 border border-[#3A3A3A]">
+            <div className="flex items-center gap-2 pb-2 border-b border-[#333333]">
+              <Sparkles className="w-4 h-4 text-[#ebb94b]" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#E8E8E8]">Synthesize Attack Hypothesis &amp; Validation Sequences</h3>
+            </div>
 
-      {/* AI Provider & Context Grid */}
-      <div className="nyx-content-grid">
-        {/* Active AI Provider Card */}
-        <div className="nyx-card nyx-card-accent-purple">
-          <div className="nyx-section-header">
-            <div className="flex items-center gap-3">
-              <div className="nyx-section-icon nyx-section-icon-purple">
-                <Sparkles className="w-4 h-4 text-[#7C3AED]" />
-              </div>
-              <h3 className="nyx-section-title">Active AI Provider</h3>
-            </div>
-            <span className="nyx-badge nyx-badge-info">
-              {activeProvider.toUpperCase()}
-            </span>
-          </div>
-          
-          <div className="nyx-provider-grid">
-            {['gemini', 'claude', 'openai', 'local'].map((p) => {
-              const ProviderIcon = getProviderIcon(p);
-              return (
-                <button
-                  key={p}
-                  onClick={() => setActiveProvider(p)}
-                  className={`nyx-provider-card ${activeProvider === p ? 'nyx-provider-active' : ''}`}
-                >
-                  <div className="nyx-provider-icon">
-                    <ProviderIcon className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="nyx-provider-name">{p}</div>
-                    <div className="nyx-provider-status">
-                      {activeProvider === p ? 'Active' : 'Available'}
-                    </div>
-                  </div>
-                  {activeProvider === p && (
-                    <div className="nyx-status-dot nyx-status-dot-live"></div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          
-          <div className="nyx-provider-note">
-            <Shield className="w-3.5 h-3.5 text-[#7C3AED]" />
-            <span>Provider abstraction layer communicates through NYX security policy enforcement boundaries.</span>
-          </div>
-        </div>
-
-        {/* Target Reasoning Context */}
-        <div className="nyx-card nyx-card-accent-green">
-          <div className="nyx-section-header">
-            <div className="flex items-center gap-3">
-              <div className="nyx-section-icon nyx-section-icon-green">
-                <Code2 className="w-4 h-4 text-[#00FF88]" />
-              </div>
-              <h3 className="nyx-section-title">Target Reasoning Context</h3>
-            </div>
-          </div>
-          
-          <div className="nyx-context-display">
-            <div className="nyx-context-item">
-              <div className="nyx-context-icon">
-                <Target className="w-4 h-4 text-[#00D9FF]" />
-              </div>
+            <form onSubmit={handleSynthesizePlan} className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
               <div>
-                <div className="nyx-context-label">Target</div>
-                <div className="nyx-context-value">{context?.target || 'example.com'}</div>
-              </div>
-            </div>
-            <div className="nyx-context-item">
-              <div className="nyx-context-icon">
-                <Activity className="w-4 h-4 text-[#00FF88]" />
-              </div>
-              <div>
-                <div className="nyx-context-label">Phase</div>
-                <div className="nyx-context-value">{context?.phase || 'DISCOVERY'}</div>
-              </div>
-            </div>
-            <div className="nyx-context-item">
-              <div className="nyx-context-icon">
-                <Globe className="w-4 h-4 text-[#FF6B35]" />
-              </div>
-              <div>
-                <div className="nyx-context-label">Endpoints Indexed</div>
-                <div className="nyx-context-value">{context?.endpoints_count ?? 0}</div>
-              </div>
-            </div>
-            <div className="nyx-context-item">
-              <div className="nyx-context-icon">
-                <BookOpen className="w-4 h-4 text-[#7C3AED]" />
-              </div>
-              <div>
-                <div className="nyx-context-label">Matched Skills</div>
-                <div className="nyx-context-value">{context?.skills_matched?.length ?? 0}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Knowledge Search */}
-      <div className="nyx-card nyx-card-accent-purple">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-purple">
-              <BookOpen className="w-4 h-4 text-[#7C3AED]" />
-            </div>
-            <h3 className="nyx-section-title">Knowledge Base & Vulnerability Patterns</h3>
-          </div>
-        </div>
-        
-        <div className="nyx-form-container">
-          <form onSubmit={handleSearch} className="nyx-form-inline">
-            <div className="nyx-form-field nyx-form-field-grow">
-              <div className="nyx-search-container">
-                <Search className="nyx-search-icon" />
+                <label className="text-[#707070] block mb-1 font-mono">Target Asset</label>
                 <input
                   type="text"
-                  placeholder="Search attack patterns, CVEs, or vulnerability classes..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="nyx-search-input"
+                  required
+                  value={planTarget}
+                  onChange={(e) => setPlanTarget(e.target.value)}
+                  className="w-full bg-[#252525] border border-[#3A3A3A] rounded px-3 py-1.5 text-xs font-mono text-[#E8E8E8] focus:outline-none"
                 />
-                {searchQuery && (
-                  <button 
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="nyx-search-clear"
-                  >
-                    ×
-                  </button>
-                )}
               </div>
-            </div>
-            <button type="submit" className="nyx-button nyx-button-primary">
-              <Search className="w-4 h-4" />
-              <span>Search</span>
-            </button>
-          </form>
-        </div>
 
-        {searchResults.length > 0 && (
-          <div className="nyx-search-results">
-            <div className="nyx-search-results-header">
-              <Database className="w-3 h-3 text-[#7C3AED]" />
-              <span className="text-[10px] font-mono text-[#7C3AED] uppercase tracking-wider">
-                Search Results: {searchResults.length}
-              </span>
-            </div>
-            <div className="nyx-search-results-list">
-              {searchResults.map((res: any, idx: number) => (
-                <div key={idx} className="nyx-search-result-item">
-                  <div className="nyx-search-result-index">{String(idx + 1).padStart(2, '0')}</div>
-                  <div className="nyx-search-result-content">
-                    {typeof res === 'string' ? res : JSON.stringify(res)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+              <div>
+                <label className="text-[#707070] block mb-1 font-mono">Vulnerability Class</label>
+                <select
+                  value={vulnClass}
+                  onChange={(e) => setVulnClass(e.target.value)}
+                  className="w-full bg-[#252525] border border-[#3A3A3A] rounded px-2.5 py-1.5 text-xs text-[#E8E8E8] focus:outline-none"
+                >
+                  <option value="SQL Injection">SQL Injection</option>
+                  <option value="IDOR">IDOR / BOLA</option>
+                  <option value="Authentication Bypass">Authentication Bypass</option>
+                  <option value="SSRF">SSRF</option>
+                  <option value="Reflected XSS">Reflected XSS</option>
+                  <option value="Command Injection">Command Injection / RCE</option>
+                </select>
+              </div>
 
-      {/* Security Skills Catalog Grid */}
-      <div className="nyx-card nyx-card-accent-cyan">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-cyan">
-              <BookOpen className="w-4 h-4 text-[#00D9FF]" />
-            </div>
-            <h3 className="nyx-section-title">Security Skills Catalog</h3>
-            <span className="nyx-count-pill">{skills.length}</span>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={isPlanning}
+                  className="btn-primary w-full py-1.5 flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isPlanning ? 'animate-spin' : ''}`} />
+                  <span>{isPlanning ? 'Synthesizing...' : 'Generate Playbook'}</span>
+                </button>
+              </div>
+            </form>
           </div>
-          <div className="flex items-center gap-2">
-            <Layers className="w-3 h-3 text-[#00D9FF]" />
-            <span className="text-[10px] font-mono text-[#00D9FF] uppercase tracking-wider">
-              Curated
-            </span>
-          </div>
-        </div>
 
-        <div className="nyx-skills-grid">
-          {skills.slice(0, 30).map((sk: any, idx: number) => {
-            const SkillIcon = getSkillIcon(sk.category);
-            return (
-              <div key={idx} className="nyx-skill-card group">
-                <div className="nyx-skill-icon">
-                  <SkillIcon className="w-4 h-4 text-[#00D9FF]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="nyx-skill-name">{sk.name || sk}</div>
-                  <div className="nyx-skill-category">{sk.category || 'Security Skill'}</div>
-                </div>
-                <div className="nyx-skill-badge">
-                  <Shield className="w-3 h-3 text-[#00FF88]" />
+          {planResult && (
+            <div className="card space-y-3 border border-[#ebb94b]/40">
+              <div className="flex items-center justify-between pb-2 border-b border-[#333333]">
+                <h3 className="text-xs font-bold text-[#ebb94b] font-mono">
+                  Synthesized Attack Playbook: {vulnClass} on {planTarget}
+                </h3>
+                <span className="text-[11px] font-mono text-[#888888]">Engine: NYX AI Reasoning</span>
+              </div>
+
+              <div className="p-3 rounded bg-[#1E1E1E] border border-[#333333] space-y-2 text-xs font-mono text-[#CCCCCC]">
+                <div className="text-[#ebb94b] font-bold">1. Attack Hypothesis</div>
+                <p className="text-[#AAAAAA]">{planResult.plan?.hypothesis || `Target accepts unvalidated inputs over parameter boundaries.`}</p>
+
+                <div className="text-[#ebb94b] font-bold pt-2">2. Required Sequence</div>
+                <div className="space-y-1 text-[#888888]">
+                  <div>• Step 1: Establish clean dual-session baseline (Attacker A / Victim B)</div>
+                  <div>• Step 2: Inject non-destructive probe and observe delta</div>
+                  <div>• Step 3: Run 7-Question Gate and attach raw HTTP trace</div>
                 </div>
               </div>
-            );
-          })}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#333333]">
+                <button 
+                  onClick={() => setCurrentView('findings', { prefillEndpoint: planTarget })} 
+                  className="btn-primary text-xs py-1.5 px-3"
+                >
+                  Promote to Finding
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* ========== TAB: SKILLS CATALOG ========== */}
+      {activeTab === 'skills' && (
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Search skills by name, class, description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-[#242424] border border-[#333333] rounded px-3 py-1.5 text-xs text-[#E8E8E8] focus:outline-none"
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filteredSkills.map(s => (
+              <div key={s.name} className="card space-y-1.5 border border-[#3A3A3A]">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold text-[#ebb94b]">{s.name}</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#303030] text-[#888888]">
+                    {s.category}
+                  </span>
+                </div>
+                <p className="text-xs text-[#CCCCCC] line-clamp-2 leading-relaxed">{s.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+}
+
+export default IntelligenceView;

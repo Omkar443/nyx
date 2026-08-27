@@ -1,207 +1,192 @@
 import React, { useState } from 'react';
-import { useNyxEvents } from './hooks/useNyxEvents';
-import { DashboardView } from './views/DashboardView';
-import { AttackSurfaceView } from './views/AttackSurfaceView';
-import { FindingsView } from './views/FindingsView';
-import { EvidenceView } from './views/EvidenceView';
-import { IntelligenceView } from './views/IntelligenceView';
-import { ExecutionView } from './views/ExecutionView';
-import { AgentView } from './views/AgentView';
-import { FleetView } from './views/FleetView';
-import { WorkerFleetView } from './views/WorkerFleetView';
-import { RuntimeView } from './views/RuntimeView';
-import { ContinuousView } from './views/ContinuousView';
-import { SettingsView } from './views/SettingsView';
-
-import {
-  LayoutDashboard,
-  Globe,
-  AlertTriangle,
-  FileText,
-  Bot,
-  Terminal,
+import { 
+  LayoutDashboard, 
+  Map, 
+  Radar, 
+  Target, 
+  Terminal, 
+  Shield, 
+  Server, 
+  Gauge, 
+  Brain, 
+  Globe, 
+  Eye, 
+  Activity, 
+  HardDrive, 
   Settings,
-  Shield,
-  Sparkles,
-  Users,
-  Server,
-  Activity,
-  Radio,
-  Brain,
-  Crosshair,
-  Database,
-  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
-interface NavGroup {
-  section: string;
-  items: {
-    id: string;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }[];
-}
+import { AppProvider, useApp } from './context/AppContext';
 
-import nyxLogo from './assets/logo.png';
+// Views
+import DashboardView from './views/DashboardView';
+import FleetView from './views/FleetView';
+import FindingsView from './views/FindingsView';
+import AgentView from './views/AgentView';
+import AttackSurfaceView from './views/AttackSurfaceView';
+import ContinuousView from './views/ContinuousView';
+import EvidenceView from './views/EvidenceView';
+import ExecutionView from './views/ExecutionView';
+import IntelligenceView from './views/IntelligenceView';
+import RuntimeView from './views/RuntimeView';
+import SettingsView from './views/SettingsView';
+import WorkerFleetView from './views/WorkerFleetView';
+import MissionView from './views/MissionView';
+import EngineView from './views/EngineView';
+import ErrorBoundary from './components/ErrorBoundary';
 
-export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const { connected, lastEvent } = useNyxEvents();
+function AppContent() {
+  const { 
+    currentView, setCurrentView, target, phase, 
+    endpointsCount, findingsCount, approvalsCount, agentsCount, isConnected 
+  } = useApp();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const navGroups: NavGroup[] = [
-    {
-      section: 'OPERATIONS',
-      items: [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'continuous', label: 'Continuous Intel', icon: Radio },
-        { id: 'surface', label: 'Attack Surface', icon: Globe },
-      ],
-    },
-    {
-      section: 'EXECUTION & FLEET',
-      items: [
-        { id: 'fleet', label: 'Multi-Agent Fleet', icon: Users },
-        { id: 'workers', label: 'Remote Workers', icon: Server },
-        { id: 'runtime', label: 'Browser Runtime', icon: Activity },
-        { id: 'agent', label: 'AI Agent Assistant', icon: Sparkles },
-      ],
-    },
-    {
-      section: 'RESEARCH & EVIDENCE',
-      items: [
-        { id: 'findings', label: 'Findings & Triage', icon: AlertTriangle },
-        { id: 'evidence', label: 'Evidence Vault', icon: FileText },
-        { id: 'intelligence', label: 'Intelligence & AI', icon: Brain },
-        { id: 'execution', label: 'Tool Execution', icon: Terminal },
-      ],
-    },
-    {
-      section: 'SYSTEM',
-      items: [
-        { id: 'settings', label: 'Settings', icon: Settings },
-      ],
-    },
+  const navItems = [
+    // Main Section
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, view: <DashboardView />, section: 'main' },
+    { id: 'findings', label: 'Findings & Triage', icon: Target, view: <FindingsView />, badge: findingsCount > 0 ? String(findingsCount) : undefined, section: 'main' },
+    { id: 'mission', label: 'Mission Plan', icon: Map, view: <MissionView />, section: 'main' },
+    { id: 'attack-surface', label: 'Attack Surface', icon: Radar, view: <AttackSurfaceView />, badge: endpointsCount > 0 ? String(endpointsCount) : undefined, section: 'main' },
+
+    // Operations Section
+    { id: 'execution', label: 'Execution History', icon: Terminal, view: <ExecutionView />, section: 'operations' },
+    { id: 'agent', label: 'Approval Queue', icon: Shield, view: <AgentView />, badge: approvalsCount > 0 ? String(approvalsCount) : undefined, section: 'operations' },
+    { id: 'fleet', label: 'Fleet', icon: Server, view: <FleetView />, badge: agentsCount > 0 ? String(agentsCount) : undefined, section: 'operations' },
+
+    // System Section
+    { id: 'engine', label: 'Engine Status', icon: Gauge, view: <EngineView />, section: 'system' },
+    { id: 'intelligence', label: 'Intelligence & AI', icon: Brain, view: <IntelligenceView />, section: 'system' },
+    { id: 'runtime', label: 'Browser Runtime', icon: Globe, view: <RuntimeView />, section: 'system' },
+    { id: 'evidence', label: 'Evidence Vault', icon: Eye, view: <EvidenceView />, section: 'system' },
+    { id: 'continuous', label: 'Continuous Intel', icon: Activity, view: <ContinuousView />, section: 'system' },
+    { id: 'worker-fleet', label: 'Remote Workers', icon: HardDrive, view: <WorkerFleetView />, section: 'system' },
+    { id: 'settings', label: 'Settings', icon: Settings, view: <SettingsView />, section: 'system' },
   ];
 
+  const currentNavItem = navItems.find(item => item.id === currentView) || navItems[0];
+
   return (
-    <div className="nyx-app">
-      {/* Fixed Top Bar (48px height) */}
-      <header className="nyx-top-bar">
-        {/* Left Logo Header */}
-        <div className="nyx-logo-section">
-          <div className="nyx-logo-icon">
-            <img
-              src={nyxLogo}
-              alt="NYX Logo"
-              className="nyx-logo-img"
-              style={{ width: '28px', height: '28px', maxWidth: '28px', maxHeight: '28px', objectFit: 'contain', display: 'block' }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="nyx-logo-text">NYX ENGINE</span>
-            <span className="nyx-version-badge">
-              v1.0.0
-            </span>
-          </div>
-        </div>
-
-        {/* Center WebSocket Status Pill */}
-        <div className="nyx-status-section">
-          {connected ? (
-            <div className="nyx-websocket-pill nyx-websocket-connected">
-              <span className="nyx-websocket-dot"></span>
-              LIVE
-            </div>
-          ) : (
-            <div className="nyx-websocket-pill nyx-websocket-reconnecting">
-              <span className="nyx-websocket-dot"></span>
-              RECONNECTING
-            </div>
-          )}
-          {lastEvent && (
-            <div className="nyx-event-display">
-              <span className="nyx-event-label">Event:</span>
-              <span className="nyx-event-value">{lastEvent.event}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Right Settings Quick Action */}
-        <div className="nyx-actions-section">
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`nyx-icon-button ${activeTab === 'settings' ? 'nyx-icon-button-active' : ''}`}
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Body Area: Fixed 220px Sidebar + Scrollable Main Content */}
-      <div className="nyx-main-layout">
-        {/* Fixed Left Sidebar (220px) */}
-        <aside className="nyx-sidebar">
-          <div className="nyx-nav-groups">
-            {navGroups.map((group, groupIdx) => (
-              <div key={groupIdx} className="nyx-nav-group">
-                <div className="nyx-nav-section-label">
-                  {group.section}
+    <div className="flex h-screen bg-[#1F1F1F] overflow-hidden">
+      {/* ========== SIDEBAR ========== */}
+      <aside 
+        className={`sidebar flex flex-col justify-between transition-all duration-300 border-r border-[#333333] ${
+          isCollapsed ? 'w-16' : 'w-60'
+        }`}
+      >
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Logo & Brand Header */}
+          <div className="p-3 border-b border-[#333333] flex items-center justify-between">
+            {!isCollapsed && (
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-[#ebb94b] flex items-center justify-center font-bold text-black text-xs">
+                  N
                 </div>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`nyx-nav-item ${isActive ? 'nyx-nav-item-active' : ''}`}
-                    >
-                      <Icon className={`nyx-nav-icon ${isActive ? 'nyx-nav-icon-active' : ''}`} />
-                      <span className="nyx-nav-label">{item.label}</span>
-                      {isActive && <div className="nyx-nav-indicator"></div>}
-                    </button>
-                  );
-                })}
+                <div>
+                  <h1 className="text-sm font-bold text-[#F2F2F2] tracking-wider font-mono">NYX</h1>
+                  <p className="text-[10px] text-[#707070] font-mono">v1.0.0 · Core Engine</p>
+                </div>
               </div>
-            ))}
+            )}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-1 rounded hover:bg-[#303030] text-[#707070] hover:text-[#CCCCCC]"
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
           </div>
 
-          {/* Bottom Sidebar Footer Info */}
-          <div className="nyx-sidebar-footer">
-            <div className="nyx-sidebar-footer-content">
-              <span className="nyx-sidebar-footer-label">NYX Engine</span>
-              <span className="nyx-sidebar-footer-version">v1.0</span>
-            </div>
-            <div className="nyx-sidebar-footer-status">
-              <Lock className="w-3 h-3 text-[#00FF88]" />
-              <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
-                Secured
+          {/* Nav Items */}
+          <nav className="p-2 space-y-4 flex-1">
+            {['main', 'operations', 'system'].map((sec) => {
+              const secItems = navItems.filter(i => i.section === sec);
+              return (
+                <div key={sec} className="space-y-1">
+                  {!isCollapsed && (
+                    <span className="text-[9px] uppercase font-mono tracking-wider text-[#666666] px-2 block mb-1">
+                      {sec}
+                    </span>
+                  )}
+                  {secItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = currentView === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setCurrentView(item.id)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors font-mono ${
+                          isActive 
+                            ? 'bg-[#2A2A2A] text-[#ebb94b] font-bold border-l-2 border-l-[#ebb94b]' 
+                            : 'text-[#AAAAAA] hover:bg-[#282828] hover:text-[#FFFFFF]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4 shrink-0" />
+                          {!isCollapsed && <span>{item.label}</span>}
+                        </div>
+                        {!isCollapsed && item.badge && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#333333] text-[#CCCCCC]">
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </nav>
+        </div>
+      </aside>
+
+      {/* ========== MAIN CONTENT VIEW ========== */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Header */}
+        <header className="h-12 border-b border-[#333333] bg-[#242424] flex items-center justify-between px-4">
+          <div className="flex items-center gap-3 font-mono text-xs">
+            <span className="text-[#888888]">TARGET:</span>
+            <span className="text-[#E8E8E8] font-bold">{target}</span>
+            <span className="text-[#444444]">|</span>
+            <span className="text-[#888888]">PHASE:</span>
+            <span className="text-[#ebb94b] font-bold">{phase}</span>
+          </div>
+
+          <div className="flex items-center gap-2 font-mono text-[11px]">
+            {isConnected ? (
+              <span className="text-[#4CAF50] bg-[#4CAF50]/10 border border-[#4CAF50]/30 px-2 py-0.5 rounded flex items-center gap-1">
+                <Wifi className="w-3 h-3" />
+                <span>LIVE</span>
               </span>
-            </div>
+            ) : (
+              <span className="text-[#EF5350] bg-[#EF5350]/10 border border-[#EF5350]/30 px-2 py-0.5 rounded flex items-center gap-1">
+                <WifiOff className="w-3 h-3" />
+                <span>DISCONNECTED</span>
+              </span>
+            )}
           </div>
-        </aside>
+        </header>
 
-        {/* Scrollable Main Content Area */}
-        <main className="nyx-main-content">
-          <div className="nyx-content-wrapper">
-            {activeTab === 'dashboard' && <DashboardView onNavigate={(tab) => setActiveTab(tab)} />}
-            {activeTab === 'continuous' && <ContinuousView />}
-            {activeTab === 'fleet' && <FleetView />}
-            {activeTab === 'workers' && <WorkerFleetView />}
-            {activeTab === 'runtime' && <RuntimeView />}
-            {activeTab === 'agent' && <AgentView />}
-            {activeTab === 'surface' && <AttackSurfaceView />}
-            {activeTab === 'findings' && <FindingsView />}
-            {activeTab === 'evidence' && <EvidenceView />}
-            {activeTab === 'intelligence' && <IntelligenceView />}
-            {activeTab === 'execution' && <ExecutionView />}
-            {activeTab === 'settings' && <SettingsView />}
-          </div>
+        {/* View Viewport */}
+        <main className="flex-1 overflow-y-auto p-4 bg-[#1E1E1E]">
+          <ErrorBoundary key={currentView} fallbackTitle={`Error rendering ${currentNavItem.label}`}>
+            {currentNavItem.view}
+          </ErrorBoundary>
         </main>
       </div>
     </div>
   );
-};
+}
+
+export function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
+  );
+}
 
 export default App;

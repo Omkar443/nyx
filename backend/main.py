@@ -17,7 +17,7 @@ from nyx.web.auth import get_or_create_api_token
 
 
 def main():
-    host = os.environ.get("NYX_HOST", "127.0.0.1")
+    host = os.environ.get("NYX_HOST", "0.0.0.0")
     port = int(os.environ.get("NYX_PORT", "8000"))
     token = get_or_create_api_token()
 

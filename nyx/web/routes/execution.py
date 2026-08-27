@@ -3,7 +3,7 @@ NYX Web API Tool Execution Routes
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from nyx.web.auth import require_auth
@@ -28,10 +28,11 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 @router.get("/history", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_execution_history(
     limit: int = Query(50, ge=1, le=500),
+    target: str | None = Query(None, description="Optional target domain to filter executions"),
     service: ExecutionService = Depends(get_execution_service),
 ) -> Dict[str, Any]:
-    """Retrieve tool execution history entries."""
-    _, data = _parse_res(service.get_history(limit=limit))
+    """Retrieve tool execution history entries, optionally filtered by target."""
+    _, data = _parse_res(service.get_history(limit=limit, target=target))
     return data
 
 
@@ -82,9 +83,16 @@ async def run_tool_execution(
     )
 
     if not ok:
+        exec_data = data.get("data", {})
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": data.get("code", "EXECUTION_BLOCKED"), "message": data.get("error", f"Execution of '{req.tool_name}' failed or was blocked.")},
+            detail={
+                "code": data.get("code", "EXECUTION_BLOCKED"),
+                "message": data.get("error", f"Execution of '{req.tool_name}' failed or was blocked."),
+                "status": exec_data.get("status", "FAILED"),
+                "exit_code": exec_data.get("exit_code", 1),
+                "details": exec_data,
+            },
         )
 
     return data

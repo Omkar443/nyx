@@ -17,6 +17,7 @@ class HealthResponse(BaseModel):
     target: Optional[str] = None
     authentication_enabled: bool = True
     api_token: Optional[str] = None
+    skills_count: Optional[int] = None
 
 
 class ErrorDetail(BaseModel):
@@ -149,6 +150,12 @@ class SkillResponse(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     path: Optional[str] = None
+
+
+class SkillStatsResponse(BaseModel):
+    skill_count: int
+    count: int
+    categories: Optional[Dict[str, int]] = None
 
 
 # --- Execution Schemas ---

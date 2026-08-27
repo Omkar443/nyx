@@ -1,300 +1,185 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Server, Bot, Plus, RefreshCw, Rocket, 
+  Activity, Shield, Lock, Search, Filter, ChevronRight, XCircle, Play
+} from 'lucide-react';
 import { fetchApi } from '../api/client';
-import { Users, Bot, ListTodo, Plus, Square, RefreshCw, Rocket, Target, Activity, AlertCircle, Server, Cpu, Globe, Zap } from 'lucide-react';
-export const FleetView: React.FC = () => {
-  const [fleetStatus, setFleetStatus] = useState<any>(null);
-  const [createType, setCreateType] = useState<string>('recon');
-  const [createTarget, setCreateTarget] = useState<string>('example.com');
-  const [loading, setLoading] = useState<boolean>(false);
+import { useNyxEvents } from '../hooks/useNyxEvents';
+import { useApp } from '../context/AppContext';
 
-  async function loadFleetData() {
-    const res = await fetchApi('/api/v1/fleet/status');
-    if (res.success) setFleetStatus(res.data);
+export function FleetView() {
+  const { target, refreshGlobalStats } = useApp();
+  const { lastEvent } = useNyxEvents();
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [agentRole, setAgentRole] = useState('Recon Specialist');
+  const [agentType, setAgentType] = useState('recon');
+
+  async function loadFleet() {
+    try {
+      const res = await fetchApi('/api/v1/fleet/agents');
+      const list = res?.data?.agents || res?.agents || [];
+      if (Array.isArray(list)) {
+        setAgents(list);
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    loadFleetData();
+    loadFleet();
   }, []);
 
-  async function handleCreateAgent(e: React.FormEvent) {
+  useEffect(() => {
+    if (lastEvent) {
+      loadFleet();
+      refreshGlobalStats();
+    }
+  }, [lastEvent, refreshGlobalStats]);
+
+  async function handleDeployAgent(e: React.FormEvent) {
     e.preventDefault();
-    if (!createTarget) return;
-    setLoading(true);
-    await fetchApi(`/api/v1/fleet/agents?type=${encodeURIComponent(createType)}&target=${encodeURIComponent(createTarget)}`, { method: 'POST' });
-    await loadFleetData();
-    setLoading(false);
+    try {
+      await fetchApi('/api/v1/fleet/agents', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: agentRole,
+          type: agentType,
+          target: target,
+          capabilities: [agentType, 'reporting']
+        })
+      });
+      setIsDeploying(false);
+      await loadFleet();
+      await refreshGlobalStats();
+    } catch {
+      setIsDeploying(false);
+    }
   }
 
   async function handleStopAgent(agentId: string) {
-    await fetchApi(`/api/v1/fleet/agents/${agentId}/stop`, { method: 'POST' });
-    loadFleetData();
+    try {
+      await fetchApi(`/api/v1/fleet/agents/${agentId}/stop`, { method: 'POST' });
+      await loadFleet();
+      await refreshGlobalStats();
+    } catch {
+      // Handled
+    }
   }
 
-  const getAgentTypeIcon = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'recon': return Target;
-      case 'web': return Globe;
-      case 'api': return Zap;
-      case 'technology': return Cpu;
-      case 'validation': return AlertCircle;
-      case 'reporting': return Server;
-      default: return Bot;
-    }
-  };
-
-  const getAgentStateBadge = (state: string = 'idle') => {
-    switch (state.toLowerCase()) {
-      case 'running': return 'nyx-badge-success';
-      case 'idle': return 'nyx-badge-low';
-      case 'error': return 'nyx-badge-critical';
-      case 'paused': return 'nyx-badge-high';
-      default: return 'nyx-badge-info';
-    }
-  };
-
   return (
-    <div className="nyx-fleet-view">
-      {/* File Update Progress */}
-
-      {/* Page Header */}
-      <div className="nyx-page-header">
-        <div className="nyx-page-header-content">
-          <div className="flex items-center gap-4">
-            <div className="nyx-page-icon nyx-page-icon-purple">
-              <Users className="w-6 h-6 text-[#7C3AED]" />
-            </div>
-            <div>
-              <h1 className="nyx-page-title">Multi-Agent Fleet</h1>
-              <p className="nyx-page-subtitle">Distributed specialized research agents with isolated sandboxes</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="nyx-metric-pills">
-              <div className="nyx-metric-pill">
-                <span className="nyx-pill-label">Active Agents</span>
-                <span className="nyx-pill-value text-[#00D9FF]">{fleetStatus?.total_agents || 0}</span>
-              </div>
-              <div className="nyx-metric-pill">
-                <span className="nyx-pill-label">Queue Tasks</span>
-                <span className="nyx-pill-value text-[#00FF88]">{fleetStatus?.total_tasks || 0}</span>
-              </div>
-              <div className="nyx-metric-pill">
-                <span className="nyx-pill-label">Pending Approvals</span>
-                <span className="nyx-pill-value text-[#FF6B35]">{fleetStatus?.pending_approvals_count || 0}</span>
-              </div>
-            </div>
-            <button onClick={loadFleetData} className="nyx-button nyx-button-ghost" title="Refresh">
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="space-y-5 animate-fadeInUp">
+      {/* ========== HEADER ========== */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-[#F2F2F2] tracking-tight">
+            Specialized Agent Fleet
+          </h1>
+          <p className="text-sm text-[#707070] mt-0.5 flex items-center gap-2">
+            <Server className="w-3.5 h-3.5 text-[#555555]" />
+            Multi-agent research swarm with isolated memory and task dispatch &nbsp;·&nbsp; {agents.length} active operatives
+          </p>
         </div>
+        <button onClick={() => setIsDeploying(true)} className="btn-primary flex items-center gap-1 text-xs py-1.5 px-3">
+          <Rocket className="w-3.5 h-3.5" />
+          <span>Deploy Swarm Agent</span>
+        </button>
       </div>
 
-      {/* Deploy Specialized Agent Card */}
-      <div className="nyx-card nyx-card-accent-purple">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-purple">
-              <Rocket className="w-4 h-4 text-[#7C3AED]" />
-            </div>
-            <h2 className="nyx-section-title">Deploy Specialized Agent</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Zap className="w-3 h-3 text-[#7C3AED]" />
-            <span className="text-[10px] font-mono text-[#7C3AED] uppercase tracking-wider">
-              Sandboxed
-            </span>
-          </div>
+      {/* ========== FLEET CARDS ========== */}
+      {agents.length === 0 ? (
+        <div className="card text-center py-16 space-y-3">
+          <Bot className="w-8 h-8 text-[#555555] mx-auto opacity-50" />
+          <p className="text-xs text-[#888888] font-mono">No specialized agents currently deployed.</p>
+          <button onClick={() => setIsDeploying(true)} className="btn-primary text-xs py-1.5 px-3">
+            Deploy First Operative
+          </button>
         </div>
-        
-        <div className="nyx-form-container">
-          <form onSubmit={handleCreateAgent} className="nyx-form-grid">
-            <div className="nyx-form-field">
-              <label className="nyx-form-label">
-                <Bot className="w-3 h-3 text-[#7C3AED]" />
-                Specialized Agent Type
-              </label>
-              <select
-                value={createType}
-                onChange={(e) => setCreateType(e.target.value)}
-                className="nyx-select"
-              >
-                <option value="recon">ReconAgent (Asset Discovery & Endpoints)</option>
-                <option value="web">WebAgent (Web Attack Surface & Auth)</option>
-                <option value="api">APIAgent (API & IDOR Vectors)</option>
-                <option value="technology">TechnologyAgent (Stack Mapping)</option>
-                <option value="validation">ValidationAgent (Triage & 7-Question Gate)</option>
-                <option value="reporting">ReportingAgent (Submission Drafts)</option>
-              </select>
-            </div>
-            <div className="nyx-form-field">
-              <label className="nyx-form-label">
-                <Target className="w-3 h-3 text-[#00D9FF]" />
-                Target Domain Scope
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. target.com"
-                value={createTarget}
-                onChange={(e) => setCreateTarget(e.target.value)}
-                className="nyx-input"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="nyx-button nyx-button-primary nyx-button-purple nyx-button-full"
-            >
-              <Rocket className="w-4 h-4" />
-              <span>{loading ? 'Launching...' : 'Launch Agent'}</span>
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Active Fleet Instances */}
-      <div className="nyx-card nyx-card-accent-cyan">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-cyan">
-              <Bot className="w-4 h-4 text-[#00D9FF]" />
-            </div>
-            <h3 className="nyx-section-title">Active Fleet Instances</h3>
-            <span className="nyx-count-pill">{fleetStatus?.agents?.length || 0}</span>
-          </div>
-          {fleetStatus?.agents?.length > 0 && (
-            <span className="nyx-badge nyx-badge-success">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00FF88] inline-block mr-1"></span>
-              OPERATIONAL
-            </span>
-          )}
-        </div>
-
-        {(!fleetStatus?.agents || fleetStatus.agents.length === 0) ? (
-          <div className="nyx-empty-state">
-            <div className="nyx-empty-state-icon">
-              <Bot className="w-8 h-8 text-[#484F58]" />
-            </div>
-            <div className="nyx-empty-state-title">Fleet is idle</div>
-            <div className="nyx-empty-state-description">
-              Launch a specialized agent above to begin distributed research
-            </div>
-          </div>
-        ) : (
-          <div className="nyx-agents-grid">
-            {fleetStatus.agents.map((ag: any) => {
-              const AgentIcon = getAgentTypeIcon(ag.agent_type);
-              return (
-                <div key={ag.agent_id} className="nyx-agent-card">
-                  <div className="nyx-agent-header">
-                    <div className="flex items-center gap-3">
-                      <div className="nyx-agent-icon">
-                        <AgentIcon className="w-5 h-5 text-[#00D9FF]" />
-                      </div>
-                      <div>
-                        <span className="nyx-agent-id">{ag.agent_id}</span>
-                        <h4 className="nyx-agent-type">{ag.agent_type} Agent</h4>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleStopAgent(ag.agent_id)}
-                      className="nyx-button nyx-button-danger nyx-button-sm"
-                    >
-                      <Square className="w-3 h-3 fill-current" />
-                      <span>Stop</span>
-                    </button>
-                  </div>
-                  
-                  <div className="nyx-agent-details">
-                    <div className="nyx-agent-detail-row">
-                      <span className="nyx-agent-detail-label">Target:</span>
-                      <span className="nyx-agent-detail-value">{ag.target}</span>
-                    </div>
-                    <div className="nyx-agent-detail-row">
-                      <span className="nyx-agent-detail-label">State:</span>
-                      <span className={`nyx-badge ${getAgentStateBadge(ag.agent_state)}`}>
-                        {ag.agent_state}
-                      </span>
-                    </div>
-                    <div className="nyx-agent-detail-row">
-                      <span className="nyx-agent-detail-label">Skills:</span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {ag.allowed_skills?.map((skill: string, idx: number) => (
-                          <span key={idx} className="nyx-badge nyx-badge-low">{skill}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="nyx-agent-detail-row">
-                      <span className="nyx-agent-detail-label">Tools:</span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {ag.allowed_tools?.map((tool: string, idx: number) => (
-                          <span key={idx} className="nyx-badge nyx-badge-high">{tool}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {agents.map((ag) => (
+            <div key={ag.id} className="card space-y-3 border border-[#3A3A3A]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-[#ebb94b]" />
+                  <span className="font-mono text-xs font-bold text-[#E8E8E8]">{ag.id}</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Task Queue View */}
-      <div className="nyx-card nyx-card-accent-green">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-green">
-              <ListTodo className="w-4 h-4 text-[#00FF88]" />
-            </div>
-            <h3 className="nyx-section-title">Distributed Task Queue</h3>
-            <span className="nyx-count-pill">{fleetStatus?.tasks?.length || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Activity className="w-3 h-3 text-[#00FF88]" />
-            <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
-              Auto-Scheduled
-            </span>
-          </div>
-        </div>
-
-        {(!fleetStatus?.tasks || fleetStatus.tasks.length === 0) ? (
-          <div className="nyx-empty-state">
-            <div className="nyx-empty-state-icon">
-              <ListTodo className="w-8 h-8 text-[#484F58]" />
-            </div>
-            <div className="nyx-empty-state-title">No tasks queued</div>
-            <div className="nyx-empty-state-description">
-              Tasks are scheduled dynamically by the DistributedScheduler
-            </div>
-          </div>
-        ) : (
-          <div className="nyx-task-list">
-            {fleetStatus.tasks.map((tsk: any) => (
-              <div key={tsk.task_id} className="nyx-task-item">
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="nyx-task-id">{tsk.task_id}</span>
-                    <span className="nyx-task-type">{tsk.task_type}</span>
-                    <span className="nyx-badge nyx-badge-info">Priority: {tsk.priority}</span>
-                  </div>
-                  <div className="nyx-task-detail">
-                    <span className="nyx-task-label">Target:</span>
-                    <span className="text-[#E6EDF3]">{tsk.target}</span>
-                    <span className="mx-2 text-[#484F58]">|</span>
-                    <span className="nyx-task-label">Agent:</span>
-                    <span className="text-[#FF6B35]">{tsk.agent_type}</span>
-                  </div>
-                </div>
-                <span className={`nyx-badge ${getAgentStateBadge(tsk.status)}`}>
-                  {tsk.status}
+                <span className={`text-[10px] font-mono uppercase px-1.5 py-0.2 rounded border ${
+                  ag.status === 'running' ? 'text-[#4CAF50] bg-[#4CAF50]/15 border-[#4CAF50]/30' : 'text-[#888888] bg-[#333333]'
+                }`}>
+                  {ag.status || 'idle'}
                 </span>
               </div>
-            ))}
+
+              <div>
+                <h3 className="text-xs font-bold text-[#F2F2F2]">{ag.name}</h3>
+                <p className="text-[11px] font-mono text-[#707070] mt-0.5">Target: {ag.target || target}</p>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] font-mono text-[#666666] pt-2 border-t border-[#2A2A2A]">
+                <span>Type: {ag.type}</span>
+                <button onClick={() => handleStopAgent(ag.id)} className="text-[#EF5350] hover:underline">
+                  Stop Agent
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ========== DEPLOY MODAL ========== */}
+      {isDeploying && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="card max-w-md w-full space-y-3 border border-[#4A4A4A]">
+            <div className="flex items-center justify-between pb-2 border-b border-[#333333]">
+              <h3 className="text-sm font-bold text-[#F2F2F2]">Deploy Specialized Agent</h3>
+              <button onClick={() => setIsDeploying(false)} className="text-[#888888] hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleDeployAgent} className="space-y-3 text-xs">
+              <div>
+                <label className="text-[#888888] block mb-1">Agent Name / Job Title</label>
+                <input
+                  type="text"
+                  required
+                  value={agentRole}
+                  onChange={(e) => setAgentRole(e.target.value)}
+                  className="w-full bg-[#2A2A2A] border border-[#3A3A3A] rounded px-3 py-1.5 text-xs text-[#E8E8E8] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[#888888] block mb-1">Agent Specialization</label>
+                <select
+                  value={agentType}
+                  onChange={(e) => setAgentType(e.target.value)}
+                  className="w-full bg-[#2A2A2A] border border-[#3A3A3A] rounded px-2.5 py-1.5 text-xs text-[#E8E8E8] focus:outline-none"
+                >
+                  <option value="recon">Reconnaissance Operative</option>
+                  <option value="crawler">HTTP Surface Crawler</option>
+                  <option value="api">API Protocol Prober</option>
+                  <option value="reporting">Findings Synthesizer</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#333333]">
+                <button type="button" onClick={() => setIsDeploying(false)} className="btn-secondary text-xs py-1.5 px-3">
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary text-xs py-1.5 px-3">
+                  Deploy
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
-};
+}
+
+export default FleetView;

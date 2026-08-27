@@ -38,7 +38,7 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 
 @router.get("/agents", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def list_fleet_agents(
-    target: Optional[str] = Query(None, description="Target domain filter"),
+    target: str | None = Query(None, description="Target domain filter"),
     agent_type: Optional[str] = Query(None, description="Agent type filter"),
     service: FleetService = Depends(get_fleet_service),
 ) -> Dict[str, Any]:
@@ -50,12 +50,14 @@ async def list_fleet_agents(
 @router.post("/agents", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def create_fleet_agent(
     type: str = Query("recon", description="Agent type (recon|web|api|technology|validation|reporting)"),
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: FleetService = Depends(get_fleet_service),
 ) -> Dict[str, Any]:
     """Create and launch a new specialized agent."""
-    _, data = _parse_res(service.create_agent(type=type, target=target))
-    await emit_event("agent_started", data={"agent_type": type, "target": target})
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.create_agent(type=type, target=active_target))
+    await emit_event("agent_started", data={"agent_type": type, "target": active_target})
     return data
 
 

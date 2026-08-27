@@ -76,16 +76,24 @@ def init_engagement(
         target_yaml = d / "target.yaml"
 
     if not target_yaml.exists():
+        from nyx.execution.policy import extract_hostname
+        import re
+        clean_host = extract_hostname(target_name)
+        is_ip = bool(re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", clean_host)) or clean_host in ("localhost", "127.0.0.1")
+        if is_ip:
+            scope_lines = f'    - "{clean_host}"\n    - "{target_name}"'
+        else:
+            scope_lines = f'    - "*.{clean_host}"\n    - "{clean_host}"\n    - "{target_name}"'
+
         target_yaml.write_text(
             f"""target:
   name: {target_name}
   domain: {target_name}
   authorization: confirmed
   scope:
-    - "*.{target_name}"
-    - "{target_name}"
+{scope_lines}
   exclusions:
-    - "out-of-scope.{target_name}"
+    - "out-of-scope.{clean_host}"
   start_date: "{datetime.date.today().isoformat()}"
 """,
             encoding="utf-8",
@@ -168,6 +176,23 @@ excluded:
     }
 
 
+def get_engagement_target(base_dir: Path | None = None) -> str | None:
+    """Retrieve the authoritative active engagement target domain/URL from .engagement/target.yaml."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    target_yaml = d / "target.yaml"
+    if target_yaml.exists():
+        try:
+            for line in target_yaml.read_text(encoding="utf-8").splitlines():
+                line_s = line.strip()
+                if line_s.startswith("domain:") or line_s.startswith("name:") or line_s.startswith("target:"):
+                    val = line_s.split(":", 1)[1].strip().strip('"').strip("'")
+                    if val and val not in ("target", "scope", "exclusions"):
+                        return val
+        except Exception:
+            pass
+    return None
+
+
 def get_engagement_status(base_dir: Path | None = None) -> dict[str, Any]:
     d = _get_eng_dir(create=False, base_dir=base_dir)
     if not d.exists():
@@ -176,6 +201,7 @@ def get_engagement_status(base_dir: Path | None = None) -> dict[str, Any]:
             "message": "No active engagement workspace found in current directory.",
         }
 
+    target_name = get_engagement_target(base_dir=base_dir) or "No active target"
     state_file = d / "state.json"
     state_data = (
         json.loads(state_file.read_text(encoding="utf-8"))
@@ -194,6 +220,7 @@ def get_engagement_status(base_dir: Path | None = None) -> dict[str, Any]:
     return {
         "status": "success",
         "dir": str(d),
+        "target": target_name,
         "state": state,
         "mode": mode,
         "counts": counts,

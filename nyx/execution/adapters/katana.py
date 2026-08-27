@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any
 from nyx.execution.adapters.base import ToolAdapter
+from nyx.infrastructure.tools import get_tool_executable_vector
 
 
 class KatanaAdapter(ToolAdapter):
@@ -18,7 +19,8 @@ class KatanaAdapter(ToolAdapter):
         return True, "Valid"
 
     def build_command(self, target: str, arguments: list[str] | None = None) -> list[str]:
-        cmd = ["katana", "-u", target]
+        tool_vec = get_tool_executable_vector("katana") or ["katana"]
+        cmd = list(tool_vec) + ["-u", target]
         if arguments:
             cmd.extend(arguments)
         else:

@@ -111,7 +111,7 @@ class ExecutionEngine:
 
             # Scope Boundary Gate
             scope_list = get_engagement_scope()
-            if scope_list and not is_hostname_in_scope(clean_target, scope_list):
+            if scope_list and not (is_hostname_in_scope(clean_target, scope_list) or is_hostname_in_scope(target, scope_list)):
                 end_time = datetime.now().isoformat()
                 res = ExecutionResult(
                     execution_id=exec_id,
@@ -137,7 +137,7 @@ class ExecutionEngine:
 
         # 3. Policy & Execution Class Verification
         policy_ok, pol_msg, scope_status = check_policy(
-            tool_name, clean_target, execution_class=exec_class, active_permitted=active_permitted, dry_run=dry_run
+            tool_name, target, execution_class=exec_class, active_permitted=active_permitted, dry_run=dry_run
         )
         if not policy_ok:
             end_time = datetime.now().isoformat()
@@ -169,14 +169,18 @@ class ExecutionEngine:
             valid_input, err_msg = adapter.validate(target, args_list)
             if not valid_input:
                 end_time = datetime.now().isoformat()
+                is_incompatible = any(k in err_msg.lower() for k in ["not provide a valid domain", "ip address", "localhost", "incompatible", "not a valid fully-qualified domain"])
+                status_val = ExecutionStatus.SKIPPED.value if is_incompatible else ExecutionStatus.FAILED.value
+                exit_code_val = 0 if is_incompatible else 1
+
                 res = ExecutionResult(
                     execution_id=exec_id,
                     tool_name=tool_name,
                     target=clean_target,
-                    status=ExecutionStatus.FAILED.value,
-                    exit_code=1,
-                    stdout="",
-                    stderr=f"[ADAPTER ERROR] {err_msg}",
+                    status=status_val,
+                    exit_code=exit_code_val,
+                    stdout=f"[{status_val}] {err_msg}",
+                    stderr="",
                     started_at=start_time,
                     completed_at=end_time,
                     timeout=tool_timeout,
@@ -186,6 +190,7 @@ class ExecutionEngine:
                     execution_class=exec_class,
                     dry_run=dry_run,
                     error_message=err_msg,
+                    metadata={"skipped": is_incompatible, "reason": err_msg},
                 )
                 self.log_execution_to_db(res)
                 store_execution_artifacts(res)
@@ -196,12 +201,14 @@ class ExecutionEngine:
             valid_cmd, cmd_err, cmd_list = build_command(tool_name, target, args_list)
             if not valid_cmd:
                 end_time = datetime.now().isoformat()
+                is_unavail = "not installed" in cmd_err.lower() or "not found" in cmd_err.lower()
+                status_val = ExecutionStatus.UNAVAILABLE.value if is_unavail else ExecutionStatus.FAILED.value
                 res = ExecutionResult(
                     execution_id=exec_id,
                     tool_name=tool_name,
                     target=clean_target,
-                    status=ExecutionStatus.FAILED.value,
-                    exit_code=1,
+                    status=status_val,
+                    exit_code=127 if is_unavail else 1,
                     stdout="",
                     stderr=cmd_err,
                     started_at=start_time,
@@ -209,17 +216,48 @@ class ExecutionEngine:
                     command=cmd_list or [tool_name, clean_target],
                     timeout=tool_timeout,
                     authorized=False,
-                    scope_status="INVALID_COMMAND",
+                    scope_status="UNAVAILABLE" if is_unavail else "INVALID_COMMAND",
                     sanitized=True,
                     execution_class=exec_class,
                     dry_run=dry_run,
                     error_message=cmd_err,
+                    metadata={"unavailable": is_unavail, "reason": cmd_err},
                 )
                 self.log_execution_to_db(res)
                 store_execution_artifacts(res)
                 return res
 
-        # 5. Dry-Run Handling
+        # 5. Pre-flight Executable Availability Gate
+        from nyx.infrastructure.tools import get_tool_executable_vector
+        tool_vec = get_tool_executable_vector(tool_name)
+        if not tool_vec and cmd_list and not (cmd_list[0] == "wsl" or shutil.which(cmd_list[0])):
+            end_time = datetime.now().isoformat()
+            unavail_msg = f"[TOOL UNAVAILABLE] Executable for tool '{tool_name}' could not be resolved in the NYX runtime environment (PATH / WSL). Please install '{tool_name}' or configure its path."
+            res = ExecutionResult(
+                execution_id=exec_id,
+                tool_name=tool_name,
+                target=clean_target,
+                status=ExecutionStatus.UNAVAILABLE.value,
+                exit_code=127,
+                stdout="",
+                stderr=unavail_msg,
+                started_at=start_time,
+                completed_at=end_time,
+                command=cmd_list,
+                timeout=tool_timeout,
+                authorized=True,
+                scope_status=scope_status,
+                sanitized=True,
+                execution_class=exec_class,
+                dry_run=dry_run,
+                error_message=unavail_msg,
+                metadata={"unavailable": True, "tool": tool_name, "resolution": "NOT_FOUND"},
+            )
+            self.log_execution_to_db(res)
+            store_execution_artifacts(res)
+            return res
+
+        # 6. Dry-Run Handling
         if dry_run or (exec_class == "ACTIVE" and not active_permitted):
             end_time = datetime.now().isoformat()
             dry_msg = (
@@ -254,16 +292,16 @@ class ExecutionEngine:
             res.artifacts = artifacts_map
             return res
 
-        # 6. Controlled Process Execution
+        # 7. Controlled Process Execution
         env = prepare_isolated_env()
         exit_code, stdout, stderr, timed_out = run_with_timeout(cmd_list, timeout_sec=tool_timeout, env=env)
         end_time = datetime.now().isoformat()
 
-        # 7. Output Sanitization
+        # 8. Output Sanitization
         san_out = str(sanitize_canonical_evidence(stdout or "").content)
         san_err = str(sanitize_canonical_evidence(stderr or "").content)
 
-        # 8. Result Parsing via Adapter if available
+        # 9. Result Parsing via Adapter if available
         parsed_data = {}
         if adapter:
             try:
@@ -271,11 +309,19 @@ class ExecutionEngine:
             except Exception as ex:
                 parsed_data = {"adapter_error": str(ex)}
 
-        status = ExecutionStatus.COMPLETED.value if exit_code == 0 else ExecutionStatus.FAILED.value
-        err_msg = san_err if exit_code != 0 else None
-        if timed_out:
+        # 10. Status & Diagnostic Classification
+        if exit_code == 127 and "[PROCESS NOT STARTED]" in san_err:
+            status = ExecutionStatus.UNAVAILABLE.value
+            err_msg = san_err
+        elif timed_out:
             status = ExecutionStatus.FAILED.value
             err_msg = f"Execution timed out after {tool_timeout} seconds."
+        elif exit_code == 0:
+            status = ExecutionStatus.COMPLETED.value
+            err_msg = None
+        else:
+            status = ExecutionStatus.FAILED.value
+            err_msg = san_err or f"Tool exited with return code {exit_code}"
 
         res = ExecutionResult(
             execution_id=exec_id,

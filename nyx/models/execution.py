@@ -19,6 +19,8 @@ class ExecutionStatus(str, Enum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
     BLOCKED = "BLOCKED"
+    UNAVAILABLE = "UNAVAILABLE"
+    SKIPPED = "SKIPPED"
 
 
 @dataclass

@@ -3,7 +3,7 @@ NYX Web API Attack Surface Routes
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from nyx.web.auth import require_auth
@@ -27,11 +27,13 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 
 @router.get("/surface", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_attack_surface(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: AnalysisService = Depends(get_analysis_service),
 ) -> Dict[str, Any]:
     """Get attack surface ranking for target."""
-    ok, data = _parse_res(service.rank_surface(target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    ok, data = _parse_res(service.rank_surface(target=active_target))
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

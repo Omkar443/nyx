@@ -48,21 +48,25 @@ async def start_agent_mission(
 
 @router.get("/context", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_agent_context(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: AgentService = Depends(get_agent_service),
 ) -> Dict[str, Any]:
     """Retrieve reasoning context for autonomous agent."""
-    _, data = _parse_res(service.get_context(target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.get_context(active_target))
     return data
 
 
 @router.get("/plan", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_agent_plan(
-    target: str = Query("example.com", description="Target domain"),
+    target: str | None = Query(None, description="Target domain"),
     service: AgentService = Depends(get_agent_service),
 ) -> Dict[str, Any]:
     """Generate structured research plan."""
-    _, data = _parse_res(service.plan_mission(target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target() or "No active target"
+    _, data = _parse_res(service.plan_mission(active_target))
     return data
 
 

@@ -1,461 +1,275 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Terminal, Play, CheckCircle, XCircle, 
+  Clock, Shield, Search, RefreshCw, Copy, Check, TerminalSquare
+} from 'lucide-react';
 import { fetchApi } from '../api/client';
-import { Terminal, Play, Shield, Activity, Cpu, Zap, FileCode, X, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-export const ExecutionView: React.FC = () => {
-  const [history, setHistory] = useState<any[]>([]);
-  const [toolName, setToolName] = useState<string>('subfinder');
-  const [target, setTarget] = useState<string>('example.com');
-  const [dryRun, setDryRun] = useState<boolean>(true);
-  const [running, setRunning] = useState<boolean>(false);
-  const [selectedExec, setSelectedExec] = useState<any>(null);
+import { useNyxEvents } from '../hooks/useNyxEvents';
+import { useApp } from '../context/AppContext';
+
+interface ExecItem {
+  execution_id?: string;
+  id?: string;
+  tool?: string;
+  tool_name?: string;
+  target?: string;
+  command?: string | string[];
+  exit_code?: number;
+  duration?: number | string;
+  timestamp?: string;
+  started_at?: string;
+  stdout?: string;
+  stderr?: string;
+  sha256?: string;
+}
+
+export function ExecutionView() {
+  const { target: appTarget, viewParams, refreshGlobalStats } = useApp();
+  const { lastEvent } = useNyxEvents();
+  const [logs, setLogs] = useState<ExecItem[]>([]);
+  const [selectedLog, setSelectedLog] = useState<ExecItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Execution Launcher
+  const [toolName, setToolName] = useState(viewParams?.tool || 'httpx');
+  const [execTarget, setExecTarget] = useState(viewParams?.target || appTarget || '');
+  const [cliArgs, setCliArgs] = useState('-status-code -title');
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const availableTools = [
+    { name: 'httpx', desc: 'Fast multi-purpose HTTP prober & title extraction' },
+    { name: 'subfinder', desc: 'Passive DNS subdomain discovery' },
+    { name: 'katana', desc: 'Web crawler & endpoint pipeline spider' },
+    { name: 'nuclei', desc: 'Vulnerability template scanner' },
+    { name: 'nmap', desc: 'Port scanner & service fingerprinting' },
+    { name: 'ffuf', desc: 'Fast web fuzzer & content discovery' },
+    { name: 'wpscan', desc: 'WordPress security scanner' },
+    { name: 'sqlmap', desc: 'Automatic SQL injection & database takeover' },
+  ];
 
   async function loadHistory() {
-    const res = await fetchApi('/api/v1/execution/history?limit=50');
-    if (res.success && res.data?.history) {
-      setHistory(res.data.history);
+    try {
+      const targetQuery = appTarget && appTarget !== 'No active target' ? `?target=${encodeURIComponent(appTarget)}` : '';
+      const res = await fetchApi(`/api/v1/execution/history${targetQuery}`);
+      const list = res?.data?.history || res?.history || [];
+      if (Array.isArray(list)) {
+        setLogs(list);
+        if (list.length > 0 && !selectedLog) {
+          setSelectedLog(list[0]);
+        }
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
     loadHistory();
-  }, []);
+    if (viewParams?.target) setExecTarget(viewParams.target);
+    else if (appTarget && appTarget !== 'No active target') setExecTarget(appTarget);
+    if (viewParams?.tool) setToolName(viewParams.tool);
+  }, [viewParams, appTarget]);
 
-  async function handleRunTool(e: React.FormEvent) {
+  useEffect(() => {
+    if (lastEvent?.event === 'execution_finished' || lastEvent?.event === 'recon_completed') {
+      loadHistory();
+      refreshGlobalStats();
+    }
+  }, [lastEvent, refreshGlobalStats]);
+
+  async function handleExecuteTool(e: React.FormEvent) {
     e.preventDefault();
-    setRunning(true);
-    const res = await fetchApi('/api/v1/execution/run', {
-      method: 'POST',
-      body: JSON.stringify({
-        tool_name: toolName,
-        target,
-        dry_run: dryRun,
-      }),
-    });
-    setRunning(false);
-    loadHistory();
-    if (res.success) {
-      setSelectedExec(res.data);
+    setIsExecuting(true);
+    try {
+      const argsList = cliArgs.trim() ? cliArgs.split(' ') : [];
+      const res = await fetchApi('/api/v1/execution/run', {
+        method: 'POST',
+        body: JSON.stringify({
+          tool_name: toolName,
+          target: execTarget,
+          arguments: ['-u', execTarget, ...argsList],
+          dry_run: false,
+          active_permitted: true
+        })
+      });
+      await loadHistory();
+      await refreshGlobalStats();
+      if (res?.data) setSelectedLog(res.data);
+    } finally {
+      setIsExecuting(false);
     }
   }
 
-  const getToolIcon = (tool: string) => {
-    switch (tool.toLowerCase()) {
-      case 'subfinder':
-        return Activity;
-      case 'httpx':
-        return Zap;
-      case 'katana':
-        return Cpu;
-      case 'nuclei':
-        return Shield;
-      case 'nmap':
-        return Terminal;
-      default:
-        return Terminal;
+  function handleCopyOutput() {
+    if (selectedLog?.stdout || selectedLog?.stderr) {
+      navigator.clipboard.writeText(selectedLog.stdout || selectedLog.stderr || '');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-  };
+  }
 
-  const getStatusBadge = (status: string = 'COMPLETED') => {
-    switch (status.toUpperCase()) {
-      case 'COMPLETED':
-        return 'nyx-badge-success';
-      case 'RUNNING':
-        return 'nyx-badge-info';
-      case 'FAILED':
-        return 'nyx-badge-critical';
-      case 'BLOCKED':
-        return 'nyx-badge-critical';
-      case 'QUEUED':
-        return 'nyx-badge-high';
-      default:
-        return 'nyx-badge-info';
-    }
-  };
-
-  const getScopeBadge = (scopeStatus: string = '') => {
-    const status = (scopeStatus || '').toUpperCase();
-    if (status === 'CONFIGURED' || status === 'IN_SCOPE') {
-      return (
-        <span className="nyx-badge nyx-badge-success">
-          <CheckCircle className="w-3 h-3" />
-          ✓ IN SCOPE
-        </span>
-      );
-    }
-    if (status === 'OUT_OF_SCOPE') {
-      return (
-        <span className="nyx-badge nyx-badge-critical">
-          <X className="w-3 h-3" />
-          ✕ BLOCKED
-        </span>
-      );
-    }
-    return (
-      <span className="nyx-badge nyx-badge-high">
-        <AlertTriangle className="w-3 h-3" />
-        ⚠ SCOPE REQUIRED
-      </span>
-    );
-  };
+  const filtered = logs.filter(l => {
+    const tName = l.tool || l.tool_name || '';
+    const tgt = l.target || '';
+    return tName.toLowerCase().includes(searchQuery.toLowerCase()) || tgt.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   return (
-    <div className="nyx-execution-view">
-      {/* Page Header */}
-      <div className="nyx-page-header">
-        <div className="nyx-page-header-content">
-          <div className="flex items-center gap-4">
-            <div className="nyx-page-icon nyx-page-icon-green">
-              <Terminal className="w-6 h-6 text-[#00FF88]" />
-            </div>
-            <div>
-              <h1 className="nyx-page-title">Controlled Execution Engine</h1>
-              <p className="nyx-page-subtitle">Policy-gated security tool harness and output artifacts</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-[#00FF88]" />
-            <span className="nyx-badge nyx-badge-success">POLICY ENFORCED</span>
-          </div>
+    <div className="space-y-5 animate-fadeInUp">
+      {/* ========== HEADER ========== */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-[#F2F2F2] tracking-tight">
+            Execution Audit Trail &amp; Tool Runner
+          </h1>
+          <p className="text-sm text-[#707070] mt-0.5 flex items-center gap-2">
+            <Terminal className="w-3.5 h-3.5 text-[#555555]" />
+            Audited execution engine with scope policy enforcement &nbsp;·&nbsp; Target: <span className="font-mono text-[#E8E8E8]">{appTarget}</span> &nbsp;·&nbsp; {logs.length} operations
+          </p>
         </div>
       </div>
 
-      {/* Execution Stats */}
-      <div className="nyx-stats-overview">
-        <div className="nyx-stat-card">
-          <div className="nyx-stat-icon nyx-stat-icon-green">
-            <CheckCircle className="w-4 h-4 text-[#00FF88]" />
-          </div>
-          <div>
-            <div className="nyx-stat-value">
-              {history.filter(h => h.status === 'COMPLETED').length}
-            </div>
-            <div className="nyx-stat-label">Completed</div>
-          </div>
+      {/* ========== TOOL LAUNCHER FORM ========== */}
+      <div className="card space-y-3 border border-[#3A3A3A]">
+        <div className="flex items-center gap-2 pb-2 border-b border-[#333333]">
+          <Play className="w-4 h-4 text-[#ebb94b]" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#E8E8E8]">Launch Security Probe</h3>
         </div>
-        <div className="nyx-stat-card">
-          <div className="nyx-stat-icon nyx-stat-icon-cyan">
-            <Activity className="w-4 h-4 text-[#00D9FF]" />
-          </div>
-          <div>
-            <div className="nyx-stat-value">
-              {history.filter(h => h.dry_run).length}
-            </div>
-            <div className="nyx-stat-label">Dry Runs</div>
-          </div>
-        </div>
-        <div className="nyx-stat-card">
-          <div className="nyx-stat-icon nyx-stat-icon-amber">
-            <AlertTriangle className="w-4 h-4 text-[#FF6B35]" />
-          </div>
-          <div>
-            <div className="nyx-stat-value">
-              {history.filter(h => h.status === 'FAILED' || h.status === 'BLOCKED').length}
-            </div>
-            <div className="nyx-stat-label">Failed / Blocked</div>
-          </div>
-        </div>
-      </div>
 
-      {/* Tool Runner Form Card */}
-      <div className="nyx-card nyx-card-accent-green">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-green">
-              <Terminal className="w-4 h-4 text-[#00FF88]" />
-            </div>
-            <h3 className="nyx-section-title">Execute Controlled Security Tool</h3>
+        <form onSubmit={handleExecuteTool} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
+          <div>
+            <label className="text-[#707070] block mb-1 font-mono">Tool</label>
+            <select
+              value={toolName}
+              onChange={(e) => setToolName(e.target.value)}
+              className="w-full bg-[#252525] border border-[#3A3A3A] rounded px-3 py-1.5 text-xs text-[#E8E8E8] font-mono focus:outline-none"
+            >
+              {availableTools.map(t => (
+                <option key={t.name} value={t.name}>{t.name} — {t.desc}</option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center gap-2">
-            <Shield className="w-3 h-3 text-[#00FF88]" />
-            <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
-              Policy Gated
-            </span>
+
+          <div className="sm:col-span-2">
+            <label className="text-[#707070] block mb-1 font-mono">Target URL / Asset</label>
+            <input
+              type="text"
+              required
+              value={execTarget}
+              onChange={(e) => setExecTarget(e.target.value)}
+              className="w-full bg-[#252525] border border-[#3A3A3A] rounded px-3 py-1.5 text-xs font-mono text-[#E8E8E8] focus:outline-none"
+            />
           </div>
-        </div>
-        
-        <div className="nyx-form-container">
-          <form onSubmit={handleRunTool} className="nyx-form-grid">
-            <div className="nyx-form-field">
-              <label className="nyx-form-label">
-                <Terminal className="w-3 h-3 text-[#00FF88]" />
-                Security Tool
-              </label>
-              <select
-                value={toolName}
-                onChange={(e) => setToolName(e.target.value)}
-                className="nyx-select"
-              >
-                <option value="subfinder">subfinder (Passive)</option>
-                <option value="httpx">httpx (Probe)</option>
-                <option value="katana">katana (Crawler)</option>
-                <option value="nuclei">nuclei (Scanner)</option>
-                <option value="nmap">nmap (Port Scanner)</option>
-              </select>
-            </div>
-            <div className="nyx-form-field">
-              <label className="nyx-form-label">
-                <Cpu className="w-3 h-3 text-[#00D9FF]" />
-                Target Host
-              </label>
-              <input
-                type="text"
-                required
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                className="nyx-input"
-              />
-            </div>
-            <div className="nyx-form-field nyx-form-checkbox">
-              <label className="nyx-checkbox-label">
-                <input
-                  type="checkbox"
-                  id="dryRun"
-                  checked={dryRun}
-                  onChange={(e) => setDryRun(e.target.checked)}
-                  className="nyx-checkbox"
-                />
-                <div className="nyx-checkbox-content">
-                  <Shield className="w-4 h-4 text-[#00D9FF]" />
-                  <div>
-                    <span className="nyx-checkbox-title">Dry-Run Mode</span>
-                    <span className="nyx-checkbox-subtitle">Safe Execution</span>
-                  </div>
-                </div>
-              </label>
-            </div>
+
+          <div className="flex items-end">
             <button
               type="submit"
-              disabled={running}
-              className="nyx-button nyx-button-primary nyx-button-green nyx-button-full"
+              disabled={isExecuting || !execTarget}
+              className="btn-primary w-full py-1.5 flex items-center justify-center gap-1.5"
             >
-              {running ? (
-                <>
-                  <Activity className="w-4 h-4 animate-spin" />
-                  <span>Executing...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Run Tool</span>
-                </>
-              )}
+              <Play className={`w-3.5 h-3.5 ${isExecuting ? 'animate-spin' : ''}`} />
+              <span>{isExecuting ? 'Executing...' : 'Run Tool'}</span>
             </button>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
 
-      {/* History Table */}
-      <div className="nyx-card nyx-card-accent-cyan">
-        <div className="nyx-section-header">
-          <div className="flex items-center gap-3">
-            <div className="nyx-section-icon nyx-section-icon-cyan">
-              <Clock className="w-4 h-4 text-[#00D9FF]" />
-            </div>
-            <h3 className="nyx-section-title">Execution History Log</h3>
-            <span className="nyx-count-pill">{history.length}</span>
+      {/* ========== LOGS & OUTPUT SPLIT ========== */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left Column: History Table */}
+        <div className="card p-0 overflow-hidden lg:col-span-1 h-fit divide-y divide-[#2B2B2B]">
+          <div className="p-2.5 bg-[#1E1E1E] border-b border-[#333333]">
+            <input
+              type="text"
+              placeholder="Search executions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#252525] border border-[#333333] rounded px-2.5 py-1 text-xs text-[#E8E8E8] focus:outline-none"
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <Activity className="w-3 h-3 text-[#00D9FF]" />
-            <span className="text-[10px] font-mono text-[#00D9FF] uppercase tracking-wider">
-              Live Log
-            </span>
-          </div>
-        </div>
 
-        {history.length === 0 ? (
-          <div className="nyx-empty-state">
-            <div className="nyx-empty-state-icon">
-              <Terminal className="w-8 h-8 text-[#484F58]" />
-            </div>
-            <div className="nyx-empty-state-title">No tool executions logged</div>
-            <div className="nyx-empty-state-description">
-              Run a controlled security tool above to begin
-            </div>
-          </div>
-        ) : (
-          <div className="nyx-execution-list">
-            <div className="nyx-execution-header">
-              <div className="nyx-execution-header-item">Execution ID</div>
-              <div className="nyx-execution-header-item">Tool</div>
-              <div className="nyx-execution-header-item">Target</div>
-              <div className="nyx-execution-header-item">Status</div>
-              <div className="nyx-execution-header-item">Scope State</div>
-              <div className="nyx-execution-header-item">Mode</div>
-              <div className="nyx-execution-header-item">Action</div>
-            </div>
-            <div className="nyx-execution-body">
-              {history.map((h: any, idx: number) => {
-                const ToolIcon = getToolIcon(h.tool_name || h.tool);
-                const scopeStatusVal = h.scope?.status || h.scope_status;
-                return (
-                  <div key={idx} className="nyx-execution-row group">
-                    <div className="nyx-execution-cell nyx-execution-id">
-                      {h.execution_id || `EXEC-${idx+1}`}
-                    </div>
-                    <div className="nyx-execution-cell">
-                      <span className="nyx-badge nyx-badge-info">
-                        <ToolIcon className="w-3 h-3" />
-                        {h.tool_name || h.tool}
+          {loading ? (
+            <div className="text-center py-8 text-xs text-[#888888]">Loading history...</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-xs text-[#888888] italic">No execution records for target {appTarget}.</div>
+          ) : (
+            filtered.map((item, idx) => {
+              const isSelected = selectedLog === item;
+              const isSuccess = item.exit_code === 0;
+              return (
+                <div
+                  key={idx}
+                  onClick={() => setSelectedLog(item)}
+                  className={`p-3 cursor-pointer transition-colors hover:bg-[#282828] space-y-1 ${
+                    isSelected ? 'bg-[#2A2A2A] border-l-2 border-l-[#ebb94b]' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-mono text-xs">
+                    <span className="font-bold text-[#E8E8E8]">{item.tool || item.tool_name}</span>
+                    {item.status === 'SKIPPED' ? (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded font-bold text-[#ebb94b] bg-[#ebb94b]/15 border border-[#ebb94b]/30">
+                        SKIPPED
                       </span>
-                    </div>
-                    <div className="nyx-execution-cell nyx-execution-target">
-                      {h.target}
-                    </div>
-                    <div className="nyx-execution-cell">
-                      <span className={`nyx-badge ${getStatusBadge(h.status)}`}>
-                        {h.status || 'COMPLETED'}
+                    ) : item.status === 'UNAVAILABLE' ? (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded font-bold text-[#FFA726] bg-[#FFA726]/15 border border-[#FFA726]/30">
+                        UNAVAILABLE
                       </span>
-                    </div>
-                    <div className="nyx-execution-cell">
-                      {getScopeBadge(scopeStatusVal)}
-                    </div>
-                    <div className="nyx-execution-cell">
-                      {h.dry_run ? (
-                        <span className="nyx-badge nyx-badge-info">
-                          <Shield className="w-3 h-3" />
-                          DRY_RUN
-                        </span>
-                      ) : (
-                        <span className="nyx-badge nyx-badge-high">
-                          <Zap className="w-3 h-3" />
-                          LIVE
-                        </span>
-                      )}
-                    </div>
-                    <div className="nyx-execution-cell nyx-execution-actions">
-                      <button
-                        onClick={() => setSelectedExec(h)}
-                        className="nyx-button nyx-button-secondary nyx-button-sm"
-                      >
-                        Details
-                      </button>
-                    </div>
+                    ) : item.status === 'BLOCKED' ? (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded font-bold text-[#CE93D8] bg-[#CE93D8]/15 border border-[#CE93D8]/30">
+                        BLOCKED
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                        isSuccess ? 'text-[#4CAF50] bg-[#4CAF50]/15' : 'text-[#EF5350] bg-[#EF5350]/15'
+                      }`}>
+                        {isSuccess ? 'EXIT 0' : `EXIT ${item.exit_code}`}
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Modal Execution Details */}
-      {selectedExec && (
-        <div className="nyx-modal-overlay">
-          <div className="nyx-modal nyx-modal-lg">
-            <div className="nyx-modal-header">
-              <div className="flex items-center gap-3">
-                <div className="nyx-modal-icon">
-                  <Terminal className="w-5 h-5 text-[#00FF88]" />
-                </div>
-                <div>
-                  <h3 className="nyx-modal-title">
-                    {selectedExec.execution_id || 'Execution Output'}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="nyx-badge nyx-badge-info">{selectedExec.tool_name || selectedExec.tool}</span>
-                    <span className="nyx-badge nyx-badge-success">{selectedExec.target}</span>
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setSelectedExec(null)} className="nyx-modal-close">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="nyx-modal-content">
-              {(selectedExec.scope?.status === 'UNCONFIGURED' || selectedExec.scope_status === 'UNCONFIGURED' || selectedExec.scope_status === 'SCOPE_UNCONFIGURED') && (
-                <div className="nyx-alert nyx-alert-amber mb-4 p-3 rounded border border-[#FF6B35]/40 bg-[#FF6B35]/10 flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 text-[#FF6B35]" />
-                  <div>
-                    <div className="font-bold text-[#FF6B35]">⚠ Scope Not Configured</div>
-                    <div className="text-xs text-gray-300">Create engagement scope before active execution</div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="nyx-modal-detail-row">
-                  <div className="nyx-modal-detail-icon">
-                    <Shield className="w-4 h-4 text-[#00FF88]" />
-                  </div>
-                  <div>
-                    <div className="nyx-modal-detail-label">Scope Status</div>
-                    <div className="nyx-modal-detail-value mt-1">
-                      {getScopeBadge(selectedExec.scope?.status || selectedExec.scope_status)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="nyx-modal-detail-row">
-                  <div className="nyx-modal-detail-icon">
-                    <Activity className="w-4 h-4 text-[#00D9FF]" />
-                  </div>
-                  <div>
-                    <div className="nyx-modal-detail-label">Execution Mode</div>
-                    <div className="nyx-modal-detail-value font-mono text-xs text-[#00D9FF] mt-1">
-                      {(selectedExec.scope?.status === 'UNCONFIGURED' || selectedExec.scope_status === 'UNCONFIGURED' || selectedExec.dry_run)
-                        ? 'DRY-RUN ONLY'
-                        : 'LIVE'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="nyx-modal-detail-row">
-                  <div className="nyx-modal-detail-icon">
-                    <CheckCircle className="w-4 h-4 text-[#00FF88]" />
-                  </div>
-                  <div>
-                    <div className="nyx-modal-detail-label">Authorization</div>
-                    <div className="nyx-modal-detail-value text-xs font-mono mt-1">
-                      {selectedExec.authorization?.status === 'APPROVED' || selectedExec.authorized
-                        ? '✓ Approved'
-                        : '✕ Denied'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="nyx-modal-detail-row">
-                  <div className="nyx-modal-detail-icon">
-                    <Terminal className="w-4 h-4 text-[#00FF88]" />
-                  </div>
-                  <div>
-                    <div className="nyx-modal-detail-label">Classification</div>
-                    <div className="nyx-modal-detail-value text-xs font-mono mt-1">
-                      {selectedExec.execution_class || 'PASSIVE'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="nyx-modal-preview">
-                <div className="nyx-modal-preview-header">
-                  <FileCode className="w-3 h-3 text-[#00FF88]" />
-                  <span className="text-[10px] font-mono text-[#00FF88] uppercase tracking-wider">
-                    Standard Output (STDOUT)
+                  <p className="text-[11px] font-mono text-[#777777] truncate">{item.target}</p>
+                  <span className="text-[10px] font-mono text-[#555555] block">
+                    {item.timestamp?.slice(11, 19) || item.started_at?.slice(11, 19) || 'Recorded'}
                   </span>
                 </div>
-                <div className="nyx-modal-preview-content nyx-modal-stdout">
-                  {selectedExec.stdout || '(no stdout output)'}
-                </div>
-              </div>
-              
-              {selectedExec.stderr && (
-                <div className="nyx-modal-preview">
-                  <div className="nyx-modal-preview-header">
-                    <AlertTriangle className="w-3 h-3 text-[#FF2D55]" />
-                    <span className="text-[10px] font-mono text-[#FF2D55] uppercase tracking-wider">
-                      Standard Error (STDERR)
-                    </span>
-                  </div>
-                  <div className="nyx-modal-preview-content nyx-modal-stderr">
-                    {selectedExec.stderr}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+              );
+            })
+          )}
         </div>
-      )}
+
+        {/* Right Column: Execution Output Inspector */}
+        <div className="lg:col-span-2 space-y-3">
+          {selectedLog ? (
+            <div className="card space-y-3 flex flex-col h-full">
+              <div className="flex items-center justify-between pb-2 border-b border-[#333333]">
+                <div className="flex items-center gap-2">
+                  <TerminalSquare className="w-4 h-4 text-[#ebb94b]" />
+                  <span className="font-mono text-xs font-bold text-[#E8E8E8]">
+                    {selectedLog.tool || selectedLog.tool_name} &nbsp;·&nbsp; {selectedLog.target}
+                  </span>
+                </div>
+                <button onClick={handleCopyOutput} className="btn-secondary text-xs py-1 px-2.5 flex items-center gap-1">
+                  {copied ? <Check className="w-3.5 h-3.5 text-[#4CAF50]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied' : 'Copy Output'}</span>
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-[300px] bg-[#1A1A1A] border border-[#333333] rounded-lg p-3 font-mono text-xs text-[#CCCCCC] overflow-auto whitespace-pre-wrap">
+                {selectedLog.stdout || selectedLog.stderr || '[Empty Output] Tool executed with zero output.'}
+              </div>
+            </div>
+          ) : (
+            <div className="card text-center py-16 text-xs text-[#888888]">
+              Select an execution log to inspect raw stdout / stderr output.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
-};
+}
+
+export default ExecutionView;
