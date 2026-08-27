@@ -36,7 +36,7 @@ def calculate_file_hash(file_path: Path) -> str:
 
 
 def atomic_write_json(file_path: Path, data: Any, indent: int = 2) -> None:
-    """Atomically write JSON data to file using a temporary file and atomic rename."""
+    """Atomically write JSON data to file using a temporary file and atomic rename with retry on Windows."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
     temp_fd, temp_path = tempfile.mkstemp(dir=str(file_path.parent), prefix=".tmp_")
     try:
@@ -44,7 +44,21 @@ def atomic_write_json(file_path: Path, data: Any, indent: int = 2) -> None:
             json.dump(data, f, indent=indent)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(temp_path, str(file_path))
+        for attempt in range(5):
+            try:
+                os.replace(temp_path, str(file_path))
+                break
+            except PermissionError:
+                if attempt == 4:
+                    file_path.write_text(json.dumps(data, indent=indent), encoding="utf-8")
+                    if os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                        except Exception:
+                            pass
+                    break
+                import time
+                time.sleep(0.05)
     except Exception:
         if os.path.exists(temp_path):
             try:

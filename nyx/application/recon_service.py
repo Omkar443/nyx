@@ -61,10 +61,36 @@ class ReconService:
         """Retrieve detected technologies from engagement memory."""
         d = _get_eng_dir()
         tech_file = d / "technologies.json"
-        technologies = []
+        raw_tech = {}
         if tech_file.exists():
             try:
-                technologies = json.loads(tech_file.read_text(encoding="utf-8"))
+                raw_tech = json.loads(tech_file.read_text(encoding="utf-8"))
             except Exception:
-                technologies = []
-        return {"success": True, "technologies": technologies, "count": len(technologies)}
+                raw_tech = {}
+
+        flat_list: list[str] = []
+        if isinstance(raw_tech, dict):
+            for v in raw_tech.values():
+                if isinstance(v, list):
+                    for item in v:
+                        if isinstance(item, str) and item.strip():
+                            flat_list.append(item.strip())
+                        elif isinstance(item, dict) and item.get("name"):
+                            flat_list.append(str(item["name"]).strip())
+                elif isinstance(v, str) and v.strip():
+                    flat_list.append(v.strip())
+            flat_list = sorted(list(set(flat_list)))
+        elif isinstance(raw_tech, list):
+            for item in raw_tech:
+                if isinstance(item, str) and item.strip():
+                    flat_list.append(item.strip())
+                elif isinstance(item, dict) and item.get("name"):
+                    flat_list.append(str(item["name"]).strip())
+            flat_list = sorted(list(set(flat_list)))
+
+        return {
+            "success": True,
+            "technologies": flat_list,
+            "count": len(flat_list),
+            "categories": raw_tech if isinstance(raw_tech, dict) else {},
+        }

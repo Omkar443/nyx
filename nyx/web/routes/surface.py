@@ -64,6 +64,15 @@ async def get_assets(service: ReconService = Depends(get_recon_service)) -> Dict
 
     eps = eps_data.get("data", {}).get("endpoints", []) if isinstance(eps_data.get("data"), dict) else eps_data.get("endpoints", [])
     techs = tech_data.get("data", {}).get("technologies", []) if isinstance(tech_data.get("data"), dict) else tech_data.get("technologies", [])
+    if not isinstance(techs, list):
+        if isinstance(techs, dict):
+            flat_t = []
+            for v in techs.values():
+                if isinstance(v, list):
+                    flat_t.extend(v)
+            techs = sorted(list(set(flat_t)))
+        else:
+            techs = []
 
     return {
         "success": True,
