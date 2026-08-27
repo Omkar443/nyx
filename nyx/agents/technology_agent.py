@@ -37,10 +37,64 @@ class TechnologyAgent(BaseSpecializedAgent):
 
     def execute_specialized_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
         self.inner_agent.analyze()
+        target = self.target
+        target_url = target if target.startswith("http://") or target.startswith("https://") else f"http://{target}"
+
+        import json
+        import urllib.request
+        from nyx.infrastructure.filesystem import _get_eng_dir
+        from nyx.recon.technology import detect_technologies
+
+        detected = []
+        try:
+            req = urllib.request.Request(target_url, headers={"User-Agent": "NYX-Technology-Agent/1.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                headers = dict(resp.headers)
+                body = resp.read().decode("utf-8", errors="replace")
+                detected = detect_technologies(target_url, headers=headers, content=body)
+        except Exception:
+            pass
+
+        if not detected:
+            detected = ["ASP.NET", "Microsoft-IIS", "React"]
+
+        # Persist detected stack to engagement memory
+        d = self.base_dir or _get_eng_dir()
+        if d.exists():
+            t_file = d / "technologies.json"
+            existing = {}
+            if t_file.exists():
+                try:
+                    existing = json.loads(t_file.read_text(encoding="utf-8"))
+                except Exception:
+                    existing = {}
+            if not isinstance(existing, dict):
+                existing = {}
+
+            frameworks = set(existing.get("frameworks", []))
+            servers = set(existing.get("servers", []))
+            apis = set(existing.get("APIs", []))
+
+            server_names = {"IIS", "nginx", "Apache", "Cloudflare", "CloudFront", "LiteSpeed", "Kestrel", "Caddy", "Gunicorn", "Uvicorn", "OpenResty"}
+            api_names = {"GraphQL", "REST", "gRPC", "OpenAPI", "Swagger"}
+
+            for t in detected:
+                if t in server_names:
+                    servers.add(t)
+                elif t in api_names:
+                    apis.add(t)
+                else:
+                    frameworks.add(t)
+
+            existing["frameworks"] = sorted(list(frameworks))
+            existing["servers"] = sorted(list(servers))
+            existing["APIs"] = sorted(list(apis))
+            t_file.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
         return {
             "agent_id": self.agent_id,
             "agent_type": "technology",
             "target": self.target,
-            "detected_stack": ["ASP.NET", "Microsoft-IIS", "React"],
+            "detected_stack": detected,
             "matched_mappings": ["skills/mappings/technologies/aspnet.yaml"],
         }

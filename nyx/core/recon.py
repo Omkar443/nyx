@@ -124,6 +124,7 @@ def recon_resolve(host: str) -> list[str]:
 
 
 def recon_http_probe(host: str) -> dict | None:
+    from nyx.recon.technology import detect_technologies
     for scheme in ("https", "http"):
         url = f"{scheme}://{host}/"
         code, headers, body = http_get(url, timeout=4)
@@ -133,6 +134,7 @@ def recon_http_probe(host: str) -> dict | None:
         m = re.search(r"<title[^>]*>([^<]*)</title>", body[:8192], re.I)
         if m:
             title = m.group(1).strip()[:80]
+        techs = detect_technologies(url, headers=headers, content=body)
         return {
             "url": url,
             "code": code,
@@ -140,6 +142,8 @@ def recon_http_probe(host: str) -> dict | None:
             "title": title,
             "powered_by": headers.get("X-Powered-By", ""),
             "drupal_cache": headers.get("X-Drupal-Cache", ""),
+            "technologies": techs,
+            "tech": techs,
         }
     return None
 
@@ -435,6 +439,50 @@ def sync_recon_to_engagement(
             existing_by_url[key] = new_obj
 
     ep_file.write_text(json.dumps(endpoints, indent=2), encoding="utf-8")
+
+    # Sync detected technologies into .engagement/technologies.json
+    tech_candidates: set[str] = set()
+    for rec in live:
+        h_techs = rec.get("technologies") or rec.get("tech") or []
+        for t in h_techs:
+            if t:
+                tech_candidates.add(t)
+    for cd in cd_list:
+        c_techs = cd.get("technologies") or cd.get("tech") or []
+        for t in c_techs:
+            if t:
+                tech_candidates.add(t)
+
+    if tech_candidates:
+        t_file = d / "technologies.json"
+        existing_tech = {}
+        if t_file.exists():
+            try:
+                existing_tech = json.loads(t_file.read_text(encoding="utf-8"))
+            except Exception:
+                existing_tech = {}
+        if not isinstance(existing_tech, dict):
+            existing_tech = {}
+        frameworks = set(existing_tech.get("frameworks", []))
+        servers = set(existing_tech.get("servers", []))
+        apis = set(existing_tech.get("APIs", []))
+
+        server_names = {"IIS", "nginx", "Apache", "Cloudflare", "CloudFront", "LiteSpeed", "Kestrel", "Caddy", "Gunicorn", "Uvicorn", "OpenResty"}
+        api_names = {"GraphQL", "REST", "gRPC", "OpenAPI", "Swagger"}
+
+        for t in tech_candidates:
+            if t in server_names:
+                servers.add(t)
+            elif t in api_names:
+                apis.add(t)
+            else:
+                frameworks.add(t)
+
+        existing_tech["frameworks"] = sorted(list(frameworks))
+        existing_tech["servers"] = sorted(list(servers))
+        existing_tech["APIs"] = sorted(list(apis))
+        t_file.write_text(json.dumps(existing_tech, indent=2), encoding="utf-8")
+
     return total_disc, new_cnt, known_cnt
 
 
