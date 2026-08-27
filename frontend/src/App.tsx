@@ -42,6 +42,8 @@ interface NavGroup {
   }[];
 }
 
+import nyxLogo from './assets/logo.png';
+
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const { connected, lastEvent } = useNyxEvents();
@@ -88,13 +90,17 @@ export const App: React.FC = () => {
         {/* Left Logo Header */}
         <div className="nyx-logo-section">
           <div className="nyx-logo-icon">
-            <Shield className="w-5 h-5 text-[#00D9FF]" />
-            <Crosshair className="w-3 h-3 text-[#00D9FF] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+            <img
+              src={nyxLogo}
+              alt="NYX Logo"
+              className="nyx-logo-img"
+              style={{ width: '28px', height: '28px', maxWidth: '28px', maxHeight: '28px', objectFit: 'contain', display: 'block' }}
+            />
           </div>
           <div className="flex items-center gap-2">
             <span className="nyx-logo-text">NYX ENGINE</span>
             <span className="nyx-version-badge">
-              v1.0 Continuous
+              v1.0.0
             </span>
           </div>
         </div>

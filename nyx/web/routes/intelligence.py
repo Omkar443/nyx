@@ -71,10 +71,12 @@ async def search_knowledge_base(
 ) -> Dict[str, Any]:
     """Search NYX security knowledge base and research mappings."""
     from nyx.core import knowledge
-    results = knowledge.search(query)
+    results = knowledge.search_knowledge(keyword=query)
+    matched_vulns = results.get("matched_vulnerabilities", [])
+    count = len(matched_vulns) + len(results.get("matched_technologies", []))
     return {
         "success": True,
-        "data": {"query": query, "results": results, "count": len(results)},
+        "data": {"query": query, "results": results, "count": count},
         "error": None,
         "code": "OK",
     }
