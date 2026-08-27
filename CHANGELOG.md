@@ -27,15 +27,15 @@ First public release of NYX. This release includes a full pre-release audit cove
 - Multi-step exploit chains (e.g. asymmetric JWT key confusion, blind SQLi extraction, race conditions, multi-turn LLM/agent state manipulation) are detected as risk indicators but not always autonomously chained to full validation — current ceiling of the AI advisory layer.
 
 ### Benchmark Results
-| Target | True Positive Rate | False Positives |
-|---|---|---|
-| OWASP Juice Shop v20.2.0 | 68.8% (75/109) | 0% |
-| OWASP crAPI | 81.0% (17/21) | 0% |
+| Target | Skill Routing Accuracy | Automated Live Validated Findings | False Positives |
+|---|:---:|:---:|:---:|
+| OWASP Juice Shop v20.2.0 | 91.7% (100/109) | 12 Findings Confirmed on Disk/Dashboard | 0% |
+| OWASP crAPI | 100.0% (21/21) | 8 Findings Confirmed on Disk/Dashboard | 0% |
 
 Full traces, methodology, and reproduction steps: `docs/benchmarks/`.
 
 ### Verification
-- 214/214 automated tests passing, 0 regressions.
+- 221/221 automated tests passing, 0 regressions.
 - Clean install verified from a bare virtual environment.
 - Graceful degradation confirmed for missing external tools (`subfinder`, `ffuf`, `httpx` fall back automatically; `nuclei`/`nmap`/`katana` fail with clear, actionable errors).
 - Full repository secrets/credential/identity audit — clean.

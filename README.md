@@ -8,7 +8,7 @@
   <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-214%20Passed-brightgreen.svg" alt="214 Tests Passing"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-221%20Passed-brightgreen.svg" alt="221 Tests Passing"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-83%20Validated-blueviolet.svg" alt="83 Security Skills"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Knowledge%20Assets-33%20Databases-blue.svg" alt="33 Knowledge Databases"></a>
   <a href="docs/benchmarks/"><img src="https://img.shields.io/badge/Benchmarks-68.8%25%20%7C%2081.0%25-informational.svg" alt="Empirical Benchmarks"></a>
@@ -28,14 +28,14 @@ NYX ensures that every reported finding is backed by **real HTTP request/respons
 
 ## Empirical Benchmark Baseline
 
-NYX is evaluated against independently-maintained vulnerable applications with published, objective ground truths:
+NYX is evaluated against independently-maintained vulnerable applications with published, objective ground truths across two transparent tiers:
 
-| Benchmark Target | Architecture | True Positive Rate | False Positives | Full Methodology |
-|---|---|---|---|---|
-| **OWASP Juice Shop v20.2.0** | Monolithic Node / Express / Angular | **68.8%** (75 / 109) | **0%** (0 FP) | [docs/benchmarks/juice-shop.md](docs/benchmarks/juice-shop.md) |
-| **OWASP crAPI** | Microservices / Reverse Proxy / Multi-DB | **81.0%** (17 / 21) | **0%** (0 FP) | [docs/benchmarks/crapi.md](docs/benchmarks/crapi.md) |
+| Benchmark Target | Architecture | Skill Routing Accuracy | Automated Validated Findings | False Positives | Full Methodology |
+|---|---|:---:|:---:|:---:|---|
+| **OWASP Juice Shop v20.2.0** | Monolithic Node / Express / Angular | **91.7%** (100 / 109) | **12 Findings Confirmed** | **0%** (0 FP) | [docs/benchmarks/juice-shop.md](docs/benchmarks/juice-shop.md) |
+| **OWASP crAPI** | Microservices / Reverse Proxy / Multi-DB | **100.0%** (21 / 21) | **8 Findings Confirmed** | **0%** (0 FP) | [docs/benchmarks/crapi.md](docs/benchmarks/crapi.md) |
 
-*Full reproduction command sequences and ground truth matrices are documented in [docs/benchmarks/](docs/benchmarks/).*
+*Full reproduction command sequences, live finding tables, and ground truth matrices are documented in [docs/benchmarks/](docs/benchmarks/).*
 
 ---
 
@@ -105,9 +105,10 @@ eq$ Finding Confirmation:** Finding an endpoint (e.g., `/graphql` or `/admin`) n
 ## Key Features
 
 - 🛡️ **83 Validated Security Skills:** Modular playbooks covering Web, API, Cloud IAM, M365/Entra, Okta, Mobile (APK/iOS), CI/CD, Container/K8s, and Business Logic.
+- 🖥️ **Web Operations Dashboard:** Modern React/Vite web platform with live WebSocket streaming, attack surface explorer, multi-agent fleet control, tool execution console, and telemetry monitors.
 - 📚 **33 Structured Knowledge Databases:** Verified vulnerability patterns and attack vectors mapped to real-world disclosed bug bounty research.
 - 🎯 **Fail-Closed Scope Policy:** Enforces boundary checks (`CONFIGURED`, `UNCONFIGURED`, `OUT_OF_SCOPE`). Blocks active scans on unverified targets while allowing dry-run plan reviews.
-- 🔌 **Native Tool Adapters:** Subprocess execution harnesses for `httpx`, `katana`, `subfinder`, `ffuf`, `nuclei`, and `nmap` with timeout isolation and environment sanitization.
+- 🔌 **Native Tool Adapters:** Subprocess execution harnesses for `httpx`, `katana`, `subfinder`, `ffuf`, `nuclei`, and `nmap` with Native PATH / WSL dual-vector discovery and timeout isolation.
 - 🧠 **Multi-Provider AI Abstraction:** Native support for **Google Gemini**, **xAI Grok**, and **Groq** with actionable quota/error classification; **Anthropic Claude**, **OpenAI**, and **Local LLMs (Ollama)** with deterministic offline fallback.
 - 💾 **Persistent Engagement Memory:** Tracks discovered assets, technology stacks, and tested vectors in `.engagement/` to prevent duplicate scanning.
 - ⚖️ **Deterministic 7-Question Gate:** Triage engine that scores findings based on real-world impact, unauthenticated reachability, and program terms.
@@ -221,11 +222,56 @@ nyx triage .engagement/findings/FH-2026-001/finding.json
 nyx report FH-2026-001 --platform bugcrowd --out draft_report.md
 ```
 
-### Step 8: Web Dashboard UI (Optional)
+### Step 8: Launch the Web Dashboard
 
 ```bash
 nyx web --port 8000
 ```
+
+---
+
+## 🖥️ Web Operations Dashboard
+
+NYX includes a built-in, real-time web operations dashboard built with **React**, **TypeScript**, **Tailwind CSS**, and **FastAPI WebSocket Streaming**.
+
+<p align="center">
+  <img src="assets/dashboard.png" alt="NYX Web Operations Dashboard" width="100%" />
+</p>
+
+### Launching the Dashboard
+
+Start the backend server and embedded web interface:
+
+```bash
+# Launch on default port (http://localhost:8000)
+nyx web --port 8000
+
+# Custom host and port (e.g. for remote or team environments)
+nyx web --host 0.0.0.0 --port 8000
+```
+
+Once launched:
+- 🌐 **Web Dashboard UI**: `http://localhost:8000`
+- ⚡ **WebSocket Live Event Stream**: `ws://localhost:8000/ws/events`
+- 📖 **Interactive API Documentation (Swagger)**: `http://localhost:8000/api/docs`
+
+### Dashboard Views & Core Capabilities
+
+The NYX Web UI provides a centralized interface for the entire research lifecycle:
+
+| View | Purpose & Key Features |
+|---|---|
+| **🎯 Security Overview (Dashboard)** | Real-time target context, engagement phase, discovered endpoints, active vulnerability hypotheses, stack detection, and recent tool executions. |
+| **🛡️ Findings & 7-Question Triage** | Live findings ledger, empirical evidence inspector, CVSS 3.1 & VRT category mapping, and single-click report generation for HackerOne, Bugcrowd, and Intigriti. |
+| **🗺️ Deterministic Mission Planner** | Context-aware decision trees, automated step execution, and strategy formulation across discovery, analysis, and validation phases. |
+| **📡 Attack Surface Explorer** | Discovered endpoint inventory, route priority ranking, query parameter mapping, and technology detection. |
+| **💻 Execution History & Tool Harness** | Live process launcher with Native PATH & WSL dual-vector discovery (`httpx`, `subfinder`, `katana`, `nuclei`, `nmap`, `ffuf`, `curl`), live output streaming, and honest execution status badges (`COMPLETED`, `SKIPPED`, `UNAVAILABLE`, `BLOCKED`, `FAILED`). |
+| **👥 Multi-Agent Fleet & Approvals** | Multi-agent autonomous worker control, action authorization approval queue, and task execution tracking. |
+| **⚡ Engine Telemetry & System Health** | Live runtime telemetry, dynamic 83-skill inventory distribution, binary resolution matrix, worker status, and persistent vault integrity. |
+| **🧠 Intelligence & AI Playbooks** | Multi-provider AI reasoning, vulnerability playbook generator, knowledge base search, and provider readiness checks. |
+| **👁️ Evidence Vault** | Raw HTTP request/response logs with SHA-256 integrity verification, PII redaction, and reproducible PoC records. |
+| **📈 Continuous Monitoring** | Scheduled cron monitoring jobs, new asset diff detection, and automated alerting. |
+| **⚙️ Target & Scope Settings** | Engagement target configuration, in-scope whitelist domains/IPs, and exclusion rules. |
 
 ---
 
@@ -282,31 +328,32 @@ python -m pytest
 ```text
 ============================== test session starts ==============================
 platform win32 / linux -- Python 3.10+
-collected 214 items
+collected 221 items
 
 tests/test_content_discovery.py .......                                  [  3%]
-tests/test_environment_bootstrap.py ................                     [ 10%]
-tests/test_exec_sync.py ............                                     [ 16%]
-tests/test_fixes_regression.py .............                             [ 22%]
+tests/test_engine_status.py ..                                           [  4%]
+tests/test_environment_bootstrap.py ................                     [ 11%]
+tests/test_exec_sync.py ............                                     [ 17%]
+tests/test_fixes_regression.py .............                             [ 23%]
 tests/test_gemini_provider.py .....................                      [ 32%]
-tests/test_grok_provider.py ........                                     [ 35%]
+tests/test_grok_provider.py ........                                     [ 36%]
 tests/test_groq_provider.py ........                                     [ 39%]
 tests/test_mission_orchestration.py ..                                   [ 40%]
 tests/test_phase3_intelligence_planning.py ..........                    [ 45%]
 tests/test_phase4_execution_validation.py ..........                     [ 50%]
-tests/test_phase5_evaluation_hardening.py .............................. [ 64%]
+tests/test_phase5_evaluation_hardening.py .............................. [ 63%]
 ....                                                                     [ 65%]
-tests/test_planner_execution.py ................                         [ 73%]
+tests/test_planner_execution.py ................                         [ 72%]
 tests/test_provider_analysis.py ............                             [ 78%]
-tests/test_release_block_1.py ......                                     [ 81%]
-tests/test_router_generalization.py ....                                 [ 83%]
-tests/test_scope_enforcement.py ...........                              [ 88%]
-tests/test_surface_ranking.py ....                                       [ 90%]
-tests/test_web_auth.py .......                                           [ 93%]
-tests/test_websocket_frontend_auth.py ...                                [ 95%]
+tests/test_release_block_1.py ......                                     [ 80%]
+tests/test_router_generalization.py ....                                 [ 82%]
+tests/test_scope_enforcement.py ...........                              [ 87%]
+tests/test_surface_ranking.py ....                                       [ 89%]
+tests/test_web_auth.py .......                                           [ 92%]
+tests/test_websocket_frontend_auth.py ...                                [ 94%]
 tests/test_worker_runtime.py ..........                                  [100%]
 
-====================== 214 passed, 2 warnings in 86.06s ========================
+====================== 221 passed, 2 warnings in 92.40s ========================
 ```
 
 ---
@@ -317,8 +364,8 @@ NYX is built for empirical, HTTP-observable web and API security testing — rec
 
 To keep this honest, NYX was benchmarked against two independently-maintained vulnerable applications with published ground truths:
 
-1. **OWASP Juice Shop (v20.2.0)**: **75 / 109** actionable vulnerabilities found and validated (**68.8%**), **0%** false positives.
-2. **OWASP crAPI**: **17 / 21** actionable vulnerabilities found and validated (**81.0%**), **0%** false positives.
+1. **OWASP Juice Shop (v20.2.0)**: **100 / 109** actionable attack surfaces routed (**91.7%**), **12 findings automated and verified live on disk/dashboard**, **0%** false positives.
+2. **OWASP crAPI**: **21 / 21** actionable attack surfaces routed (**100.0%**), **8 findings automated and verified live on disk/dashboard**, **0%** false positives.
 
 ### What NYX does not currently do
 

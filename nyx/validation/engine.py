@@ -73,6 +73,13 @@ def validate_finding(finding_id_or_path: str, base_dir: Path | None = None) -> d
                             ev_list.append(it)
                 except Exception:
                     pass
+        if not ev_list and finding_obj.get("finding_id"):
+            meta_p = ev_root / str(finding_obj.get("finding_id")) / "metadata.json"
+            if meta_p.exists():
+                try:
+                    ev_list = json.loads(meta_p.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
 
     val_res = validate_finding_data(v_type, endpoint=ep, parameter=param, evidence=ev_list)
 

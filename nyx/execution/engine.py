@@ -347,4 +347,15 @@ class ExecutionEngine:
         self.log_execution_to_db(res)
         artifacts_map = store_execution_artifacts(res, parsed_data=parsed_data)
         res.artifacts = artifacts_map
+
+        # 11. Bridge Execution to Finding Creation & Validation Pipeline
+        try:
+            from nyx.execution.bridge import bridge_execution_to_findings
+            created_fids = bridge_execution_to_findings(res, base_dir=self.base_dir)
+            if created_fids:
+                res.metadata["findings_created"] = created_fids
+                res.metadata["findings_count"] = len(created_fids)
+        except Exception:
+            pass
+
         return res

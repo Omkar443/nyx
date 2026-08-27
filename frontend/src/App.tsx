@@ -20,6 +20,9 @@ import {
   WifiOff
 } from 'lucide-react';
 
+// Import logo
+import nyxLogo from './assets/logo.png';
+
 import { AppProvider, useApp } from './context/AppContext';
 
 // Views
@@ -81,16 +84,24 @@ function AppContent() {
         <div className="flex flex-col h-full overflow-y-auto">
           {/* Logo & Brand Header */}
           <div className="p-3 border-b border-[#333333] flex items-center justify-between">
-            {!isCollapsed && (
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-[#ebb94b] flex items-center justify-center font-bold text-black text-xs">
-                  N
-                </div>
+            {!isCollapsed ? (
+              <div className="flex items-center gap-2.5">
+                <img 
+                  src={nyxLogo} 
+                  alt="NYX Logo" 
+                  className="w-8 h-8 object-contain flex-shrink-0"
+                />
                 <div>
                   <h1 className="text-sm font-bold text-[#F2F2F2] tracking-wider font-mono">NYX</h1>
                   <p className="text-[10px] text-[#707070] font-mono">v1.0.0 · Core Engine</p>
                 </div>
               </div>
+            ) : (
+              <img 
+                src={nyxLogo} 
+                alt="NYX Logo" 
+                className="w-8 h-8 object-contain flex-shrink-0 mx-auto"
+              />
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}

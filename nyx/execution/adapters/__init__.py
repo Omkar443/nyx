@@ -12,6 +12,7 @@ from nyx.execution.adapters.katana import KatanaAdapter
 from nyx.execution.adapters.nuclei import NucleiAdapter
 from nyx.execution.adapters.nmap import NmapAdapter
 from nyx.execution.adapters.ffuf import FfufAdapter
+from nyx.execution.adapters.probe import ProbeAdapter
 
 _ADAPTER_REGISTRY: dict[str, Type[ToolAdapter]] = {
     "subfinder": SubfinderAdapter,
@@ -20,6 +21,8 @@ _ADAPTER_REGISTRY: dict[str, Type[ToolAdapter]] = {
     "nuclei": NucleiAdapter,
     "nmap": NmapAdapter,
     "ffuf": FfufAdapter,
+    "probe": ProbeAdapter,
+    "vuln_probe": ProbeAdapter,
 }
 
 
@@ -51,5 +54,6 @@ __all__ = [
     "NucleiAdapter",
     "NmapAdapter",
     "FfufAdapter",
+    "ProbeAdapter",
     "get_adapter",
 ]

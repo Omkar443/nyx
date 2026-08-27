@@ -90,6 +90,11 @@ def add_evidence(
         return {"status": "error", "message": err_msg}
 
     etype = ev_type or "note"
+    if etype == "request":
+        etype = "http_request"
+    elif etype == "response":
+        etype = "http_response"
+
     desc = description or f"{etype} for {finding_id}"
     raw_content = ""
 
@@ -168,6 +173,33 @@ def add_evidence(
     temp_meta = meta_file.with_suffix(".json.tmp")
     temp_meta.write_text(json.dumps(meta_items, indent=2), encoding="utf-8")
     temp_meta.replace(meta_file)
+
+    # Automatically associate evidence_id with finding.json and findings.json
+    f_dir_json = d / "findings" / finding_id / "finding.json"
+    if f_dir_json.exists():
+        try:
+            f_data = json.loads(f_dir_json.read_text(encoding="utf-8"))
+            eids = f_data.get("evidence_ids", [])
+            if eid not in eids:
+                eids.append(eid)
+                f_data["evidence_ids"] = eids
+                f_dir_json.write_text(json.dumps(f_data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    f_file = d / "findings.json"
+    if f_file.exists():
+        try:
+            f_items = json.loads(f_file.read_text(encoding="utf-8"))
+            for item in f_items:
+                if item.get("finding_id") == finding_id:
+                    eids = item.get("evidence_ids", [])
+                    if eid not in eids:
+                        eids.append(eid)
+                        item["evidence_ids"] = eids
+            f_file.write_text(json.dumps(f_items, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
     return {
         "status": "success",
