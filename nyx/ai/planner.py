@@ -266,13 +266,13 @@ class MissionPlanner:
             step_target = step.get("target") or target
             reason = step.get("reason", tool)
 
-            if tool in ("httpx", "subfinder", "katana", "nuclei", "nmap"):
+            if tool in ("httpx", "subfinder", "katana", "nuclei", "nmap", "ffuf", "probe", "vuln_probe"):
                 res = exec_svc.run_tool(tool, step_target, dry_run=not active_permitted, active_permitted=active_permitted)
                 res_dict = res.to_dict()
                 results.append({"step": step.get("step"), "name": step.get("name"), "tool": tool, "result": res_dict})
 
                 # Record outcome to engagement memory
-                v_outcome = "tested_success" if res.is_success else ("blocked_by_policy" if res.error_code == "EXECUTION_BLOCKED" else "failed_infrastructure")
+                v_outcome = "tested_success" if res.is_success else ("blocked_by_policy" if res.code == "EXECUTION_BLOCKED" else "failed_infrastructure")
                 try:
                     record_memory(mem_type="vector", val=f"{tool}_execution", endpoint=step_target, result=v_outcome, base_dir=self.base_dir)
                 except Exception:

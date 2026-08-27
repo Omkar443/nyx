@@ -5,6 +5,7 @@ Core execution engine for security tools, adapter loading, policy enforcement, o
 from __future__ import annotations
 
 import json
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path

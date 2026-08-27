@@ -153,23 +153,30 @@ def run_mission(target: str) -> int:
             pass
     say(color(f"✓ Attack surface created ({ep_count} endpoints indexed in memory)", "green"))
 
-    # Step 5: Phase 3 - VALIDATION (Validation Agent & Skill Selection)
+    # Step 5: Phase 3 - VALIDATION (Validation Agent, Probe Execution & Bridge)
     say(color("\n--- Phase 3: VALIDATION ---", "bold"))
     v_id = get_or_create_agent("validation")
     say(color(f"✓ Validation Agent Active: {v_id} [validation]", "green"))
 
     t_val = fleet_svc.create_task("vulnerability_validation", target, agent_type="validation", priority=9)
     worker_svc.dispatch_remote_task(t_val.data["task_id"])
-
     worker_svc.start_daemon(once=True)
 
     from nyx.core.router import recommend_skills
-    from nyx.execution.executor import execute_tool
+    from nyx.execution.engine import ExecutionEngine
     rec = recommend_skills(f"https://{target}/login", technology="ASP.NET")
     say(color(f"✓ Recommended Security Skills: {', '.join(rec.get('recommended_skills', []))}", "green"))
 
-    dry_res = execute_tool("subfinder", target, dry_run=True)
-    say(color(f"✓ Controlled Tool Harness Ready: {dry_res.tool} [{dry_res.execution_class}] (Dry-Run Status: PASS)", "green"))
+    # Execute native security probe via ExecutionEngine with live evidence capture & finding bridge
+    eng = ExecutionEngine()
+    exec_res = eng.execute("probe", target, active_permitted=True)
+    if exec_res.status == "COMPLETED":
+        fids = exec_res.metadata.get("findings_created", [])
+        say(color(f"✓ Security Probe Executed: {exec_res.execution_id} ({len(fids)} validated findings created)", "green"))
+        for fid in fids:
+            say(f"   [+] Verified Finding: {color(fid, 'bold')} (stamped with {exec_res.execution_id})")
+    else:
+        say(color(f"✓ Controlled Tool Execution: {exec_res.execution_id} [{exec_res.status}]", "yellow"))
 
     # Step 6: Phase 4 - REPORTING (Reporting Agent)
     say(color("\n--- Phase 4: REPORTING ---", "bold"))
@@ -181,11 +188,18 @@ def run_mission(target: str) -> int:
 
     worker_svc.start_daemon(once=True)
 
+    from nyx.core.findings import list_findings
+    f_list_res = list_findings()
+    f_items = f_list_res.get("findings", []) if isinstance(f_list_res, dict) else []
+
     say("\n==================================================")
     say(color("Multi-Agent Mission Pipeline Completed Successfully", "green"))
+    say(f"Target:             {color(target, 'bold')}")
+    say(f"Endpoints Mapped:   {ep_count}")
+    say(f"Findings Validated: {color(str(len(f_items)), 'bold')}")
     say("Run:")
-    say(f"  nyx agents list")
-    say(f"  nyx tasks list")
-    say(f"  nyx fleet status")
+    say(f"  nyx findings")
+    say(f"  nyx report FH-2026-001")
+    say(f"  nyx web")
     say("==================================================")
     return 0

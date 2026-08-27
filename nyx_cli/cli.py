@@ -1191,19 +1191,19 @@ def is_hostname_in_scope(hostname: str, scope_list: list[str]) -> bool:
 
 STATE_COMMAND_PERMISSIONS = {
     "DISCOVERY": {
-        "allowed": ["doctor", "engagement", "recon", "surface", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "recon", "surface", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "ANALYSIS": {
-        "allowed": ["doctor", "engagement", "surface", "classify", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "surface", "classify", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "VALIDATION": {
-        "allowed": ["doctor", "engagement", "memory", "technology", "duplicate-check", "triage", "state", "evidence", "finding", "findings", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "memory", "technology", "duplicate-check", "triage", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "REPORTING": {
-        "allowed": ["doctor", "engagement", "memory", "technology", "findings", "report", "state", "evidence", "finding", "mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["doctor", "engagement", "memory", "technology", "findings", "report", "state", "evidence", "finding", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     }
 }
@@ -2535,6 +2535,24 @@ def cmd_ai(args: argparse.Namespace) -> int:
             perm = color("[PERMITTED]", "green") if step.get("permitted") else color("[BLOCKED]", "red")
             say(f"  {step.get('step')}. {color(step.get('name', ''), 'bold')} ({step.get('action')}) {perm}")
             say(f"     Tool: {step.get('tool')} | Description: {step.get('description')}")
+
+        if getattr(args, "execute", False) or (sys.argv and "--execute" in sys.argv):
+            say("")
+            say(color("Auto-Executing Mission Plan with Tool Harness & Validation Bridge...", "bold"))
+            exec_res = service.execute_mission(target, provider_name=provider, active_permitted=True)
+            if not exec_res.is_success:
+                say(color(f"  [error] {exec_res.error}", "red"))
+                return 1
+            exec_data = exec_res.data or {}
+            say(color(f"✓ Plan Execution Complete: {exec_data.get('executed_steps', 0)} steps executed.", "green"))
+            for s_res in exec_data.get("step_results", []):
+                s_tool = s_res.get("tool", "")
+                s_name = s_res.get("name", "")
+                s_meta = s_res.get("result", {})
+                fids = s_meta.get("metadata", {}).get("findings_created", []) if isinstance(s_meta, dict) else []
+                if fids:
+                    say(f"   [+] {s_name} ({s_tool}): {len(fids)} validated findings -> {', '.join(fids)}")
+
         return 0
 
     elif subcmd == "execute":
@@ -3457,6 +3475,11 @@ def main() -> int:
     p_mis_run.add_argument("target", help="target domain")
     p_mis_run.set_defaults(func=cmd_mission)
 
+    # nyx run-mission top-level parser
+    p_run_mis = sub.add_parser("run-mission", help="run end-to-end automated security research mission with live validation")
+    p_run_mis.add_argument("target", help="target domain or URL")
+    p_run_mis.set_defaults(func=lambda args: cmd_mission(argparse.Namespace(mission_subcommand="run", target=args.target)))
+
     # nyx knowledge subparsers
     p_kno = sub.add_parser("knowledge", help="search or inspect NYX Security Knowledge Base")
     p_kno_sub = p_kno.add_subparsers(dest="knowledge_subcommand", required=True)
@@ -3748,6 +3771,7 @@ def main() -> int:
     p_ai_plan = p_ai_sub.add_parser("plan", help="generate policy-validated AI mission plan")
     p_ai_plan.add_argument("target", help="target domain")
     p_ai_plan.add_argument("--provider", default=None, help="AI provider to use (gemini, openai, grok, groq, local, claude). Defaults to the active provider.")
+    p_ai_plan.add_argument("--execute", action="store_true", help="automatically execute planned steps with live tool harness and validation")
     p_ai_plan.set_defaults(func=cmd_ai)
 
     p_ai_execute = p_ai_sub.add_parser("execute", help="execute a policy-validated AI mission plan")

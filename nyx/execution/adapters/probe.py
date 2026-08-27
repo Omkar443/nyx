@@ -28,20 +28,36 @@ class ProbeAdapter(ToolAdapter):
         findings = []
         parsed = False
 
-        for line in stdout.splitlines():
-            line_str = line.strip()
-            if line_str.startswith("{") and line_str.endswith("}"):
-                try:
-                    data = json.loads(line_str)
-                    if "vulnerabilities" in data and isinstance(data["vulnerabilities"], list):
-                        findings.extend(data["vulnerabilities"])
-                        parsed = True
-                    elif "vulnerability" in data or "finding_candidate" in data:
-                        cand = data.get("finding_candidate", data)
-                        findings.append(cand)
-                        parsed = True
-                except Exception:
-                    pass
+        # First try parsing full stdout as JSON
+        try:
+            full_data = json.loads(stdout.strip())
+            if isinstance(full_data, dict):
+                if "vulnerabilities" in full_data and isinstance(full_data["vulnerabilities"], list):
+                    findings.extend(full_data["vulnerabilities"])
+                    parsed = True
+                elif "vulnerability" in full_data or "finding_candidate" in full_data:
+                    cand = full_data.get("finding_candidate", full_data)
+                    findings.append(cand)
+                    parsed = True
+        except Exception:
+            pass
+
+        # Fallback to line-by-line JSON parsing
+        if not parsed:
+            for line in stdout.splitlines():
+                line_str = line.strip()
+                if line_str.startswith("{") and line_str.endswith("}"):
+                    try:
+                        data = json.loads(line_str)
+                        if "vulnerabilities" in data and isinstance(data["vulnerabilities"], list):
+                            findings.extend(data["vulnerabilities"])
+                            parsed = True
+                        elif "vulnerability" in data or "finding_candidate" in data:
+                            cand = data.get("finding_candidate", data)
+                            findings.append(cand)
+                            parsed = True
+                    except Exception:
+                        pass
 
         return {
             "vulnerabilities": findings,

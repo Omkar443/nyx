@@ -8,7 +8,7 @@
   <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-221%20Passed-brightgreen.svg" alt="221 Tests Passing"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-226%20Passed-brightgreen.svg" alt="226 Tests Passing"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-83%20Validated-blueviolet.svg" alt="83 Security Skills"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Knowledge%20Assets-33%20Databases-blue.svg" alt="33 Knowledge Databases"></a>
   <a href="docs/benchmarks/"><img src="https://img.shields.io/badge/Benchmarks-68.8%25%20%7C%2081.0%25-informational.svg" alt="Empirical Benchmarks"></a>
@@ -20,7 +20,7 @@
 
 **NYX** (`nyx`) is an open-source **Security Research & Bug Bounty Intelligence Platform** designed for application security engineers, bug bounty hunters, and red teams.
 
-Unlike raw LLM prompts that suffer from hallucinations, lost context, and unverified claims, NYX combines **83 specialized offensive security skills**, **33 structured domain knowledge databases**, **multi-provider AI advisory reasoning**, **deterministic mission planning**, **real tool execution adapters**, and a strict **7-Question Empirical Validation Gate**.
+NYX operates as an **advanced reconnaissance, skill-routing, intelligence planning, and human-in-the-loop triage engine** equipped with a native tool execution bridge. Rather than acting as an unconstrained or unsafe "zero-click exploit weapon," NYX combines **83 specialized offensive security skills**, **33 structured domain knowledge databases**, **multi-provider AI advisory reasoning**, **deterministic mission planning**, **real tool execution adapters**, and a strict **7-Question Empirical Validation Gate**.
 
 NYX ensures that every reported finding is backed by **real HTTP request/response traffic, SHA-256 evidence hashing, and strict scope verification**—with **zero fake execution and zero hallucinated bugs**.
 
@@ -198,27 +198,39 @@ nyx surface target.com
 nyx classify "https://api.target.com/v1/graphql"
 ```
 
-### Step 5: Automated Intelligence Planning & Execution
+### Step 5: Automated Intelligence Planning & Native Mission Execution
+
+NYX supports both modular step planning and unified multi-phase mission execution with an automated `ExecutionFindingBridge`:
 
 ```bash
-# Generate a deterministic mission plan
+# Option A: Generate an advisory AI/deterministic plan
 nyx ai plan target.com
 
-# Execute the plan under policy boundaries (dry-run or live)
-nyx ai execute target.com --dry-run
+# Option B: Execute an end-to-end multi-agent security assessment
+# Automatically orchestrates Discovery, Analysis, Tool Execution, Evidence Vaulting, and 7-Question Validation:
+nyx run-mission target.com
 ```
 
-### Step 6: Validate Evidence & Triage Findings
+*When tools execute via the native pipeline, raw HTTP traffic traces are captured and bridged directly into `.engagement/evidence/` with SHA-256 integrity hashes, and automatically evaluated against the 7-Question Gate.*
+
+### Step 6: Inspect Evidence & Triage Findings
 
 ```bash
-# Evaluate empirical evidence through the 7-Question Quality Gate
+# List verified findings on disk
+nyx findings
+
+# Inspect cryptographic evidence in the vault
+nyx evidence list FH-2026-001
+nyx evidence verify EV-2026-0001
+
+# Manually evaluate empirical evidence through the 7-Question Quality Gate
 nyx triage .engagement/findings/FH-2026-001/finding.json
 ```
 
 ### Step 7: Export Submission-Ready Report
 
 ```bash
-# Export platform-formatted report (choices: h1, bugcrowd, intigriti, redteam)
+# Export platform-formatted report (choices: h1, bugcrowd, intigriti, immunefi, redteam)
 nyx report FH-2026-001 --platform bugcrowd --out draft_report.md
 ```
 

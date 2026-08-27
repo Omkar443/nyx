@@ -163,22 +163,30 @@ def get_finding(finding_id: str, base_dir: Path | None = None) -> dict[str, Any]
     d = _get_eng_dir(create=False, base_dir=base_dir)
     if not d.exists():
         return None
+    res = None
     f_file = d / "findings" / finding_id / "finding.json"
     if f_file.exists():
         try:
-            return json.loads(f_file.read_text(encoding="utf-8"))
+            res = json.loads(f_file.read_text(encoding="utf-8"))
         except Exception:
             pass
-    findings_file = d / "findings.json"
-    if findings_file.exists():
-        try:
-            stored = json.loads(findings_file.read_text(encoding="utf-8"))
-            for f in stored:
-                if f.get("finding_id") == finding_id:
-                    return f
-        except Exception:
-            pass
-    return None
+    if res is None:
+        findings_file = d / "findings.json"
+        if findings_file.exists():
+            try:
+                stored = json.loads(findings_file.read_text(encoding="utf-8"))
+                for f in stored:
+                    if f.get("finding_id") == finding_id:
+                        res = f
+                        break
+            except Exception:
+                pass
+    if res and isinstance(res, dict):
+        if "status" in res and "state" not in res:
+            res["state"] = res["status"]
+        elif "state" in res and "status" not in res:
+            res["status"] = res["state"]
+    return res
 
 
 def create_finding(
