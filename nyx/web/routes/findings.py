@@ -3,8 +3,8 @@ NYX Web API Findings Routes
 """
 from __future__ import annotations
 
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from nyx.web.auth import require_auth
 from nyx.web.events import emit_event
@@ -27,9 +27,12 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
 
 
 @router.get("", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
-async def list_findings(service: FindingService = Depends(get_finding_service)) -> Dict[str, Any]:
+async def list_findings(
+    target: Optional[str] = Query(None, description="Optional target filter"),
+    service: FindingService = Depends(get_finding_service),
+) -> Dict[str, Any]:
     """List all findings recorded in active engagement workspace."""
-    _, data = _parse_res(service.list_findings())
+    _, data = _parse_res(service.list_findings(target=target))
     return data
 
 

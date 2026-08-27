@@ -295,3 +295,57 @@ def test_cli_analyze_context_positional_target(capsys, monkeypatch):
     args_srf = argparse.Namespace(analyze_subcommand="surface", target="testtarget.com", manifest=None)
     ret_srf = cmd_analyze(args_srf)
     assert ret_srf in (0, 1)  # 0 or 1 depending on manifest presence
+
+
+def test_target_switch_and_data_isolation(tmp_path: Path, monkeypatch):
+    """Verify that switching target resets findings, endpoints, and evidence so new target is isolated."""
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_find
+    from nyx.application.engagement_service import EngagementService
+    from nyx.application.finding_service import FindingService
+    from nyx.application.recon_service import ReconService
+
+    monkeypatch.chdir(tmp_path)
+    
+    # 1. Initialize first target: 127.0.0.1:3000
+    core_eng.init_engagement("127.0.0.1:3000", reset=True, force=True)
+    core_find.create_finding(
+        title="SQLi in 127.0.0.1",
+        endpoint="http://127.0.0.1:3000/rest/user/login",
+        vulnerability="SQL Injection",
+        target="127.0.0.1:3000"
+    )
+    
+    find_svc = FindingService()
+    recon_svc = ReconService()
+    eng_svc = EngagementService()
+
+    f1 = find_svc.list_findings()
+    assert len(f1.get("findings", [])) == 1
+
+    # 2. Update target to tesla.com via update_settings
+    res = eng_svc.update_settings(target="tesla.com", scope=["*.tesla.com", "tesla.com"])
+    assert res["status"] == "success"
+    assert res["target_changed"] is True
+
+    # 3. Verify clean isolated state for tesla.com
+    f2 = find_svc.list_findings()
+    assert len(f2.get("findings", [])) == 0
+
+    eps2 = recon_svc.get_endpoints()
+    assert len(eps2.get("endpoints", [])) == 0
+
+    techs2 = recon_svc.get_technologies()
+    assert techs2.get("count", 0) == 0
+
+    # 4. Create finding on tesla.com and verify isolation
+    core_find.create_finding(
+        title="Subdomain Takeover on tesla.com",
+        endpoint="https://sub.tesla.com",
+        vulnerability="Subdomain Takeover",
+        target="tesla.com"
+    )
+    f3 = find_svc.list_findings()
+    assert len(f3.get("findings", [])) == 1
+    assert f3.get("findings", [])[0]["target"] == "tesla.com"
+

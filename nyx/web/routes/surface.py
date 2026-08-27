@@ -43,9 +43,12 @@ async def get_attack_surface(
 
 
 @router.get("/endpoints", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
-async def get_endpoints(service: ReconService = Depends(get_recon_service)) -> Dict[str, Any]:
+async def get_endpoints(
+    target: Optional[str] = Query(None, description="Optional target filter"),
+    service: ReconService = Depends(get_recon_service),
+) -> Dict[str, Any]:
     """Retrieve harvested endpoint inventory from engagement memory."""
-    _, data = _parse_res(service.get_endpoints())
+    _, data = _parse_res(service.get_endpoints(target=target))
     return data
 
 
@@ -57,9 +60,12 @@ async def get_technologies(service: ReconService = Depends(get_recon_service)) -
 
 
 @router.get("/assets", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
-async def get_assets(service: ReconService = Depends(get_recon_service)) -> Dict[str, Any]:
+async def get_assets(
+    target: Optional[str] = Query(None, description="Optional target filter"),
+    service: ReconService = Depends(get_recon_service),
+) -> Dict[str, Any]:
     """Retrieve target asset surface overview."""
-    _, eps_data = _parse_res(service.get_endpoints())
+    _, eps_data = _parse_res(service.get_endpoints(target=target))
     _, tech_data = _parse_res(service.get_technologies())
 
     eps = eps_data.get("data", {}).get("endpoints", []) if isinstance(eps_data.get("data"), dict) else eps_data.get("endpoints", [])

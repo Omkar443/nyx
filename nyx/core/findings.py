@@ -348,6 +348,7 @@ def transition_finding(
 def list_findings(
     state_filter: str | None = None,
     severity_filter: str | None = None,
+    target_filter: str | None = None,
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
     d = _get_eng_dir(create=False, base_dir=base_dir)
@@ -378,6 +379,14 @@ def list_findings(
             f
             for f in findings
             if f.get("severity", "").lower() == severity_filter.lower()
+        ]
+    if target_filter:
+        clean_t = target_filter.lower().replace("http://", "").replace("https://", "").split(":")[0]
+        findings = [
+            f
+            for f in findings
+            if clean_t in (f.get("target", "") or "").lower()
+            or clean_t in (f.get("endpoint", "") or "").lower()
         ]
 
     return FindingDictList({"status": "success", "findings": findings}, findings)

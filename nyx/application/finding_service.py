@@ -58,10 +58,17 @@ class FindingService:
     transition_state = transition
 
     def list_findings(
-        self, state: str | None = None, severity: str | None = None, base_dir: Path | None = None
+        self,
+        state: str | None = None,
+        severity: str | None = None,
+        target: str | None = None,
+        base_dir: Path | None = None,
     ) -> dict[str, Any]:
         return core_findings.list_findings(
-            state_filter=state, severity_filter=severity, base_dir=base_dir or self.base_dir
+            state_filter=state,
+            severity_filter=severity,
+            target_filter=target,
+            base_dir=base_dir or self.base_dir,
         )
 
     def get_finding(self, finding_id: str) -> dict[str, Any]:

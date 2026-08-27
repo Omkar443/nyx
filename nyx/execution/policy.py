@@ -41,6 +41,7 @@ def check_policy(
     execution_class: str = "SAFE_ACTIVE",
     active_permitted: bool = False,
     dry_run: bool = False,
+    base_dir: Path | None = None,
 ) -> tuple[bool, str, str]:
     """Verify command execution safety:
     1. Scope verification
@@ -49,7 +50,7 @@ def check_policy(
     Returns (allowed, status_msg, scope_status)."""
 
     clean_target = extract_hostname(target)
-    scope_list = get_engagement_scope()
+    scope_list = get_engagement_scope(base_dir=base_dir)
 
     # Scope check
     if scope_list:
@@ -63,7 +64,7 @@ def check_policy(
             return False, "Target scope is not configured", "UNCONFIGURED"
 
     # Authorization check
-    auth_ok, auth_msg = check_authorization(clean_target)
+    auth_ok, auth_msg = check_authorization(clean_target, base_dir=base_dir)
     if not auth_ok and execution_class != "PASSIVE" and not dry_run:
         return False, f"Authorization Check Failed: {auth_msg}", "UNAUTHORIZED"
 
@@ -73,7 +74,7 @@ def check_policy(
         exec_cls = "SAFE_ACTIVE"
 
     if exec_cls == "ACTIVE" and not active_permitted and not dry_run:
-        d = _get_eng_dir()
+        d = _get_eng_dir(create=False, base_dir=base_dir)
         allow_active = False
         if d.exists():
             auth_yaml = d / "authorization.yaml"

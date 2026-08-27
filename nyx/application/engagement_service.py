@@ -34,6 +34,12 @@ class EngagementService:
 
     def update_settings(self, target: str, scope: list[str] | None = None, exclusions: list[str] | None = None) -> dict[str, Any]:
         d = core_engagement._get_eng_dir(create=True)
+        prev_target = core_engagement.get_engagement_target()
+
+        target_changed = bool(target and prev_target and prev_target.strip().lower() != target.strip().lower())
+        if target_changed:
+            core_engagement.reset_engagement_data(target_name=target)
+
         target_yaml = d / "target.yaml"
         scope_lines = "\n".join([f"    - \"{s}\"" for s in (scope or [target])])
         excl_lines = "\n".join([f"    - \"{e}\"" for e in (exclusions or [f"out-of-scope.{target}"])])
@@ -52,8 +58,7 @@ class EngagementService:
         
         # Also update authorization.yaml if needed
         auth_yaml = d / "authorization.yaml"
-        if auth_yaml.exists():
-            auth_content = f"""authorized: true
+        auth_content = f"""authorized: true
 target:
   - {target}
 allowed:
@@ -61,14 +66,15 @@ allowed:
 exclusions:
 {excl_lines}
 """
-            auth_yaml.write_text(auth_content, encoding="utf-8")
+        auth_yaml.write_text(auth_content, encoding="utf-8")
 
         return {
             "status": "success",
             "target": target,
             "scope": scope or [target],
             "exclusions": exclusions or [],
-            "message": "Settings updated successfully."
+            "target_changed": target_changed,
+            "message": "Settings updated and workspace scoped to target successfully."
         }
 
     def set_state(self, new_state: str | None = None, mode: str | None = None, force: bool = False) -> dict[str, Any]:

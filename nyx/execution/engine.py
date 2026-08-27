@@ -85,7 +85,7 @@ class ExecutionEngine:
             auth_req = tool_entry.get("authorization", {}).get("required", auth_req)
 
         if auth_req:
-            auth_ok, auth_msg = check_authorization()
+            auth_ok, auth_msg = check_authorization(target_domain=clean_target, base_dir=self.base_dir)
             if not auth_ok:
                 end_time = datetime.now().isoformat()
                 res = ExecutionResult(
@@ -111,7 +111,7 @@ class ExecutionEngine:
                 return res
 
             # Scope Boundary Gate
-            scope_list = get_engagement_scope()
+            scope_list = get_engagement_scope(base_dir=self.base_dir)
             if scope_list and not (is_hostname_in_scope(clean_target, scope_list) or is_hostname_in_scope(target, scope_list)):
                 end_time = datetime.now().isoformat()
                 res = ExecutionResult(
@@ -138,7 +138,7 @@ class ExecutionEngine:
 
         # 3. Policy & Execution Class Verification
         policy_ok, pol_msg, scope_status = check_policy(
-            tool_name, target, execution_class=exec_class, active_permitted=active_permitted, dry_run=dry_run
+            tool_name, target, execution_class=exec_class, active_permitted=active_permitted, dry_run=dry_run, base_dir=self.base_dir
         )
         if not policy_ok:
             end_time = datetime.now().isoformat()

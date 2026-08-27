@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from nyx.web.auth import require_auth
+from nyx.web.events import emit_event
 from nyx.application.engagement_service import EngagementService
 from nyx.web.dependencies import get_engagement_service
 
@@ -40,6 +41,11 @@ async def update_settings(
         scope=req.scope,
         exclusions=req.exclusions,
     )
+    if data.get("target_changed"):
+        await emit_event(
+            "target_changed",
+            {"target": req.target, "scope": req.scope or [req.target], "reset": True},
+        )
     return {"success": True, "data": data}
 
 

@@ -45,8 +45,8 @@ class ReconService:
     def run_intelligence(self, target: str) -> dict[str, Any]:
         return core_recon.run_intelligence(target)
 
-    def get_endpoints(self) -> dict[str, Any]:
-        """Retrieve harvested endpoints from engagement memory."""
+    def get_endpoints(self, target: str | None = None) -> dict[str, Any]:
+        """Retrieve harvested endpoints from engagement memory, optionally filtered by target."""
         d = _get_eng_dir()
         ep_file = d / "endpoints.json"
         endpoints = []
@@ -55,6 +55,15 @@ class ReconService:
                 endpoints = json.loads(ep_file.read_text(encoding="utf-8"))
             except Exception:
                 endpoints = []
+
+        if target and endpoints:
+            clean_t = target.lower().replace("http://", "").replace("https://", "").split(":")[0]
+            endpoints = [
+                ep for ep in endpoints
+                if clean_t in (ep.get("host", "") if isinstance(ep, dict) else str(ep)).lower()
+                or clean_t in (ep.get("url", "") if isinstance(ep, dict) else str(ep)).lower()
+            ]
+
         return {"success": True, "endpoints": endpoints, "count": len(endpoints)}
 
     def get_technologies(self) -> dict[str, Any]:

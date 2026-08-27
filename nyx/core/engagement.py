@@ -176,6 +176,61 @@ excluded:
     }
 
 
+def reset_engagement_data(target_name: str, base_dir: Path | None = None) -> None:
+    """Reset all endpoints, findings, hypotheses, technologies, tasks, and evidence records for a new target."""
+    d = _get_eng_dir(create=True, base_dir=base_dir)
+    
+    # 1. Clean findings and evidence directories
+    for sub in [d / "findings", d / "database" / "findings", d / "evidence"]:
+        if sub.exists():
+            try:
+                shutil.rmtree(sub)
+            except Exception:
+                pass
+        try:
+            sub.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+    # 2. Reset JSON state files
+    (d / "endpoints.json").write_text("[]", encoding="utf-8")
+    (d / "findings.json").write_text("[]", encoding="utf-8")
+    (d / "tested_vectors.json").write_text("[]", encoding="utf-8")
+    
+    default_tech = {
+        "frameworks": [],
+        "servers": [],
+        "APIs": [],
+        "authentication": [],
+        "cloud": [],
+        "databases": [],
+    }
+    (d / "technologies.json").write_text(json.dumps(default_tech, indent=2), encoding="utf-8")
+    
+    state_data = {
+        "state": "DISCOVERY",
+        "mode": "RESEARCH",
+        "completed": ["engagement_init"],
+        "history": [],
+        "updated_at": datetime.datetime.now().isoformat(),
+    }
+    (d / "state.json").write_text(json.dumps(state_data, indent=2), encoding="utf-8")
+    
+    # 3. Reset tasks and database files
+    db_dir = d / "database"
+    try:
+        db_dir.mkdir(parents=True, exist_ok=True)
+        (db_dir / "tasks.json").write_text("[]", encoding="utf-8")
+    except Exception:
+        pass
+
+    # 4. Reset notes
+    (d / "notes.md").write_text(
+        f"# Engagement Notes — {target_name}\n\nInitiated on {datetime.date.today().isoformat()}\n",
+        encoding="utf-8",
+    )
+
+
 def get_engagement_target(base_dir: Path | None = None) -> str | None:
     """Retrieve the authoritative active engagement target domain/URL from .engagement/target.yaml."""
     d = _get_eng_dir(create=False, base_dir=base_dir)
