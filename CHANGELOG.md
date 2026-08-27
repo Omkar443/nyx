@@ -30,19 +30,23 @@ NYX v1.0.0 establishes an open-source, reproducible **Security Research & Bug Bo
 - **33 Structured Knowledge Databases**: Curated vulnerability catalogs and technology attack maps derived from disclosed bug bounty writeups.
 - **Intelligent Skill Routing**: Pattern matching and technology context mapping (`nyx classify`, `nyx skills recommend`, `nyx technology map`).
 
-#### 4. Web Operations Dashboard
+#### 4. Technology Stack Fingerprinting Engine
+- **Active & Passive Fingerprinting**: Native header and HTML body inspection detecting Angular, React, Next.js, Vue.js, Node.js, Express, ASP.NET, Spring Boot, PHP, Laravel, Django, WordPress, and web servers.
+- **Engagement Memory Synchronization**: Seamless persistence of discovered frameworks, servers, and APIs into `.engagement/technologies.json` during reconnaissance and multi-agent missions.
+
+#### 5. Web Operations Dashboard
 - **Modern React/Vite UI**: Single-page application built with React 19, TypeScript, and Tailwind CSS.
 - **Real-Time WebSocket Streaming**: Live event feeds for tool execution logs, agent state changes, telemetry counters, and security alerts.
 - **Full View Matrix**: Dedicated views for Overview, Findings & Triage, Mission Planner, Attack Surface Explorer, Tool Harness, Fleet & Approvals, Telemetry & Health, AI Playbooks, Evidence Vault, and Scope Settings.
 
-#### 5. Multi-Provider AI Advisory Layer
+#### 6. Multi-Provider AI Advisory Layer
 - **Model-Neutral Architecture**: Pluggable provider system supporting Google Gemini (`gemini-2.5-flash`), xAI Grok (`grok-4.6`), Groq (`gpt-oss-120b`), Anthropic Claude, OpenAI, and Local LLMs (Ollama).
 - **Advisory Separation of Concerns**: AI provides reasoning and hypotheses; deterministic planners and authoritative scope policy gates govern all execution actions.
 - **Deterministic Offline Fallback**: Fully functional offline rule engine if no API keys are configured.
 
-#### 6. Multi-Platform Report Drafting
+#### 7. Multi-Platform Report Drafting
 - **Standardized Report Exporters**: Instant report generation formatted for **HackerOne**, **Bugcrowd** (including VRT classification and manual severity request override blocks), **Intigriti** (with CVSS 3.1 vectors), and **Immunefi** (with Foundry PoC templates).
 
-#### 7. Quality Assurance & Test Verification
+#### 8. Quality Assurance & Test Verification
 - **100% Passing Test Suite**: 226 automated unit and integration tests passing across all components.
 - **Zero-Crash CLI Matrix**: Exhaustive QA audit verifying all 36 top-level commands, subcommands, and flags with zero unhandled exceptions.
