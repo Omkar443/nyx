@@ -8,7 +8,7 @@ from nyx.security.authorization import check_authorization, get_engagement_scope
 from nyx.infrastructure.filesystem import _get_eng_dir
 
 
-EXECUTION_CLASSES = ["PASSIVE", "SAFE_ACTIVE", "ACTIVE"]
+EXECUTION_CLASSES = ["PASSIVE", "SAFE_ACTIVE", "ACTIVE", "DESTRUCTIVE"]
 
 
 def extract_hostname(target_str: str) -> str:
@@ -73,7 +73,7 @@ def check_policy(
     if exec_cls not in EXECUTION_CLASSES:
         exec_cls = "SAFE_ACTIVE"
 
-    if exec_cls == "ACTIVE" and not active_permitted and not dry_run:
+    if exec_cls in ("ACTIVE", "DESTRUCTIVE") and not active_permitted and not dry_run:
         d = _get_eng_dir(create=False, base_dir=base_dir)
         allow_active = False
         if d.exists():
@@ -83,6 +83,6 @@ def check_policy(
                 if "allow_active: true" in txt or "active: true" in txt or "active_testing: true" in txt:
                     allow_active = True
         if not allow_active:
-            return False, "ACTIVE execution class blocked by safety policy (requires explicit active authorization).", scope_status
+            return False, f"{exec_cls} execution class blocked by safety policy (requires explicit active authorization).", scope_status
 
     return True, "Execution policy satisfied", scope_status

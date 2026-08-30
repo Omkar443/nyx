@@ -24,7 +24,15 @@ from nyx.web.schemas import HealthResponse, ErrorResponse, ErrorDetail
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Modern FastAPI lifespan context manager replacing deprecated on_event handlers."""
+    from nyx.infrastructure.logging import setup_logging, get_logger
+    from nyx.infrastructure.process import terminate_all_subprocesses, setup_signal_handlers
     from nyx.worker.daemon import WorkerDaemon
+
+    setup_logging()
+    setup_signal_handlers()
+    logger = get_logger("nyx.web")
+    logger.info("NYX Web Platform & API Server starting up...")
+
     daemon = WorkerDaemon(worker_id="WRK-WEB-DAEMON")
     app.state.worker_daemon = daemon
     daemon_task = asyncio.create_task(
@@ -34,8 +42,15 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        logger.info("NYX Web Platform shutting down — terminating child processes and background tasks...")
         daemon.stop()
         daemon_task.cancel()
+        try:
+            await asyncio.wait_for(daemon_task, timeout=0.5)
+        except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+            pass
+        terminate_all_subprocesses()
+        logger.info("NYX Web Platform shutdown complete.")
 
 
 def create_app() -> FastAPI:

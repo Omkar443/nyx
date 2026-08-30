@@ -72,15 +72,35 @@ async def get_agent_plan(
 
 @router.post("/propose", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def propose_agent_action(
-    target: str = Query(..., description="Target domain"),
-    action: str = Query(..., description="Proposed action description"),
-    reason: str = Query(..., description="Reason for proposed action"),
-    tool_name: str = Query("subfinder", description="Tool name"),
-    risk: str = Query("Medium", description="Risk level"),
+    target: Optional[str] = Query(None, description="Target domain"),
+    action: Optional[str] = Query(None, description="Proposed action description"),
+    reason: Optional[str] = Query(None, description="Reason for proposed action"),
+    tool_name: Optional[str] = Query(None, description="Tool name"),
+    risk: Optional[str] = Query(None, description="Risk level"),
+    body: Optional[Dict[str, Any]] = None,
     service: AgentService = Depends(get_agent_service),
 ) -> Dict[str, Any]:
     """Propose an active execution action for human approval."""
-    _, data = _parse_res(service.propose_action(target=target, action=action, reason=reason, tool_name=tool_name, risk=risk))
+    b = body or {}
+    eff_target = b.get("target") or target or "target"
+    eff_action = b.get("action") or action or "Proposed Action"
+    eff_reason = b.get("reason") or reason or "Operator review required."
+    eff_tool = b.get("tool_name") or b.get("tool") or tool_name or "nuclei"
+    eff_risk = b.get("risk") or risk or "Medium"
+    step = b.get("step")
+    impact_class = b.get("impact_class")
+    impact_justification = b.get("impact_justification")
+
+    _, data = _parse_res(service.propose_action(
+        target=eff_target,
+        action=eff_action,
+        reason=eff_reason,
+        tool_name=eff_tool,
+        risk=eff_risk,
+        step=step,
+        impact_class=impact_class,
+        impact_justification=impact_justification,
+    ))
     return data
 
 

@@ -99,8 +99,10 @@ async def run_recon_surface(
     service: ReconService = Depends(get_recon_service),
 ) -> Dict[str, Any]:
     """Run passive reconnaissance workflow."""
+    import asyncio
     await emit_event("recon_started", data={"target": target})
-    ok, data = _parse_res(service.run_recon(target=target))
+    res = await asyncio.to_thread(service.run_recon, target=target)
+    ok, data = _parse_res(res)
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

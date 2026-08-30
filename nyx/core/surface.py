@@ -45,7 +45,7 @@ def build_attack_surface_graph(target: str, endpoints: list[dict | str] | None =
             except Exception:
                 pass
 
-    for item in ep_list:
+    for item in ep_list[:100]:
         ep_val = item.get("url") if isinstance(item, dict) else str(item)
         if not ep_val:
             continue

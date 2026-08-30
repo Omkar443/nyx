@@ -21,6 +21,9 @@ from nyx.execution.timeout import run_with_timeout
 from nyx.execution.sandbox import prepare_isolated_env
 from nyx.execution.adapters import get_adapter
 from nyx.execution.artifacts import store_execution_artifacts
+from nyx.infrastructure.logging import get_logger
+
+logger = get_logger("nyx.execution")
 
 
 class ExecutionEngine:
@@ -71,6 +74,7 @@ class ExecutionEngine:
         start_time = datetime.now().isoformat()
         clean_target = extract_hostname(target)
         args_list = arguments or []
+        logger.info("[EXEC] Starting tool: %s on target: %s (execution_id: %s)", tool_name, clean_target, exec_id)
 
         # 1. Tool Registry Lookup
         tools_reg = load_tools_registry().get("tools", {})
@@ -269,6 +273,7 @@ class ExecutionEngine:
             if adapter:
                 parsed_meta["adapter"] = adapter.__class__.__name__
 
+            logger.info("[EXEC:DRY-RUN] %s", dry_msg)
             res = ExecutionResult(
                 execution_id=exec_id,
                 tool_name=tool_name,
@@ -294,6 +299,7 @@ class ExecutionEngine:
             return res
 
         # 7. Controlled Process Execution
+        logger.info("[EXEC] Running: %s", " ".join(cmd_list))
         env = prepare_isolated_env()
         exit_code, stdout, stderr, timed_out = run_with_timeout(cmd_list, timeout_sec=tool_timeout, env=env)
         end_time = datetime.now().isoformat()
@@ -314,15 +320,19 @@ class ExecutionEngine:
         if exit_code == 127 and "[PROCESS NOT STARTED]" in san_err:
             status = ExecutionStatus.UNAVAILABLE.value
             err_msg = san_err
+            logger.error("[ERROR] %s unavailable: %s", tool_name, err_msg)
         elif timed_out:
             status = ExecutionStatus.FAILED.value
             err_msg = f"Execution timed out after {tool_timeout} seconds."
+            logger.error("[ERROR] %s timed out after %d seconds on %s", tool_name, tool_timeout, clean_target)
         elif exit_code == 0:
             status = ExecutionStatus.COMPLETED.value
             err_msg = None
+            logger.info("[DONE] %s complete on %s — exit code: %d", tool_name, clean_target, exit_code)
         else:
             status = ExecutionStatus.FAILED.value
             err_msg = san_err or f"Tool exited with return code {exit_code}"
+            logger.error("[ERROR] %s failed on %s (exit code %d): %s", tool_name, clean_target, exit_code, err_msg)
 
         res = ExecutionResult(
             execution_id=exec_id,
@@ -356,6 +366,7 @@ class ExecutionEngine:
             if created_fids:
                 res.metadata["findings_created"] = created_fids
                 res.metadata["findings_count"] = len(created_fids)
+                logger.info("[DONE] %s surfaced %d finding(s): %s", tool_name, len(created_fids), ", ".join(created_fids))
         except Exception:
             pass
 

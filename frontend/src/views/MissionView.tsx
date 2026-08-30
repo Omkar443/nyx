@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Map, CheckCircle, Clock, Shield, Target, Play, 
-  ArrowRight, AlertTriangle, RefreshCw, FileText
+  ArrowRight, AlertTriangle, RefreshCw, FileText, AlertOctagon,
+  Zap, Check, X, ShieldAlert, Cpu
 } from 'lucide-react';
 import { fetchApi } from '../api/client';
 import { useNyxEvents } from '../hooks/useNyxEvents';
@@ -14,6 +15,13 @@ export function MissionView() {
   const [timeline, setTimeline] = useState<any[]>([]);
   const [scopeList, setScopeList] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+
+  // Mission Runner State
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [activePermitted, setActivePermitted] = useState<boolean>(false);
+  const [maxIterations, setMaxIterations] = useState<number>(15);
+  const [missionResult, setMissionResult] = useState<any | null>(null);
+  const [missionError, setMissionError] = useState<string | null>(null);
 
   const phases = [
     { name: 'DISCOVERY', desc: 'Passive OSINT, HTTP probing, endpoint & asset harvesting' },
@@ -69,13 +77,58 @@ export function MissionView() {
     }
   }
 
+  async function handleRunAutonomousMission() {
+    if (!target || target === 'No active target') {
+      setMissionError('No active target — set a target first (use Settings to configure target scope or initialize an engagement).');
+      return;
+    }
+    setIsRunning(true);
+    setMissionError(null);
+    setMissionResult(null);
+
+    try {
+      const payload = {
+        target: target,
+        active_permitted: activePermitted,
+        max_iterations: maxIterations
+      };
+      const res = await fetchApi('/api/v1/ai/autonomous-run', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      if (res) {
+        setMissionResult(res);
+
+        // If paused for approval, also register to approval system
+        if (res.status === 'paused_for_approval' && res.pending_step) {
+          try {
+            const pStep = res.pending_step;
+            await fetchApi(
+              `/api/v1/agent/propose?target=${encodeURIComponent(target)}&action=${encodeURIComponent(pStep.name || 'Destructive Step')}&reason=${encodeURIComponent(pStep.impact_justification || pStep.description || 'Active Verification')}&tool_name=${encodeURIComponent(pStep.tool || 'nuclei')}&risk=High`,
+              { method: 'POST' }
+            );
+          } catch {
+            // Handled
+          }
+        }
+      }
+      await loadMission();
+      await refreshGlobalStats();
+    } catch (err: any) {
+      setMissionError(err?.message || 'Failed to start autonomous mission');
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
   return (
     <div className="space-y-5 animate-fadeInUp">
       {/* ========== HEADER ========== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-[#F2F2F2] tracking-tight">
-            Mission Plan &amp; State Machine
+            Mission Plan &amp; Autonomous Runner
           </h1>
           <p className="text-sm text-[#707070] mt-0.5 flex items-center gap-2">
             <Map className="w-3.5 h-3.5 text-[#555555]" />
@@ -117,6 +170,204 @@ export function MissionView() {
             </div>
           );
         })}
+      </div>
+
+      {/* ========== AUTONOMOUS MISSION RUNNER PANEL ========== */}
+      <div className="card space-y-4 border border-[#3A3A3A] bg-[#222222]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#333333] gap-3">
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-[#ebb94b]" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#E8E8E8]">
+              Autonomous Mission Runner
+            </h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <label className="flex items-center gap-1.5 text-[#888888] font-mono cursor-pointer">
+              <input
+                type="checkbox"
+                checked={activePermitted}
+                onChange={(e) => setActivePermitted(e.target.checked)}
+                className="rounded border-[#444444] bg-[#2A2A2A] text-[#ebb94b] focus:ring-0"
+              />
+              <span>Allow Active Scans</span>
+            </label>
+            <div className="flex items-center gap-1 text-[#888888] font-mono">
+              <span>Max Iter:</span>
+              <select
+                value={maxIterations}
+                onChange={(e) => setMaxIterations(Number(e.target.value))}
+                className="bg-[#2A2A2A] border border-[#3A3A3A] rounded px-2 py-0.5 text-xs text-[#E8E8E8] focus:outline-none"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+              </select>
+            </div>
+            <button
+              onClick={handleRunAutonomousMission}
+              disabled={isRunning}
+              className="btn-primary text-xs py-1.5 px-3.5 flex items-center gap-1.5"
+            >
+              {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+              <span>{isRunning ? 'Running Mission...' : 'Start Autonomous Mission'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Error Alert */}
+        {missionError && (
+          <div className="p-3 rounded bg-[#EF5350]/10 border border-[#EF5350]/30 text-xs text-[#EF5350] flex items-center gap-2">
+            <AlertOctagon className="w-4 h-4 shrink-0" />
+            <span>{missionError}</span>
+          </div>
+        )}
+
+        {/* Running Status */}
+        {isRunning && (
+          <div className="p-4 rounded bg-[#2A2A2A] border border-[#3A3A3A] flex items-center justify-between text-xs font-mono">
+            <div className="flex items-center gap-2 text-[#ebb94b]">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>Autonomous loop running across candidates for {target}...</span>
+            </div>
+            <span className="text-[#888888]">Non-blocking background reasoning</span>
+          </div>
+        )}
+
+        {/* Mission Status Banners */}
+        {missionResult && (
+          <div className="space-y-3">
+            {/* PAUSED FOR APPROVAL */}
+            {missionResult.status === 'paused_for_approval' && (
+              <div className="p-4 rounded bg-[#FFA726]/10 border border-[#FFA726]/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[#FFA726] font-bold text-xs">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>MISSION PAUSED — Destructive Action Pending Operator Sign-Off</span>
+                  </div>
+                  <button
+                    onClick={() => setCurrentView('agent')}
+                    className="btn-primary text-xs py-1 px-2.5 flex items-center gap-1"
+                  >
+                    <span>View in Approval Queue</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+                {missionResult.pending_step && (
+                  <div className="bg-[#1E1E1E] p-2.5 rounded border border-[#333333] text-xs font-mono space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#E8E8E8] font-bold">{missionResult.pending_step.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EF5350]/20 text-[#EF5350] border border-[#EF5350]/40 uppercase font-bold">
+                        {missionResult.pending_step.impact_class || 'DESTRUCTIVE'}
+                      </span>
+                      <span className="text-[#888888]">Tool: {missionResult.pending_step.tool}</span>
+                    </div>
+                    <p className="text-[#CCCCCC]">{missionResult.pending_step.impact_justification || missionResult.pending_step.description}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ESCALATED */}
+            {missionResult.status === 'escalated' && (
+              <div className="p-4 rounded bg-[#AB47BC]/10 border border-[#AB47BC]/30 space-y-2">
+                <div className="flex items-center gap-2 text-[#AB47BC] font-bold text-xs">
+                  <Zap className="w-4 h-4" />
+                  <span>STRATEGIC ESCALATION — AI Decision Engine Triggered Escalation</span>
+                </div>
+                {missionResult.escalated_step && (
+                  <div className="bg-[#1E1E1E] p-2.5 rounded border border-[#333333] text-xs font-mono space-y-1">
+                    <p className="text-[#E8E8E8] font-bold">{missionResult.escalated_step.name} ({missionResult.escalated_step.tool})</p>
+                    <p className="text-[#888888]">{missionResult.reasoning?.reasoning || 'Hypothesis confirmed — escalating to high-priority verification'}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* BLOCKED BY POLICY */}
+            {missionResult.status === 'blocked' && (
+              <div className="p-4 rounded bg-[#EF5350]/10 border border-[#EF5350]/30 space-y-2">
+                <div className="flex items-center gap-2 text-[#EF5350] font-bold text-xs">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>BLOCKED BY POLICY — Step Restricted by Engagement Scope</span>
+                </div>
+                {missionResult.blocked_step && (
+                  <div className="bg-[#1E1E1E] p-2.5 rounded border border-[#333333] text-xs font-mono">
+                    <span className="text-[#E8E8E8]">{missionResult.blocked_step.name} ({missionResult.blocked_step.tool})</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* COMPLETE */}
+            {missionResult.status === 'complete' && (
+              <div className="p-3 rounded bg-[#4CAF50]/10 border border-[#4CAF50]/30 flex items-center gap-2 text-xs text-[#4CAF50] font-mono">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                <span>
+                  {missionResult.message || 
+                   (missionResult.is_dedup
+                     ? `All candidate vectors already evaluated in a prior run — ${missionResult.tested_vectors_count || 'multiple'} vectors previously tested.`
+                     : 'Autonomous Mission Loop Complete: No candidate vectors found for this target.')}
+                </span>
+              </div>
+            )}
+
+            {/* MAX ITERATIONS REACHED */}
+            {missionResult.status === 'max_iterations_reached' && (
+              <div className="p-3 rounded bg-[#FFA726]/10 border border-[#FFA726]/30 flex items-center gap-2 text-xs text-[#FFA726] font-mono">
+                <Clock className="w-4 h-4" />
+                <span>Max Iterations Reached ({maxIterations}) — Autonomous loop cycle concluded.</span>
+              </div>
+            )}
+
+            {/* Iterations Execution Timeline */}
+            {Array.isArray(missionResult.iterations) && missionResult.iterations.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#707070]">
+                  Execution Iteration Timeline ({missionResult.iterations.length} iterations)
+                </h4>
+                <div className="space-y-2">
+                  {missionResult.iterations.map((it: any, idx: number) => {
+                    const step = it.step || {};
+                    const res = it.result || {};
+                    const isSkipped = res.status === 'skipped';
+                    const isManual = res.status === 'manual_action_required';
+                    return (
+                      <div key={idx} className="p-2.5 rounded bg-[#1C1C1C] border border-[#333333] text-xs font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#ebb94b] font-bold">#{it.iteration || idx + 1}</span>
+                            <span className="text-[#E8E8E8] font-semibold">{step.name || 'Step'}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#2A2A2A] text-[#888888] border border-[#3A3A3A]">
+                              {step.tool}
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded border ${
+                              step.impact_class === 'DESTRUCTIVE' ? 'text-[#EF5350] bg-[#EF5350]/15 border-[#EF5350]/30' : 'text-[#4CAF50] bg-[#4CAF50]/15 border-[#4CAF50]/30'
+                            }`}>
+                              {step.impact_class || 'NON_DESTRUCTIVE'}
+                            </span>
+                          </div>
+                          {it.ai_reasoning?.reasoning && (
+                            <p className="text-[11px] text-[#707070] italic">AI: {it.ai_reasoning.reasoning}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                            isSkipped ? 'bg-[#FFA726]/10 text-[#FFA726] border border-[#FFA726]/20' :
+                            isManual ? 'bg-[#29B6F6]/10 text-[#29B6F6] border border-[#29B6F6]/20' :
+                            'bg-[#4CAF50]/10 text-[#4CAF50] border border-[#4CAF50]/20'
+                          }`}>
+                            {res.status || 'COMPLETED'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ========== SCOPE BOUNDARIES & POLICY RULES ========== */}

@@ -36,9 +36,21 @@ class AgentService(BaseService):
         reason: str,
         tool_name: str = "subfinder",
         risk: str = "Medium",
+        step: Optional[Dict[str, Any]] = None,
+        impact_class: Optional[str] = None,
+        impact_justification: Optional[str] = None,
     ) -> ServiceResult:
         self.agent.target = target
-        res = self.agent.propose_action(action=action, reason=reason, tool_name=tool_name, risk=risk)
+        res = self.agent.propose_action(
+            action=action,
+            reason=reason,
+            tool_name=tool_name,
+            risk=risk,
+            step=step,
+            impact_class=impact_class,
+            impact_justification=impact_justification,
+            target=target,
+        )
         return self.ok(data=res, message=f"Proposed action '{res.get('action_id')}' for human approval.")
 
     def get_approvals(self) -> ServiceResult:

@@ -4,6 +4,7 @@ Central orchestrator managing specialized agents, task assignments, worker nodes
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional
 from nyx.agent.bus import AgentMessageBus
 from nyx.agent.tasks import DistributedTaskQueue
@@ -28,7 +29,7 @@ class AgentController:
     """Central controller orchestrating specialized agent fleet, worker nodes, and task execution."""
 
     def __init__(self, provider_name: Optional[str] = None, base_dir: Optional[Path] = None):
-        self.provider_name = provider_name
+        self.provider_name = provider_name or os.environ.get("NYX_AI_PROVIDER") or os.environ.get("AI_PROVIDER")
         self.base_dir = base_dir
         self.bus = AgentMessageBus()
         self.registry = AgentRegistry(base_dir=base_dir)

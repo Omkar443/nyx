@@ -33,6 +33,7 @@ export function AttackSurfaceView() {
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
 
   async function loadSurface() {
     try {
@@ -89,11 +90,21 @@ export function AttackSurfaceView() {
   }, [lastEvent, refreshGlobalStats]);
 
   async function handleRunRecon() {
+    if (!target || target === 'No active target') {
+      setScanNotice('No active target — set a target first (use Settings to configure target scope or initialize an engagement).');
+      return;
+    }
+    setScanNotice(null);
     setIsScanning(true);
     try {
-      await fetchApi(`/api/v1/surface/recon?target=${encodeURIComponent(target)}`, { method: 'POST' });
+      const res = await fetchApi(`/api/v1/surface/recon?target=${encodeURIComponent(target)}`, { method: 'POST' });
+      if (!res?.success && res?.error) {
+        setScanNotice(`Recon failed: ${res.error}`);
+      }
       await loadSurface();
       await refreshGlobalStats();
+    } catch (err: any) {
+      setScanNotice(err?.message || 'Recon request failed');
     } finally {
       setIsScanning(false);
     }
@@ -144,6 +155,22 @@ export function AttackSurfaceView() {
           </button>
         </div>
       </div>
+
+      {/* Target Notice / Error Alert */}
+      {scanNotice && (
+        <div className="p-3 rounded bg-[#FFA726]/10 border border-[#FFA726]/30 text-xs text-[#FFA726] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{scanNotice}</span>
+          </div>
+          <button 
+            onClick={() => setCurrentView('settings')}
+            className="btn-secondary text-[11px] py-1 px-2.5 ml-3 shrink-0"
+          >
+            Go to Settings
+          </button>
+        </div>
+      )}
 
       {/* ========== TECH STACK PILLS ========== */}
       {technologies.length > 0 && (

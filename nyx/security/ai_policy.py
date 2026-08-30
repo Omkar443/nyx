@@ -28,6 +28,7 @@ class AIPolicyEngine:
             "exploitation": True,
             "payload_injection": True,
             "credential_testing": True,
+            "active_validation": True,
         },
         "block": {
             "out_of_scope_targets": True,

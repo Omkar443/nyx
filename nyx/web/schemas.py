@@ -134,6 +134,20 @@ class EvidenceResponse(BaseModel):
 
 
 # --- Intelligence & AI Schemas ---
+class AIAutonomousRequest(BaseModel):
+    target: str = Field(..., description="Target domain, URL, or endpoint")
+    provider_name: Optional[str] = Field(None, description="Optional AI provider name")
+    active_permitted: bool = Field(False, description="Whether active scanning is permitted")
+    max_iterations: int = Field(15, description="Maximum autonomous iterations")
+
+
+class AIPlanRequest(BaseModel):
+    target: str = Field(..., description="Target domain, URL, or endpoint")
+    vulnerability_type: Optional[str] = Field(None, description="Selected vulnerability class (e.g. SQL Injection, IDOR)")
+    provider: Optional[str] = Field(None, description="Optional AI provider name")
+    context: Optional[Dict[str, Any]] = None
+
+
 class IntelligenceContextResponse(BaseModel):
     target: str
     in_scope: bool

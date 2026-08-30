@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from nyx.web.schemas import AIPlanRequest, AIAutonomousRequest
 from nyx.web.auth import require_auth
 from nyx.application.ai_service import AIService
 from nyx.application.skill_service import SkillService
@@ -115,15 +116,64 @@ async def test_ai_provider(
 
 @router.post("/ai/plan", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def generate_ai_mission_plan(
-    target: str = Query(..., description="Target domain"),
+    req: Optional[AIPlanRequest] = None,
+    target: Optional[str] = Query(None, description="Target domain (fallback if not in body)"),
     provider: Optional[str] = Query(None, description="Optional AI provider name"),
+    vulnerability_type: Optional[str] = Query(None, description="Optional vulnerability class"),
     service: AIService = Depends(get_ai_service),
 ) -> Dict[str, Any]:
     """Generate a policy-validated multi-step mission plan using AI provider reasoning."""
-    ok, data = _parse_res(service.plan_mission(target, provider_name=provider))
+    active_target = (req.target if req and req.target else target) or ""
+    active_provider = (req.provider if req and req.provider else provider)
+    active_vuln = (req.vulnerability_type if req and req.vulnerability_type else vulnerability_type)
+    active_context = req.context if req else None
+
+    if not active_target:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "TARGET_REQUIRED", "message": "Target parameter is required in request body or query."},
+        )
+
+    import asyncio
+    plan_res = await asyncio.to_thread(
+        service.plan_mission,
+        active_target,
+        vulnerability_type=active_vuln,
+        provider_name=active_provider,
+        context_override=active_context,
+    )
+    ok, data = _parse_res(plan_res)
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": data.get("code", "PLAN_FAILED"), "message": data.get("error", "Failed to plan mission.")},
         )
     return data
+
+
+@router.post("/ai/autonomous-run", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def run_ai_autonomous_loop(
+    req: AIAutonomousRequest,
+    service: AIService = Depends(get_ai_service),
+) -> Dict[str, Any]:
+    """Execute autonomous security mission loop."""
+    import asyncio
+    if not req.target:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "TARGET_REQUIRED", "message": "Target parameter is required in request body."},
+        )
+
+    res = await asyncio.to_thread(
+        service.planner.run_autonomous_loop,
+        target=req.target,
+        provider_name=req.provider_name,
+        active_permitted=req.active_permitted,
+        max_iterations=req.max_iterations,
+    )
+    if res.get("status") == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "SCOPE_ERROR" if res.get("error") == "out of scope" else "LOOP_FAILED", "message": res.get("error", "Autonomous loop failed."), "details": res},
+        )
+    return res

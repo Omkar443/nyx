@@ -45,6 +45,8 @@ def test_classify_groq_error():
     assert _classify_groq_error(Exception("429 too many requests"))["status"] == "error"
 
 @patch("nyx.ai.providers.groq.HAS_GROQ_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_GROQ_NATIVE_SDK", False)
+@patch("nyx.ai.providers.groq.HAS_OPENAI_SDK", True)
 def test_groq_successful_generation():
     with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test_key"}):
         provider = GroqProvider(model_name="llama-3.3-70b-versatile")
@@ -67,8 +69,17 @@ def test_groq_successful_generation():
             args, kwargs = mock_client.chat.completions.create.call_args
             assert kwargs["model"] == "llama-3.3-70b-versatile"
             assert kwargs["messages"][0]["content"] == "Hi"
+            assert kwargs["max_completion_tokens"] == 1024
+
+            # Test explicit options override
+            provider.generate("Custom", options={"max_tokens": 512, "temperature": 0.2})
+            _, custom_kwargs = mock_client.chat.completions.create.call_args
+            assert custom_kwargs["max_completion_tokens"] == 512
+            assert custom_kwargs["temperature"] == 0.2
 
 @patch("nyx.ai.providers.groq.HAS_GROQ_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_GROQ_NATIVE_SDK", False)
+@patch("nyx.ai.providers.groq.HAS_OPENAI_SDK", True)
 def test_groq_timeout():
     with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test_key"}):
         timeout_sec = 0.5
@@ -94,6 +105,8 @@ def test_groq_timeout():
         assert elapsed < 1.0
 
 @patch("nyx.ai.providers.groq.HAS_GROQ_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_GROQ_NATIVE_SDK", False)
+@patch("nyx.ai.providers.groq.HAS_OPENAI_SDK", True)
 def test_groq_auth_failure():
     with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test_key"}):
         provider = GroqProvider()
@@ -114,6 +127,8 @@ def test_groq_auth_failure():
             assert "authentication failed" in str(exc.value)
 
 @patch("nyx.ai.providers.groq.HAS_GROQ_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_GROQ_NATIVE_SDK", False)
+@patch("nyx.ai.providers.groq.HAS_OPENAI_SDK", True)
 def test_groq_network_failure():
     with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test_key"}):
         provider = GroqProvider()
@@ -132,3 +147,46 @@ def test_groq_network_failure():
             with pytest.raises(RuntimeError) as exc:
                 provider.generate("Hi")
             assert "Unable to connect" in str(exc.value)
+
+
+@patch("nyx.ai.providers.groq.HAS_GROQ_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_GROQ_NATIVE_SDK", False)
+@patch("nyx.ai.providers.groq.HAS_OPENAI_SDK", True)
+def test_groq_client_ipv4_transport_configuration():
+    """Verify GroqProvider configures httpx.HTTPTransport with local_address='0.0.0.0' for IPv4-first connection."""
+    with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test_key"}):
+        provider = GroqProvider()
+        mock_openai_module = MagicMock()
+        mock_httpx = MagicMock()
+
+        with patch("nyx.ai.providers.groq.openai", mock_openai_module), patch("nyx.ai.providers.groq.httpx", mock_httpx):
+            client, err = provider._get_client()
+            assert err is None
+            assert client is not None
+            mock_httpx.HTTPTransport.assert_called_once_with(local_address="0.0.0.0")
+            mock_httpx.Client.assert_called_once()
+            _, kwargs = mock_openai_module.OpenAI.call_args
+            assert "http_client" in kwargs
+            assert kwargs["http_client"] == mock_httpx.Client.return_value
+
+
+@patch("nyx.ai.providers.groq.HAS_GROQ_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_GROQ_NATIVE_SDK", True)
+@patch("nyx.ai.providers.groq.HAS_OPENAI_SDK", False)
+def test_groq_native_sdk_client_initialization():
+    """Verify GroqProvider initializes native Groq SDK client when available."""
+    with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test_key"}):
+        provider = GroqProvider()
+        mock_groq_cls = MagicMock()
+        mock_httpx = MagicMock()
+
+        with patch("nyx.ai.providers.groq.Groq", mock_groq_cls), patch("nyx.ai.providers.groq.httpx", mock_httpx):
+            client, err = provider._get_client()
+            assert err is None
+            assert client is not None
+            mock_groq_cls.assert_called_once()
+            _, kwargs = mock_groq_cls.call_args
+            assert kwargs["api_key"] == "gsk_test_key"
+            assert "http_client" in kwargs
+
+

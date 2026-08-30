@@ -65,13 +65,16 @@ async def run_tool_execution(
         data={"tool": req.tool_name, "target": req.target, "dry_run": req.dry_run},
     )
 
-    ok, data = _parse_res(service.run_tool(
+    import asyncio
+    tool_res = await asyncio.to_thread(
+        service.run_tool,
         tool_name=req.tool_name,
         target=req.target,
         arguments=req.arguments,
         dry_run=req.dry_run,
         active_permitted=req.active_permitted,
-    ))
+    )
+    ok, data = _parse_res(tool_res)
 
     await emit_event(
         event_type="execution_finished",

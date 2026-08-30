@@ -75,7 +75,7 @@ tools:
     purpose: "Active vulnerability scanning"
     execution_class: "ACTIVE"
     platforms: ["linux", "darwin", "windows"]
-    allowed_args: ["-u", "-target", "-t", "-tags", "-json", "-silent"]
+    allowed_args: ["-u", "-target", "-t", "-tags", "-json", "-jsonl", "-j", "-silent"]
     timeout: 300
     required_authorization: true
     authorization:
@@ -86,6 +86,28 @@ tools:
     output_format: "json"
     required_permissions:
       - "ACTIVE"
+
+  sqlmap:
+    binary: "sqlmap"
+    type: "scanner"
+    category:
+      - "destructive"
+      - "sql_injection"
+    description: "Automated SQL injection and database takeover tool."
+    purpose: "Active SQL injection vulnerability validation"
+    execution_class: "DESTRUCTIVE"
+    platforms: ["linux", "darwin", "windows"]
+    allowed_args: ["-u", "--batch", "--technique", "--dbs", "--tables", "--columns", "--dump", "--risk", "--level", "--flush-session"]
+    timeout: 300
+    required_authorization: true
+    authorization:
+      required: true
+    adapter: "nyx.execution.adapters.sqlmap.SqlmapAdapter"
+    output:
+      format: "text"
+    output_format: "text"
+    required_permissions:
+      - "DESTRUCTIVE"
 
   nmap:
     binary: "nmap"

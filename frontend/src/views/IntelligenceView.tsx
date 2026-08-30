@@ -15,6 +15,7 @@ export function IntelligenceView() {
   const [vulnClass, setVulnClass] = useState('SQL Injection');
   const [isPlanning, setIsPlanning] = useState(false);
   const [planResult, setPlanResult] = useState<any | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   useEffect(() => {
     if (viewParams?.target) setPlanTarget(viewParams.target);
@@ -23,6 +24,7 @@ export function IntelligenceView() {
   async function handleSynthesizePlan(e: React.FormEvent) {
     e.preventDefault();
     setIsPlanning(true);
+    setPlanError(null);
     try {
       const res = await fetchApi('/api/v1/ai/plan', {
         method: 'POST',
@@ -32,7 +34,19 @@ export function IntelligenceView() {
           context: { target: planTarget }
         })
       });
-      setPlanResult(res?.data || res);
+      if (res?.success === false || res?.status === 'error' || res?.error) {
+        setPlanError(res.error || res.message || 'Failed to synthesize plan');
+        setPlanResult(null);
+      } else {
+        const payload = res?.data || res;
+        setPlanResult(payload);
+        if (payload?.status === 'error') {
+          setPlanError(payload.error || 'Mission planning error');
+        }
+      }
+    } catch (err: any) {
+      setPlanError(err?.message || 'Network error executing AI synthesis');
+      setPlanResult(null);
     } finally {
       setIsPlanning(false);
     }
@@ -124,30 +138,129 @@ export function IntelligenceView() {
             </form>
           </div>
 
-          {planResult && (
-            <div className="card space-y-3 border border-[#ebb94b]/40">
-              <div className="flex items-center justify-between pb-2 border-b border-[#333333]">
-                <h3 className="text-xs font-bold text-[#ebb94b] font-mono">
-                  Synthesized Attack Playbook: {vulnClass} on {planTarget}
-                </h3>
-                <span className="text-[11px] font-mono text-[#888888]">Engine: NYX AI Reasoning</span>
+          {planError && (
+            <div className="card space-y-2 border border-[#EF5350]/40 bg-[#2A1515]">
+              <div className="flex items-center gap-2 text-[#EF5350] font-mono text-xs font-bold">
+                <Shield className="w-4 h-4" />
+                <span>AI Reasoning Notice: {planError}</span>
+              </div>
+              <p className="text-xs text-[#CCCCCC] font-mono leading-relaxed">
+                The AI provider could not complete real-time synthesis. Verify provider configuration or check scope authorization.
+              </p>
+            </div>
+          )}
+
+          {planResult && !planError && (
+            <div className="card space-y-4 border border-[#ebb94b]/40 bg-[#191919]">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2.5 border-b border-[#333333]">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#ebb94b]" />
+                  <h3 className="text-xs font-bold text-[#E8E8E8] font-mono">
+                    Synthesized Attack Playbook: <span className="text-[#ebb94b]">{vulnClass}</span> on <span className="text-[#E8E8E8]">{planResult.target || planTarget}</span>
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-[11px] text-[#888888]">
+                  <span className="px-2 py-0.5 rounded bg-[#252525] border border-[#3A3A3A] text-[#CCCCCC]">
+                    Provider: {planResult.provider || 'NYX AI Engine'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-[#252525] border border-[#3A3A3A] text-[#ebb94b]">
+                    Phase: {planResult.phase || 'DISCOVERY'}
+                  </span>
+                </div>
               </div>
 
-              <div className="p-3 rounded bg-[#1E1E1E] border border-[#333333] space-y-2 text-xs font-mono text-[#CCCCCC]">
-                <div className="text-[#ebb94b] font-bold">1. Attack Hypothesis</div>
-                <p className="text-[#AAAAAA]">{planResult.plan?.hypothesis || `Target accepts unvalidated inputs over parameter boundaries.`}</p>
-
-                <div className="text-[#ebb94b] font-bold pt-2">2. Required Sequence</div>
-                <div className="space-y-1 text-[#888888]">
-                  <div>• Step 1: Establish clean dual-session baseline (Attacker A / Victim B)</div>
-                  <div>• Step 2: Inject non-destructive probe and observe delta</div>
-                  <div>• Step 3: Run 7-Question Gate and attach raw HTTP trace</div>
+              {/* 1. Attack Hypothesis & Strategic Reasoning */}
+              <div className="p-3.5 rounded-lg bg-[#202020] border border-[#333333] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#ebb94b] uppercase tracking-wider font-mono">
+                    1. Attack Hypothesis &amp; Strategic Reasoning
+                  </span>
+                  {planResult.recommended_focus && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#ebb94b]/20 text-[#ebb94b] border border-[#ebb94b]/30">
+                      Focus: {planResult.recommended_focus}
+                    </span>
+                  )}
                 </div>
+                <p className="text-xs text-[#CCCCCC] font-mono leading-relaxed whitespace-pre-wrap">
+                  {planResult.analysis || "No strategic analysis returned by AI reasoning engine."}
+                </p>
+              </div>
+
+              {/* 2. Structured Action Plan & Validation Sequences */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#ebb94b] uppercase tracking-wider font-mono">
+                    2. Validation Sequence ({planResult.steps?.length || 0} Steps)
+                  </span>
+                  <span className="text-[10px] font-mono text-[#888888]">
+                    Policy: 7-Question Gate Enforced
+                  </span>
+                </div>
+
+                {(!planResult.steps || planResult.steps.length === 0) ? (
+                  <div className="p-3 rounded bg-[#202020] border border-[#333333] text-xs text-[#777777] italic font-mono">
+                    No validation steps generated for this target and vulnerability class.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {planResult.steps.map((step: any, idx: number) => {
+                      const isDestructive = step.impact_class === 'DESTRUCTIVE';
+                      return (
+                        <div key={idx} className="p-3 rounded-lg bg-[#202020] border border-[#333333] space-y-2 text-xs font-mono">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#E8E8E8] font-bold">
+                                Step {step.step || idx + 1}: {step.name}
+                              </span>
+                              {step.tool && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#2A2A2A] text-[#888888] border border-[#3A3A3A]">
+                                  {step.tool}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              {/* Destructive / Non-Destructive Impact Tag */}
+                              <span
+                                title={step.impact_justification || (isDestructive ? 'State-changing mutation' : 'Read-only / idempotent operation')}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                  isDestructive
+                                    ? 'bg-[#EF5350]/20 text-[#EF5350] border-[#EF5350]/40'
+                                    : 'bg-[#4CAF50]/20 text-[#81C784] border-[#4CAF50]/40'
+                                }`}
+                              >
+                                {isDestructive ? 'DESTRUCTIVE' : 'NON-DESTRUCTIVE'}
+                              </span>
+
+                              {/* Policy Status Badge */}
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                step.permitted !== false ? 'bg-[#0288D1]/20 text-[#4FC3F7] border-[#0288D1]/30' : 'bg-[#EF5350]/20 text-[#EF5350] border-[#EF5350]/30'
+                              }`}>
+                                {step.policy_status || (step.permitted !== false ? 'PERMITTED' : 'BLOCKED')}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-[#AAAAAA] leading-relaxed">
+                            {step.description}
+                          </p>
+
+                          {step.impact_justification && (
+                            <div className="text-[11px] text-[#777777] flex items-center gap-1.5 pt-1 border-t border-[#2A2A2A]">
+                              <span className="text-[#888888] font-semibold">Impact Rationale:</span>
+                              <span>{step.impact_justification}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#333333]">
                 <button 
-                  onClick={() => setCurrentView('findings', { prefillEndpoint: planTarget })} 
+                  onClick={() => setCurrentView('findings', { prefillEndpoint: planResult.target || planTarget })} 
                   className="btn-primary text-xs py-1.5 px-3"
                 >
                   Promote to Finding

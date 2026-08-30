@@ -24,6 +24,9 @@ from nyx.infrastructure.urls import normalize_url
 from nyx.recon.intelligence import run_recon_intelligence
 from nyx.recon.content_discovery import run_content_discovery
 from nyx.security.authorization import is_hostname_in_scope
+from nyx.infrastructure.logging import get_logger
+
+logger = get_logger("nyx.recon")
 
 _HTTP_OPENER: urllib.request.OpenerDirector | None = None
 
@@ -123,10 +126,65 @@ def recon_resolve(host: str) -> list[str]:
         return []
 
 
-def recon_http_probe(host: str) -> dict | None:
+def recon_http_probe(host_or_url: str) -> dict | None:
     from nyx.recon.technology import detect_technologies
+
+    # Case 1: Explicit full URL
+    if host_or_url.startswith("http://") or host_or_url.startswith("https://"):
+        parsed = urllib.parse.urlparse(host_or_url)
+        host = parsed.netloc.split(":")[0] if parsed.netloc else host_or_url
+        code, headers, body = http_get(host_or_url, timeout=4)
+        if code != 0:
+            title = ""
+            m = re.search(r"<title[^>]*>([^<]*)</title>", body[:8192], re.I)
+            if m:
+                title = m.group(1).strip()[:80]
+            techs = detect_technologies(host_or_url, headers=headers, content=body)
+            return {
+                "url": host_or_url,
+                "host": host,
+                "code": code,
+                "server": headers.get("Server", ""),
+                "title": title,
+                "powered_by": headers.get("X-Powered-By", ""),
+                "drupal_cache": headers.get("X-Drupal-Cache", ""),
+                "technologies": techs,
+                "tech": techs,
+            }
+        return None
+
+    # Case 2: Contains path component (e.g. "server.vulnapp.id/mutillidae")
+    if "/" in host_or_url:
+        parts = host_or_url.split("/", 1)
+        host = parts[0].split(":")[0]
+        subpath = "/" + parts[1].strip("/")
+        for scheme in ("https", "http"):
+            url = f"{scheme}://{parts[0]}{subpath}"
+            code, headers, body = http_get(url, timeout=4)
+            if code == 0:
+                continue
+            title = ""
+            m = re.search(r"<title[^>]*>([^<]*)</title>", body[:8192], re.I)
+            if m:
+                title = m.group(1).strip()[:80]
+            techs = detect_technologies(url, headers=headers, content=body)
+            return {
+                "url": url,
+                "host": host,
+                "code": code,
+                "server": headers.get("Server", ""),
+                "title": title,
+                "powered_by": headers.get("X-Powered-By", ""),
+                "drupal_cache": headers.get("X-Drupal-Cache", ""),
+                "technologies": techs,
+                "tech": techs,
+            }
+        return None
+
+    # Case 3: Pure host or host:port
+    host = host_or_url.split(":")[0]
     for scheme in ("https", "http"):
-        url = f"{scheme}://{host}/"
+        url = f"{scheme}://{host_or_url}/"
         code, headers, body = http_get(url, timeout=4)
         if code == 0:
             continue
@@ -137,6 +195,7 @@ def recon_http_probe(host: str) -> dict | None:
         techs = detect_technologies(url, headers=headers, content=body)
         return {
             "url": url,
+            "host": host,
             "code": code,
             "server": headers.get("Server", ""),
             "title": title,
@@ -174,10 +233,11 @@ def write_recon_summary(
         "| Host | URL | Code | Server | Title |",
         "|---|---|---|---|---|",
     ]
-    for r in sorted(live, key=lambda x: x["host"]):
+    for r in sorted(live, key=lambda x: x.get("host", "")):
         title = (r.get("title") or "").replace("|", "\\|")[:50]
+        code_val = r.get("code", r.get("status", ""))
         lines.append(
-            f"| `{r['host']}` | {r['url']} | {r['code']} | {r.get('server','')} | {title} |"
+            f"| `{r.get('host', '')}` | {r.get('url', '')} | {code_val} | {r.get('server','')} | {title} |"
         )
 
     if cd_list:
@@ -399,6 +459,8 @@ def sync_recon_to_engagement(
             }
             endpoints.append(new_obj)
             existing_by_url[key] = new_obj
+        else:
+            known_cnt += 1
 
     for cd in cd_list:
         raw_cd_url = cd.get("url") or ""
@@ -701,10 +763,13 @@ def run_recon(
     target_dir = resolved_path
     target_dir.mkdir(parents=True, exist_ok=True)
 
+    logger.info("[RECON] Starting reconnaissance for target: %s", target)
+
     if proxy or burp:
         proxy_url = proxy or (detect_burp() or "http://127.0.0.1:8080")
         configure_http_proxy(proxy_url, insecure=True)
 
+    logger.info("[RECON] Subdomain enumeration started for host: %s", target_host)
     subs = set()
     subs |= recon_subdomains_via_crtsh(target_host)
     sf = recon_subdomains_via_subfinder(target_host)
@@ -714,15 +779,20 @@ def run_recon(
         subs.add(target_host)
     subs.add(target_host)
 
+    logger.info("[RECON] Discovered %d subdomains for %s: %s", len(subs), target_host, ", ".join(sorted(subs)[:5]))
+
     (target_dir / "subdomains.txt").write_text(
         "\n".join(sorted(subs)) + "\n", encoding="utf-8"
     )
 
+    logger.info("[RECON] DNS resolution started for %d subdomains", len(subs))
     resolved = {}
     for s in sorted(subs):
         ips = recon_resolve(s)
         if ips:
             resolved[s] = ips
+    logger.info("[RECON] Resolved %d live hostnames", len(resolved))
+
     (target_dir / "resolved.txt").write_text(
         "\n".join(f"{h}|{','.join(ips)}" for h, ips in sorted(resolved.items()))
         + "\n",
@@ -730,9 +800,12 @@ def run_recon(
     )
 
     hosts_to_probe = set(resolved.keys())
-    if ":" in target_clean:
+    if ":" in target_clean or "/" in target_clean:
         hosts_to_probe.add(target_clean)
+    if target.startswith("http://") or target.startswith("https://"):
+        hosts_to_probe.add(target)
 
+    logger.info("[RECON] HTTP probing started for %d endpoints", len(hosts_to_probe))
     live = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         futures = {ex.submit(recon_http_probe, h): h for h in hosts_to_probe}
@@ -742,6 +815,7 @@ def run_recon(
             if rec:
                 rec["host"] = host
                 live.append(rec)
+    logger.info("[RECON] Probing identified %d live HTTP services", len(live))
 
     (target_dir / "live-hosts.json").write_text(
         json.dumps(live, indent=2), encoding="utf-8"
@@ -749,12 +823,22 @@ def run_recon(
 
     # Content & unlinked path discovery sub-stage
     live_urls = [r["url"] for r in live if r.get("url")]
+    target_full_url = target if (target.startswith("http://") or target.startswith("https://")) else f"https://{target_clean}"
+    if target_full_url not in live_urls and target_full_url.rstrip("/") not in [u.rstrip("/") for u in live_urls]:
+        live_urls.insert(0, target_full_url)
+    elif target_full_url in live_urls:
+        live_urls.remove(target_full_url)
+        live_urls.insert(0, target_full_url)
+
     if not live_urls and resolved:
         live_urls = [f"https://{h}" for h in sorted(resolved)]
     if not live_urls:
-        live_urls = [f"https://{target}"]
+        live_urls = [target_full_url]
 
+    logger.info("[RECON] Content & route discovery started on %d live endpoints", len(live_urls))
     content_discovered = run_content_discovery(live_urls)
+    logger.info("[RECON] Content discovery mapped %d paths/parameters", len(content_discovered))
+
     (target_dir / "content-discovery.json").write_text(
         json.dumps(content_discovered, indent=2), encoding="utf-8"
     )
@@ -769,10 +853,44 @@ def run_recon(
     tot_disc, new_cnt, known_cnt = sync_recon_to_engagement(
         target, subs, resolved, live, content_discovered=content_discovered, base_dir=base_dir
     )
+    logger.info("[DONE] Reconnaissance complete for %s — %d endpoints processed (%d new, %d already known)", target, tot_disc, new_cnt, known_cnt)
+
+    exec_id: str | None = None
+    try:
+        from nyx.execution.engine import ExecutionEngine
+        from nyx.models.execution import ExecutionResult, ExecutionStatus
+        import uuid
+
+        exec_id = f"EXEC-{uuid.uuid4().hex[:8].upper()}"
+        engine = ExecutionEngine(base_dir=base_dir)
+        exec_result = ExecutionResult(
+            execution_id=exec_id,
+            tool_name="nyx-recon",
+            target=target,
+            status=ExecutionStatus.COMPLETED.value,
+            exit_code=0,
+            stdout=f"Passive recon harvested {tot_disc} endpoints ({new_cnt} new, {known_cnt} existing).",
+            stderr="",
+            artifacts={
+                "manifest_path": str(manifest_path),
+                "summary_path": str(summary_path),
+                "endpoints_count": tot_disc,
+                "subdomains_count": len(subs),
+                "resolved_count": len(resolved),
+                "live_count": len(live),
+            },
+            execution_class="PASSIVE_READ",
+            authorized=True,
+            scope_status="CONFIGURED",
+        )
+        engine.log_execution_to_db(exec_result)
+    except Exception:
+        pass
 
     return {
         "status": "success",
         "target": target,
+        "execution_id": exec_id,
         "out_dir": str(target_dir),
         "subdomains_count": len(subs),
         "resolved_count": len(resolved),

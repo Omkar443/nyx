@@ -2,11 +2,12 @@
 NYX Mission System Core Engine
 Orchestrates end-to-end multi-agent security intelligence missions.
 """
-from __future__ import annotations
+import os
 import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from nyx.interface.output import color, say, section
 from nyx.infrastructure.filesystem import _get_eng_dir
 from nyx.security.authorization import check_authorization
@@ -42,7 +43,9 @@ def status_mission() -> int:
     return 0 if res.get("status") == "success" else 1
 
 
-def run_mission(target: str) -> int:
+def run_mission(target: str, provider: Optional[str] = None) -> int:
+    if provider:
+        os.environ["NYX_AI_PROVIDER"] = provider
     section("NYX Mission Started")
     say(f"Target: {color(target, 'bold')}\n")
 
@@ -74,8 +77,8 @@ def run_mission(target: str) -> int:
     from nyx.application.fleet_service import FleetService
     from nyx.application.worker_service import WorkerService
 
-    fleet_svc = FleetService()
-    worker_svc = WorkerService()
+    fleet_svc = FleetService(provider_name=provider)
+    worker_svc = WorkerService(provider_name=provider)
 
     # Reuse or create agents
     def get_or_create_agent(agent_type: str) -> str:

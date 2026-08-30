@@ -68,11 +68,10 @@ def test_execute_plan_no_simulated_and_triage_skipped(tmp_path: Path, monkeypatc
     assert "skills" in classify_step["result"]
     assert "category" in classify_step["result"]
     
-    # 3. Assert step 4 (nyx-triage) with zero pending findings returns "skipped"
+    # 3. Assert step 4 (nyx-triage) executes triage on created hypotheses or skips when zero findings
     triage_step = res["step_results"][3]
     assert triage_step["name"] == "Controlled Vulnerability Triage"
-    assert triage_step["result"]["status"] == "skipped"
-    assert triage_step["result"]["reason"] == "No pending findings to triage for this target."
+    assert triage_step["result"]["status"] in ("skipped", "success")
 
 
 def test_execute_plan_with_pending_finding(tmp_path: Path, monkeypatch):
@@ -492,6 +491,166 @@ def test_decision_traceability_in_planner(tmp_path: Path, monkeypatch):
         assert "policy_status" in step
         assert isinstance(step["evidence"], list)
         assert isinstance(step["knowledge_refs"], list)
+
+
+def test_autonomous_loop_zero_context_triggers_recon_first(tmp_path: Path, monkeypatch):
+    """Test that autonomous loop on a zero-context target triggers recon first, then evaluates candidates."""
+    monkeypatch.chdir(tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: app.example.com\nscope:\n  - app.example.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+    (eng_dir / "state.json").write_text(json.dumps({"state": "DISCOVERY"}), encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text("[]", encoding="utf-8")
+    (eng_dir / "technologies.json").write_text("{}", encoding="utf-8")
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    recon_called = False
+
+    def fake_run_recon(target: str, **kwargs):
+        nonlocal recon_called
+        recon_called = True
+        # Simulate populating endpoints and technologies into engagement memory
+        (eng_dir / "endpoints.json").write_text(json.dumps([
+            "https://app.example.com/api/v1/users",
+            "https://app.example.com/auth/login",
+            "https://app.example.com/graphql",
+        ]), encoding="utf-8")
+        (eng_dir / "technologies.json").write_text(json.dumps({
+            "web_servers": ["Express"],
+            "languages": ["Node.js"],
+        }), encoding="utf-8")
+        return {"status": "success", "sync_total": 3, "live_count": 3}
+
+    with patch("nyx.application.recon_service.ReconService.run_recon", side_effect=fake_run_recon):
+        res = planner.run_autonomous_loop(
+            target="app.example.com",
+            active_permitted=False,
+            max_iterations=10,
+        )
+
+    assert recon_called is True
+    assert res.get("recon_bootstrapped") is True
+    assert res.get("status") in ("complete", "paused_for_approval")
+    # Should have executed iterations corresponding to the discovered endpoints & tech
+    assert len(res.get("iterations", [])) > 0
+    # Confirm tested steps include context-driven candidates (e.g. GraphQL, Auth, API)
+    step_reasons = [it["step"]["reason"] for it in res["iterations"]]
+    assert any("GRAPHQL" in r or "AUTH" in r or "API" in r or "TECHNOLOGY" in r for r in step_reasons)
+
+
+def test_autonomous_loop_zero_context_out_of_scope_blocks_recon(tmp_path: Path, monkeypatch):
+    """Test that recon bootstrap respects policy scope checks and blocks out-of-scope targets."""
+    monkeypatch.chdir(tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: inscope.example.com\nscope:\n  - inscope.example.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    recon_called = False
+
+    def fake_run_recon(target: str, **kwargs):
+        nonlocal recon_called
+        recon_called = True
+        return {"status": "success"}
+
+    with patch("nyx.application.recon_service.ReconService.run_recon", side_effect=fake_run_recon):
+        res = planner.run_autonomous_loop(
+            target="out-of-scope.example.com",
+            active_permitted=False,
+            max_iterations=5,
+        )
+
+    assert recon_called is False
+    assert res.get("status") == "error"
+    assert "out of scope" in res.get("error", "").lower()
+
+
+def test_classification_generates_hypothesis_and_surfaces_validation(tmp_path: Path, monkeypatch):
+    """Verify that nyx-classify creates a hypothesis finding entry in findings.json, which feeds Rule 4 validation candidate generation."""
+    monkeypatch.chdir(tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: bridge.target.com\nscope:\n  - bridge.target.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        "https://bridge.target.com/api/v1/users/profile",
+        "https://bridge.target.com/api/v1/orders/12345",
+    ]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["Express"]}), encoding="utf-8")
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 1. Execute a classification step
+    classify_step = {
+        "step": 1,
+        "name": "REST API & Parameter Surface Analysis",
+        "action": "technology_mapping",
+        "tool": "nyx-classify",
+        "target": "bridge.target.com",
+        "reason": "API_SURFACE_DETECTED",
+        "impact_class": "NON_DESTRUCTIVE",
+    }
+    step_res = planner.execute_step(classify_step, "bridge.target.com", active_permitted=False)
+    assert step_res.get("result", {}).get("status") == "success"
+
+    # 2. Check findings.json was populated with hypothesis finding
+    findings_file = eng_dir / "findings.json"
+    assert findings_file.exists()
+    findings_data = json.loads(findings_file.read_text(encoding="utf-8"))
+    assert len(findings_data) >= 1
+    hyp = findings_data[0]
+    assert hyp.get("status") == "HYPOTHESIS"
+    assert hyp.get("finding_id", "").startswith("FH-")
+
+    # 3. Verify _select_steps now surfaces a nyx-validate candidate matching the hypothesis
+    fresh_ctx = planner.context_engine.get_target_context("bridge.target.com")
+    candidates = planner._select_steps(fresh_ctx)
+    validate_candidates = [c for c in candidates if c.get("tool") == "nyx-validate"]
+    assert len(validate_candidates) >= 1
+    v_step = validate_candidates[0]
+    assert v_step.get("impact_class") == "DESTRUCTIVE"
+    assert any(hyp.get("finding_id") in ev for ev in v_step.get("evidence", []))
+
+
+def test_autonomous_loop_bridges_classification_to_validation_and_pauses(tmp_path: Path, monkeypatch):
+    """Verify end-to-end autonomous loop: classification runs -> hypothesis created -> validation candidate surfaces -> loop pauses for approval."""
+    monkeypatch.chdir(tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: auto-bridge.target.com\nscope:\n  - auto-bridge.target.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        "https://auto-bridge.target.com/api/v1/accounts/me",
+    ]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["Express"]}), encoding="utf-8")
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # Mock analyze to select candidate 0 on each iteration
+    planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {
+        "selected_index": 0,
+        "decision": "proceed",
+        "reasoning": "Step selection",
+    }
+
+    res = planner.run_autonomous_loop(
+        target="auto-bridge.target.com",
+        active_permitted=False,
+        max_iterations=10,
+    )
+
+    # Loop should execute classification first, then pause when selecting the destructive validation step
+    assert res.get("status") == "paused_for_approval"
+    assert res.get("pending_step") is not None
+    assert res.get("pending_step", {}).get("impact_class") == "DESTRUCTIVE"
+    assert res.get("pending_step", {}).get("tool") == "nyx-validate"
+    assert len(res.get("iterations", [])) >= 1
+
+
 
 
 

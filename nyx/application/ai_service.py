@@ -60,10 +60,21 @@ class AIService(BaseService):
         except Exception as ex:
             return self.fail(message=f"Error generating context: {ex}", error_code="CONTEXT_ERROR")
 
-    def plan_mission(self, target: str, provider_name: Optional[str] = None) -> ServiceResult:
+    def plan_mission(
+        self,
+        target: str,
+        vulnerability_type: Optional[str] = None,
+        provider_name: Optional[str] = None,
+        context_override: Optional[Dict[str, Any]] = None,
+    ) -> ServiceResult:
         """Generate a policy-validated security mission plan."""
         try:
-            plan = self.planner.create_plan(target, provider_name=provider_name)
+            plan = self.planner.create_plan(
+                target,
+                vulnerability_type=vulnerability_type,
+                provider_name=provider_name,
+                context_override=context_override,
+            )
             if plan.get("status") == "error":
                 return self.fail(
                     message=plan.get("error", "Mission plan generation failed."),
@@ -106,6 +117,31 @@ class AIService(BaseService):
             return self.ok(data=exec_res, message=f"Mission executed for '{target}'.")
         except Exception as ex:
             return self.fail(message=f"Error executing mission plan: {ex}", error_code="PLANNER_ERROR")
+
+    def run_autonomous_loop(
+        self,
+        target: str,
+        provider_name: Optional[str] = None,
+        active_permitted: bool = False,
+        max_iterations: int = 15,
+    ) -> ServiceResult:
+        """Execute autonomous mission loop via planner."""
+        try:
+            res = self.planner.run_autonomous_loop(
+                target=target,
+                provider_name=provider_name,
+                active_permitted=active_permitted,
+                max_iterations=max_iterations,
+            )
+            if res.get("status") == "error":
+                return self.fail(
+                    message=res.get("error", "Autonomous loop failed."),
+                    error_code="SCOPE_ERROR" if res.get("error") == "out of scope" else "LOOP_FAILED",
+                    details=res,
+                )
+            return self.ok(data=res, message=f"Autonomous loop finished for '{target}' with status '{res.get('status')}'.")
+        except Exception as ex:
+            return self.fail(message=f"Error executing autonomous loop: {ex}", error_code="PLANNER_ERROR")
 
     def get_status(self) -> ServiceResult:
         """Retrieve overall AI orchestration status."""

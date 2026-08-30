@@ -13,12 +13,14 @@ from nyx.execution.adapters.nuclei import NucleiAdapter
 from nyx.execution.adapters.nmap import NmapAdapter
 from nyx.execution.adapters.ffuf import FfufAdapter
 from nyx.execution.adapters.probe import ProbeAdapter
+from nyx.execution.adapters.sqlmap import SqlmapAdapter
 
 _ADAPTER_REGISTRY: dict[str, Type[ToolAdapter]] = {
     "subfinder": SubfinderAdapter,
     "httpx": HttpxAdapter,
     "katana": KatanaAdapter,
     "nuclei": NucleiAdapter,
+    "sqlmap": SqlmapAdapter,
     "nmap": NmapAdapter,
     "ffuf": FfufAdapter,
     "probe": ProbeAdapter,
@@ -52,6 +54,7 @@ __all__ = [
     "HttpxAdapter",
     "KatanaAdapter",
     "NucleiAdapter",
+    "SqlmapAdapter",
     "NmapAdapter",
     "FfufAdapter",
     "ProbeAdapter",

@@ -492,25 +492,26 @@ def cmd_recon(args: argparse.Namespace) -> int:
         burp=getattr(args, "burp", False),
     )
 
-    if res.get("status") == "error":
-        say(color(f"  [error] {res.get('message')}", "red"))
+    data = res.get("data", res) if isinstance(res, dict) else {}
+    if res.get("status") == "error" or not res.get("success", True):
+        say(color(f"  [error] {res.get('error') or res.get('message') or data.get('message')}", "red"))
         return 1
 
     section("SUMMARY")
-    say(f"  Target:            {res.get('target')}")
-    say(f"  Subdomains:        {res.get('subdomains_count')}")
-    say(f"  Resolved:          {res.get('resolved_count')}")
-    say(f"  HTTP-live:         {res.get('live_count')}")
-    say(f"  Content-paths:     {res.get('content_discovery_count', 0)}")
-    say(f"  Output:            {res.get('out_dir')}")
-    tot_disc = res.get("sync_total", 0)
+    say(f"  Target:            {data.get('target') or target}")
+    say(f"  Subdomains:        {data.get('subdomains_count', 0)}")
+    say(f"  Resolved:          {data.get('resolved_count', 0)}")
+    say(f"  HTTP-live:         {data.get('live_count', 0)}")
+    say(f"  Content-paths:     {data.get('content_discovery_count', 0)}")
+    say(f"  Output:            {data.get('out_dir') or 'engagement memory'}")
+    tot_disc = data.get("sync_total", 0)
     if tot_disc > 0:
         say()
         say("Recon completed.")
         say(f"Discovered: {tot_disc} endpoints")
-        say(f"New: {res.get('sync_new')}")
-        say(f"Already known: {res.get('sync_known')}")
-        say(f"Added to engagement memory: {res.get('sync_new')}")
+        say(f"New: {data.get('sync_new', 0)}")
+        say(f"Already known: {data.get('sync_known', 0)}")
+        say(f"Added to engagement memory: {data.get('sync_new', 0)}")
     say()
     say(f"  Next: {color('nyx classify <url>', 'bold')} for fast pattern-match, or {color('/hunt <target>', 'bold')} in NYX AI Code for full LLM-driven hunting")
     return 0
@@ -2393,11 +2394,49 @@ def cmd_agent(args: argparse.Namespace) -> int:
         say(color(f"NYX Autonomous Research Plan for '{target}':", "bold"))
         say(json.dumps(res.data, indent=2))
         return 0
+    elif subcmd == "approvals":
+        res = svc.get_approvals()
+        if not res.is_success:
+            say(color(f"Error: {res.error}", "red"))
+            return 1
+        data = res.data or {}
+        pending = data.get("pending", [])
+        say(color(f"NYX Pending Action Approvals ({len(pending)} pending):", "bold"))
+        if not pending:
+            say("  No pending approvals.")
+            return 0
+        for item in pending:
+            aid = item.get("action_id", "UNKNOWN")
+            tgt = item.get("target", "unknown")
+            act = item.get("action", "unknown")
+            tool = item.get("tool_name") or item.get("tool") or "unknown"
+            impact = item.get("impact_class", "UNKNOWN")
+            just = item.get("impact_justification", "")
+            say(f"  • {color(aid, 'yellow')} [{color(impact, 'red' if impact == 'DESTRUCTIVE' else 'green')}] {tool} -> {act}")
+            say(f"    Target: {tgt}")
+            if just:
+                say(f"    Justification: {just}")
+        return 0
     elif subcmd == "approve":
         action_id = getattr(args, "action_id", "")
         res = svc.approve_action(action_id)
         if res.is_success:
-            say(color(f"Action '{action_id}' approved successfully.", "green"))
+            say(color(f"Action '{action_id}' approved and executed successfully.", "green"))
+            exec_res = res.data.get("execution_result") if isinstance(res.data, dict) else None
+            if exec_res:
+                tool_used = exec_res.get("tool")
+                status_v = exec_res.get("result", {}).get("status") if isinstance(exec_res.get("result"), dict) else "completed"
+                say(f"  Tool: {tool_used} | Status: {status_v}")
+            return 0
+        else:
+            say(color(f"Error: {res.error}", "red"))
+            return 1
+    elif subcmd == "deny":
+        action_id = getattr(args, "action_id", "")
+        reason = getattr(args, "reason", "")
+        res = svc.deny_action(action_id, reason=reason)
+        if res.is_success:
+            say(color(f"Action '{action_id}' denied successfully.", "yellow"))
             return 0
         else:
             say(color(f"Error: {res.error}", "red"))
@@ -2408,7 +2447,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         say(json.dumps(res.data, indent=2))
         return 0
 
-    say(color("Usage: nyx agent [start|context|plan|approve|status]", "yellow"))
+    say(color("Usage: nyx agent [start|context|plan|approvals|approve|deny|status]", "yellow"))
     return 1
 
 
@@ -2435,7 +2474,8 @@ def cmd_web(args: argparse.Namespace) -> int:
     say(f" API Docs:      http://{dashboard_host}:{port}/api/docs")
     say(f" Authentication: ENABLED (Token configured)")
     say(f" API Token:     {token[:8]}...{token[-4:]}")
-    say(color("=" * 60, "cyan") + "\n")
+    from nyx.infrastructure.logging import setup_logging
+    setup_logging()
 
     import uvicorn
     uvicorn.run("nyx.web.app:app", host=host, port=port, reload=False)
@@ -2633,7 +2673,85 @@ def cmd_ai(args: argparse.Namespace) -> int:
         say(f"Failed Approaches:  {data.get('failed_approaches_count')}")
         return 0
 
-    say(color("  [error] Unknown AI subcommand. Supported: providers, test [provider], context, plan <target>, status", "red"))
+    elif subcmd == "autonomous":
+        if not target:
+            say(color("  [error] Target is required for autonomous mission (e.g. nyx ai autonomous example.com)", "red"))
+            return 1
+
+        active_perm = getattr(args, "active_permitted", False)
+        if sys.argv and "--active-permitted" in sys.argv:
+            active_perm = True
+
+        provider = getattr(args, "provider", None)
+        if not provider and sys.argv and "--provider" in sys.argv:
+            try:
+                p_idx = sys.argv.index("--provider")
+                if p_idx + 1 < len(sys.argv):
+                    provider = sys.argv[p_idx + 1]
+            except Exception:
+                pass
+
+        max_iter = getattr(args, "max_iterations", 15)
+        if sys.argv and "--max-iterations" in sys.argv:
+            try:
+                m_idx = sys.argv.index("--max-iterations")
+                if m_idx + 1 < len(sys.argv):
+                    max_iter = int(sys.argv[m_idx + 1])
+            except Exception:
+                pass
+
+        is_json = getattr(args, "json", False) or (sys.argv and "--json" in sys.argv)
+
+        res = service.planner.run_autonomous_loop(
+            target=target,
+            provider_name=provider,
+            active_permitted=active_perm,
+            max_iterations=max_iter,
+        )
+
+        if is_json:
+            print(json.dumps(res, indent=2))
+            return 0 if res.get("status") != "error" else 1
+
+        status_val = res.get("status", "unknown")
+        status_color = "green" if status_val in ("complete", "success") else ("yellow" if status_val in ("paused_for_approval", "escalated") else "red")
+
+        section(f"NYX AI Autonomous Mission Loop — {target}")
+        say(f"Target:          {color(target, 'cyan')}")
+        say(f"Loop Status:     {color(status_val.upper(), status_color)}")
+        say(f"Iterations Run:  {len(res.get('iterations', []))}")
+
+        if status_val == "paused_for_approval":
+            p_step = res.get("pending_step", {})
+            say("")
+            say(color(f"  [PAUSED] Destructive Step Pending Approval: {p_step.get('name')} ({p_step.get('tool')})", "yellow"))
+            say(f"  Impact: {p_step.get('impact_justification', 'Modifies system/database state')}")
+        elif status_val == "escalated":
+            e_step = res.get("escalated_step", {})
+            say("")
+            say(color(f"  [ESCALATED] Strategic Escalation Triggered on: {e_step.get('name')}", "yellow"))
+        elif status_val == "blocked":
+            b_step = res.get("blocked_step", {})
+            say("")
+            say(color(f"  [BLOCKED] Policy Blocked Step: {b_step.get('name')}", "red"))
+        elif status_val == "error":
+            say("")
+            say(color(f"  [ERROR] {res.get('error', 'Execution error')}", "red"))
+            return 1
+
+        if res.get("iterations"):
+            say("")
+            say("Execution Timeline:")
+            for it in res["iterations"]:
+                it_idx = it.get("iteration")
+                s = it.get("step", {})
+                r = it.get("result", {})
+                r_status = r.get("status") if isinstance(r, dict) else "completed"
+                say(f"  [{it_idx}] {color(s.get('name', 'Step'), 'bold')} ({s.get('tool')}) -> {r_status}")
+
+        return 0
+
+    say(color("  [error] Unknown AI subcommand. Supported: providers, test [provider], context, plan <target>, execute <target>, autonomous <target>, status", "red"))
     return 1
 
 
@@ -2754,7 +2872,7 @@ def cmd_mission(args: argparse.Namespace) -> int:
     elif subcmd == "status":
         return status_mission()
     elif subcmd == "run":
-        return run_mission(args.target)
+        return run_mission(args.target, provider=getattr(args, "provider", None))
     return 0
 
 
@@ -3312,24 +3430,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
-    try:
-        load_dotenv(REPO_ROOT / ".env", override=False)
-    except Exception:
-        pass
-
-    if hasattr(sys.stdout, "reconfigure"):
-        try:
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
-
-    prog_name = "nyx"
-    if sys.argv and sys.argv[0]:
-        base = Path(sys.argv[0]).stem.lower()
-        if base in ("nyx", "nyx"):
-            prog_name = base
-
+def build_parser(prog_name: str = "nyx") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=prog_name,
         description=f"{APP_NAME} - Antigravity-native terminal runner.",
@@ -3473,12 +3574,14 @@ def main() -> int:
 
     p_mis_run = p_mis_sub.add_parser("run", help="run end-to-end security research mission")
     p_mis_run.add_argument("target", help="target domain")
+    p_mis_run.add_argument("--provider", default=None, help="AI provider to use (gemini, grok, groq, claude, openai, local). Defaults to active provider.")
     p_mis_run.set_defaults(func=cmd_mission)
 
     # nyx run-mission top-level parser
     p_run_mis = sub.add_parser("run-mission", help="run end-to-end automated security research mission with live validation")
     p_run_mis.add_argument("target", help="target domain or URL")
-    p_run_mis.set_defaults(func=lambda args: cmd_mission(argparse.Namespace(mission_subcommand="run", target=args.target)))
+    p_run_mis.add_argument("--provider", default=None, help="AI provider to use (gemini, grok, groq, claude, openai, local). Defaults to active provider.")
+    p_run_mis.set_defaults(func=lambda args: cmd_mission(argparse.Namespace(mission_subcommand="run", target=args.target, provider=getattr(args, "provider", None))))
 
     # nyx knowledge subparsers
     p_kno = sub.add_parser("knowledge", help="search or inspect NYX Security Knowledge Base")
@@ -3739,9 +3842,17 @@ def main() -> int:
     p_ag_plan.add_argument("target", nargs="?", default="example.com", help="target domain")
     p_ag_plan.set_defaults(func=cmd_agent)
 
+    p_ag_approvals = p_agent_sub.add_parser("approvals", help="list pending action approval requests")
+    p_ag_approvals.set_defaults(func=cmd_agent)
+
     p_ag_app = p_agent_sub.add_parser("approve", help="approve execution of proposed action")
     p_ag_app.add_argument("action_id", help="action ID (e.g. ACT-12345678)")
     p_ag_app.set_defaults(func=cmd_agent)
+
+    p_ag_deny = p_agent_sub.add_parser("deny", help="deny proposed action")
+    p_ag_deny.add_argument("action_id", help="action ID (e.g. ACT-12345678)")
+    p_ag_deny.add_argument("--reason", default="", help="reason for denial")
+    p_ag_deny.set_defaults(func=cmd_agent)
 
     p_ag_stat = p_agent_sub.add_parser("status", help="show agent status & pending approval queue")
     p_ag_stat.set_defaults(func=cmd_agent)
@@ -3780,11 +3891,41 @@ def main() -> int:
     p_ai_execute.add_argument("--active-permitted", action="store_true", help="allow ACTIVE-class execution steps, not just dry-run")
     p_ai_execute.set_defaults(func=cmd_ai)
 
+    p_ai_auto = p_ai_sub.add_parser("autonomous", help="run autonomous AI security mission loop")
+    p_ai_auto.add_argument("target", help="target domain")
+    p_ai_auto.add_argument("--provider", default=None, help="AI provider to use (gemini, openai, grok, groq, local, claude). Defaults to active provider.")
+    p_ai_auto.add_argument("--active-permitted", action="store_true", default=False, help="allow ACTIVE-class execution steps, not just dry-run")
+    p_ai_auto.add_argument("--max-iterations", type=int, default=15, help="maximum iterations for the autonomous loop (default: 15)")
+    p_ai_auto.add_argument("--json", action="store_true", help="output raw JSON results")
+    p_ai_auto.set_defaults(func=cmd_ai)
+
     p_ai_stat = p_ai_sub.add_parser("status", help="show NYX AI integration status")
     p_ai_stat.set_defaults(func=cmd_ai)
     p_ai.set_defaults(func=cmd_ai)
 
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv=None) -> int:
+    try:
+        load_dotenv(REPO_ROOT / ".env", override=False)
+    except Exception:
+        pass
+
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+    prog_name = "nyx"
+    if sys.argv and sys.argv[0]:
+        base = Path(sys.argv[0]).stem.lower()
+        if base in ("nyx", "nyx"):
+            prog_name = base
+
+    parser = build_parser(prog_name=prog_name)
+    args = parser.parse_args(argv)
 
     if not hasattr(args, "func"):
         parser.print_help()

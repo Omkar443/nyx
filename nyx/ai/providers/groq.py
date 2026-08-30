@@ -16,13 +16,25 @@ from nyx.ai.base import AIProvider
 logger = logging.getLogger(__name__)
 
 try:
+    from groq import Groq
+    HAS_GROQ_NATIVE_SDK = True
+except ImportError:
+    Groq = None  # type: ignore
+    HAS_GROQ_NATIVE_SDK = False
+
+try:
     import openai
-    import httpx
-    HAS_GROQ_SDK = True
+    HAS_OPENAI_SDK = True
 except ImportError:
     openai = None  # type: ignore
+    HAS_OPENAI_SDK = False
+
+try:
+    import httpx
+except ImportError:
     httpx = None  # type: ignore
-    HAS_GROQ_SDK = False
+
+HAS_GROQ_SDK = HAS_GROQ_NATIVE_SDK or HAS_OPENAI_SDK
 
 
 def _sanitize_error(error_msg: str) -> str:
@@ -37,34 +49,73 @@ def _sanitize_error(error_msg: str) -> str:
     return clean
 
 
-def _classify_groq_error(ex: Exception) -> Dict[str, str]:
-    """Classify and normalize Groq SDK exceptions into clean user-facing error structures."""
+def _classify_groq_error(ex: Exception) -> Dict[str, Any]:
+    """Classify and normalize Groq SDK exceptions into clean user-facing error structures with full details."""
     if ex is None:
-        return {"status": "error", "message": "Unknown error", "details": ""}
+        return {"status": "error", "message": "Unknown error", "details": "", "status_code": None}
+
+    status_code = getattr(ex, "status_code", None)
+    if status_code is None and hasattr(ex, "response") and ex.response is not None:
+        status_code = getattr(ex.response, "status_code", None)
+    if status_code is None and hasattr(ex, "code") and isinstance(getattr(ex, "code"), int):
+        status_code = getattr(ex, "code")
 
     err_str = _sanitize_error(str(ex))
     err_lower = err_str.lower()
+    code_tag = f" [HTTP {status_code}]" if status_code else ""
 
     if "timeout" in err_lower or "timed out" in err_lower:
-        return {"status": "error", "message": "Groq API connection timed out", "details": ""}
+        return {
+            "status": "error",
+            "error_type": "timeout",
+            "message": f"Groq API connection timed out{code_tag}: {err_str}",
+            "details": err_str,
+            "status_code": status_code,
+        }
 
     if any(k in err_lower for k in ["500", "502", "503", "504", "service unavailable", "bad gateway"]):
         return {
             "status": "service_unavailable",
-            "message": "Groq service temporarily unavailable",
-            "details": "The selected Groq model is currently overloaded. Retry later."
+            "error_type": "service_unavailable",
+            "message": f"Groq service temporarily unavailable{code_tag}: {err_str}",
+            "details": "The selected Groq model is currently overloaded. Retry later.",
+            "status_code": status_code,
         }
 
     if any(k in err_lower for k in ["quota", "rate limit", "429", "too many requests"]):
-        return {"status": "error", "message": "Groq API rate limit/quota reached", "details": ""}
+        return {
+            "status": "error",
+            "error_type": "rate_limit",
+            "message": f"Groq API rate limit/quota reached{code_tag}: {err_str}",
+            "details": err_str,
+            "status_code": status_code,
+        }
 
     if any(k in err_lower for k in ["api_key_invalid", "unauthenticated", "401", "403", "invalid api key"]):
-        return {"status": "error", "message": "Groq API authentication failed", "details": ""}
+        return {
+            "status": "error",
+            "error_type": "auth_error",
+            "message": f"Groq API authentication failed{code_tag}: {err_str}",
+            "details": err_str,
+            "status_code": status_code,
+        }
 
     if any(k in err_lower for k in ["connect", "ssl", "handshake", "getaddrinfo", "connection refused", "socket", "network is unreachable"]):
-        return {"status": "error", "message": "Unable to connect to Groq API", "details": ""}
+        return {
+            "status": "error",
+            "error_type": "connection_error",
+            "message": f"Unable to connect to Groq API{code_tag}: {err_str}",
+            "details": err_str,
+            "status_code": status_code,
+        }
 
-    return {"status": "error", "message": f"Groq API request failed: {err_str}", "details": ""}
+    return {
+        "status": "error",
+        "error_type": "request_error",
+        "message": f"Groq API request failed{code_tag}: {err_str}",
+        "details": err_str,
+        "status_code": status_code,
+    }
 
 
 def _run_daemon_bounded(
@@ -120,21 +171,44 @@ class GroqProvider(AIProvider):
 
     def _get_client(self) -> tuple[Optional[Any], Optional[str]]:
         if not HAS_GROQ_SDK:
-            return None, "openai Python SDK is not installed (pip install openai)"
+            return None, "groq or openai Python SDK is not installed (pip install groq or pip install openai)"
 
         key = self.api_key or os.environ.get("GROQ_API_KEY")
         if not key:
             return None, "GROQ_API_KEY environment variable is not configured in the current process environment"
 
         try:
-            timeout_cfg = httpx.Timeout(self.timeout_ms / 1000.0)
-            client = openai.OpenAI(
-                api_key=key,
-                base_url="https://api.groq.com/openai/v1",
-                timeout=timeout_cfg,
-                max_retries=0  # Disable hidden SDK retries
-            )
-            return client, None
+            http_client = None
+            if httpx is not None:
+                timeout_cfg = httpx.Timeout(self.timeout_ms / 1000.0)
+                # Force IPv4 socket binding to prevent WSL2 IPv6 connection delays/stalls
+                transport = httpx.HTTPTransport(local_address="0.0.0.0")
+                http_client = httpx.Client(timeout=timeout_cfg, transport=transport)
+
+            if HAS_GROQ_NATIVE_SDK and Groq is not None:
+                if http_client is not None:
+                    client = Groq(api_key=key, http_client=http_client, max_retries=0)
+                else:
+                    client = Groq(api_key=key, timeout=self.timeout_ms / 1000.0, max_retries=0)
+                return client, None
+            elif HAS_OPENAI_SDK and openai is not None:
+                if http_client is not None:
+                    client = openai.OpenAI(
+                        api_key=key,
+                        base_url="https://api.groq.com/openai/v1",
+                        http_client=http_client,
+                        max_retries=0,
+                    )
+                else:
+                    client = openai.OpenAI(
+                        api_key=key,
+                        base_url="https://api.groq.com/openai/v1",
+                        timeout=self.timeout_ms / 1000.0,
+                        max_retries=0,
+                    )
+                return client, None
+            else:
+                return None, "groq or openai Python SDK is not installed"
         except Exception as ex:
             return None, f"Failed to initialize Groq client: {_sanitize_error(str(ex))}"
 
@@ -178,12 +252,22 @@ class GroqProvider(AIProvider):
             response = client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": "You are a test client."},
                     {"role": "user", "content": "Say OK if you can read this."}
                 ],
-                max_tokens=10,
+                max_completion_tokens=512,
             )
-            return response.choices[0].message.content
+            choice = response.choices[0] if response.choices else None
+            if not choice:
+                raise ValueError("Groq API returned empty choices list in completion response")
+            msg = choice.message
+            content = getattr(msg, "content", None) or getattr(msg, "reasoning", None) or ""
+            if not content.strip():
+                finish_reason = getattr(choice, "finish_reason", "unknown")
+                raise ValueError(
+                    f"Groq model returned empty content (finish_reason: {finish_reason}, "
+                    f"tokens exhausted by reasoning or model generated no text)"
+                )
+            return content
 
         logger.info(f"Groq test_connection request started (model: {self.model_name})")
         try:
@@ -210,7 +294,13 @@ class GroqProvider(AIProvider):
             err_dict["provider"] = self.provider_name
             err_dict["model"] = self.model_name
             err_dict["success"] = False
-            logger.error(f"Groq API error category: {err_dict['status']}")
+            code_str = f" [HTTP {err_dict['status_code']}]" if err_dict.get("status_code") else ""
+            logger.error(
+                "Groq API error [%s%s]: %s",
+                err_dict.get("status", "error"),
+                code_str,
+                err_dict.get("message", str(ex)),
+            )
             return err_dict
 
     def generate(self, prompt: str, options: Optional[Dict[str, Any]] = None) -> str:
@@ -218,12 +308,40 @@ class GroqProvider(AIProvider):
         if not client:
             raise ValueError(f"Groq provider not initialized: {err}")
 
+        opts = options or {}
+        max_tokens = opts.get("max_tokens") or opts.get("max_completion_tokens") or 1024
+
         def _do_generate():
-            response = client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.choices[0].message.content
+            kwargs: Dict[str, Any] = {
+                "model": self.model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_completion_tokens": max_tokens,
+            }
+            if "temperature" in opts:
+                kwargs["temperature"] = opts["temperature"]
+            try:
+                response = client.chat.completions.create(**kwargs)
+            except Exception as e:
+                err_msg = str(e).lower()
+                if "max_completion_tokens" in err_msg or "unrecognized" in err_msg or "extra_forbidden" in err_msg:
+                    kwargs.pop("max_completion_tokens", None)
+                    kwargs["max_tokens"] = max_tokens
+                    response = client.chat.completions.create(**kwargs)
+                else:
+                    raise
+
+            choice = response.choices[0] if response.choices else None
+            if not choice:
+                raise ValueError("Groq API returned empty choices list in completion response")
+            msg = choice.message
+            content = getattr(msg, "content", None) or getattr(msg, "reasoning", None) or ""
+            if not content.strip():
+                finish_reason = getattr(choice, "finish_reason", "unknown")
+                raise ValueError(
+                    f"Groq model returned empty content (finish_reason: {finish_reason}, "
+                    f"tokens exhausted by reasoning or model generated no text)"
+                )
+            return content
 
         logger.info(f"Groq generate request started (model: {self.model_name})")
         try:
@@ -235,8 +353,14 @@ class GroqProvider(AIProvider):
             raise RuntimeError("Groq API Error: Groq API connection timed out")
         except Exception as ex:
             err_dict = _classify_groq_error(ex)
-            logger.error(f"Groq API error category: {err_dict['status']}")
-            raise RuntimeError(f"Groq API Error: {err_dict['message']} - {err_dict['details']}")
+            code_str = f" [HTTP {err_dict['status_code']}]" if err_dict.get("status_code") else ""
+            logger.error(
+                "Groq API error [%s%s]: %s",
+                err_dict.get("status", "error"),
+                code_str,
+                err_dict.get("message", str(ex)),
+            )
+            raise RuntimeError(f"Groq API Error ({err_dict.get('status', 'error')}{code_str}): {err_dict.get('message', str(ex))}")
 
     def analyze(self, context: Dict[str, Any], prompt: Optional[str] = None) -> Dict[str, Any]:
         """Perform security context analysis using Groq."""
@@ -278,6 +402,7 @@ class GroqProvider(AIProvider):
 
         # Parse JSON output
         focus, reasoning = None, None
+        data: Optional[Dict[str, Any]] = None
         if generated and isinstance(generated, str):
             clean_text = generated.strip()
             if clean_text.startswith("```"):
@@ -290,22 +415,25 @@ class GroqProvider(AIProvider):
             try:
                 data = json.loads(clean_text)
                 if isinstance(data, dict):
-                    f_val = data.get("focus")
-                    r_val = data.get("reasoning")
-                    if f_val and isinstance(f_val, str):
-                        focus = f_val.strip()
+                    f_val = data.get("focus") or data.get("decision") or data.get("recommended_focus")
+                    r_val = data.get("reasoning") or data.get("analysis") or clean_text
+                    if f_val:
+                        focus = str(f_val).strip()
                         reasoning = str(r_val or "").strip()
             except Exception:
                 pass
 
-        if focus:
-            return {
+        if focus or (isinstance(data, dict) and ("selected_index" in data or "decision" in data)):
+            res_dict = {
                 "provider": self.provider_name,
                 "model": self.model_name,
                 "target": target,
                 "analysis": reasoning or generated,
-                "recommended_focus": focus,
+                "recommended_focus": focus or "AI decision",
             }
+            if isinstance(data, dict):
+                res_dict.update(data)
+            return res_dict
 
         # Fallback when JSON parsing fails or call failed
         error_msg = str(generated).strip()

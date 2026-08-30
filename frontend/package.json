@@ -24,6 +24,6 @@
     "vite": "^5.1.6"
   },
   "optionalDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.63.0"
+    "@rollup/rollup-win32-x64-msvc": "^4.63.1"
   }
 }

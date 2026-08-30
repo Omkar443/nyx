@@ -22,9 +22,11 @@ class NucleiAdapter(ToolAdapter):
         tool_vec = get_tool_executable_vector("nuclei") or ["nuclei"]
         cmd = list(tool_vec) + ["-u", target]
         if arguments:
-            cmd.extend(arguments)
+            # Normalize legacy -json flag to -jsonl for Nuclei v3+ compatibility
+            sanitized_args = ["-jsonl" if arg == "-json" else arg for arg in arguments]
+            cmd.extend(sanitized_args)
         else:
-            cmd.extend(["-json"])
+            cmd.extend(["-jsonl"])
         return cmd
 
     def parse_result(self, stdout: str, stderr: str) -> dict[str, Any]:
@@ -52,3 +54,88 @@ class NucleiAdapter(ToolAdapter):
             "count": len(findings),
             "parsed": True,
         }
+
+
+NUCLEI_TEMPLATE_MAP: dict[str, dict[str, str]] = {
+    "prototype_pollution": {
+        "template_id": "http/vulnerabilities/other/client-side-prototype-pollution.yaml",
+        "tags": "prototype-pollution",
+        "name": "Client-Side Prototype Pollution",
+    },
+    "prototype pollution": {
+        "template_id": "http/vulnerabilities/other/client-side-prototype-pollution.yaml",
+        "tags": "prototype-pollution",
+        "name": "Client-Side Prototype Pollution",
+    },
+    "sqli": {
+        "template_id": "dast/vulnerabilities/sqli-error.yaml",
+        "tags": "sqli",
+        "name": "SQL Injection Error-Based",
+    },
+    "sql injection": {
+        "template_id": "dast/vulnerabilities/sqli-error.yaml",
+        "tags": "sqli",
+        "name": "SQL Injection Error-Based",
+    },
+    "xss": {
+        "template_id": "dast/vulnerabilities/xss-reflected.yaml",
+        "tags": "xss",
+        "name": "Reflected Cross-Site Scripting",
+    },
+    "cross-site scripting": {
+        "template_id": "dast/vulnerabilities/xss-reflected.yaml",
+        "tags": "xss",
+        "name": "Reflected Cross-Site Scripting",
+    },
+    "ssrf": {
+        "template_id": "dast/vulnerabilities/ssrf.yaml",
+        "tags": "ssrf",
+        "name": "Server-Side Request Forgery",
+    },
+    "idor": {
+        "template_id": "http/vulnerabilities/generic/idor-check.yaml",
+        "tags": "idor",
+        "name": "Insecure Direct Object Reference",
+    },
+    "cors": {
+        "template_id": "http/misconfiguration/cors/cors-arbitrary-origin.yaml",
+        "tags": "cors",
+        "name": "CORS Misconfiguration",
+    },
+    "open redirect": {
+        "template_id": "http/vulnerabilities/generic/open-redirect.yaml",
+        "tags": "redirect",
+        "name": "Open Redirect",
+    },
+    "lfi": {
+        "template_id": "dast/vulnerabilities/lfi.yaml",
+        "tags": "lfi,traversal",
+        "name": "Local File Inclusion",
+    },
+    "file upload": {
+        "template_id": "dast/vulnerabilities/file-upload.yaml",
+        "tags": "file-upload,upload",
+        "name": "File Upload Vulnerability",
+    },
+    "file_upload": {
+        "template_id": "dast/vulnerabilities/file-upload.yaml",
+        "tags": "file-upload,upload",
+        "name": "File Upload Vulnerability",
+    },
+    "path traversal": {
+        "template_id": "dast/vulnerabilities/lfi.yaml",
+        "tags": "lfi,traversal",
+        "name": "Path Traversal",
+    },
+}
+
+
+def get_nuclei_template_for_vuln(vuln_type: str) -> dict[str, str] | None:
+    """Map a vulnerability hypothesis class to an existing official Nuclei template ID / tags."""
+    if not vuln_type:
+        return None
+    v_norm = vuln_type.lower().strip().replace("-", " ").replace("_", " ")
+    for k, v in NUCLEI_TEMPLATE_MAP.items():
+        if k in v_norm or v_norm in k:
+            return v
+    return None

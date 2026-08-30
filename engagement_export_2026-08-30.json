@@ -1,0 +1,847 @@
+{
+  "state": {
+    "state": "DISCOVERY",
+    "mode": "RESEARCH",
+    "completed": [
+      "engagement_init"
+    ],
+    "history": [],
+    "updated_at": "2026-08-30T19:44:11.806458"
+  },
+  "technologies": {
+    "frameworks": [
+      "ASP.NET",
+      "PHP"
+    ],
+    "servers": [
+      "nginx"
+    ],
+    "APIs": [],
+    "authentication": [],
+    "cloud": [],
+    "databases": []
+  },
+  "endpoints": [
+    {
+      "url": "https://server.vulnapp.id/",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "title": "Metasploitable2 - Linux",
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon"
+      ],
+      "added_at": "2026-08-30T19:45:55.655950"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae",
+      "host": "https://server.vulnapp.id/mutillidae/",
+      "status": 200,
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon",
+        "content_discovery"
+      ],
+      "added_at": "2026-08-30T19:45:55.656010"
+    },
+    {
+      "url": "https://server.vulnapp.id",
+      "host": "server.vulnapp.id",
+      "ips": [
+        "194.233.84.211"
+      ],
+      "status": null,
+      "priority": "P2",
+      "source": "recon",
+      "sources": [
+        "recon"
+      ],
+      "added_at": "2026-08-30T19:45:55.656046"
+    },
+    {
+      "url": "https://server.vulnapp.id/dav",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656089"
+    },
+    {
+      "url": "https://server.vulnapp.id/dvwa",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656124"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656170"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=credits.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656200"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656227"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656253"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=source-viewer.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656279"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=text-file-viewer.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656304"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656329"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656355"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656377"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/framer.html",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656397"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656416"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?do=toggle-hints&page=home.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656437"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?do=toggle-security&page=home.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656457"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656477"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656497"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=browser-info.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656517"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=capture-data.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656536"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=captured-data.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656556"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=change-log.htm",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656571"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=credits.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656590"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656610"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656630"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656649"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=framing.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656668"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=home.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656688"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656708"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=installation.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656727"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=login.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656746"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=notes.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656787"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656818"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=pen-test-tool-lookup.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656839"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=php-errors.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656858"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=register.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656878"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=secret-administrative-pages.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656896"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=set-background-color.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656916"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=show-log.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656934"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656954"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=source-viewer.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656973"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=text-file-viewer.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.656993"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=usage-instructions.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657012"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657030"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=user-poll.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657049"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657087"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/login",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "title": "",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-30T19:45:55.657102"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "title": "",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-30T19:45:55.657117"
+    },
+    {
+      "url": "https://server.vulnapp.id/mutillidae/set-up-database.php",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657136"
+    },
+    {
+      "url": "https://server.vulnapp.id/phpMyAdmin",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P1",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657158"
+    },
+    {
+      "url": "https://server.vulnapp.id/server-status",
+      "host": "server.vulnapp.id",
+      "status": 403,
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "title": "HTTP 403",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "wordlist_probe",
+      "added_at": "2026-08-30T19:45:55.657176"
+    },
+    {
+      "url": "https://server.vulnapp.id/twiki",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "content_discovery",
+      "sources": [
+        "content_discovery"
+      ],
+      "discovery_method": "html_link_crawl",
+      "added_at": "2026-08-30T19:45:55.657201"
+    }
+  ],
+  "tested_vectors": [
+    {
+      "vector": "auth_surface_detected",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-08-30T19:45:59.870156"
+    },
+    {
+      "vector": "known_technology_detected",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-08-30T19:46:03.884866"
+    },
+    {
+      "vector": "surface_mapping_and_skill_routing",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-08-30T19:46:07.827594"
+    },
+    {
+      "vector": "triage_FH-2026-001",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-08-30T19:46:10.373449"
+    },
+    {
+      "vector": "hypothesis_validation_required",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-08-30T19:46:10.389181"
+    },
+    {
+      "vector": "file_upload_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-08-30T19:50:19.668975"
+    },
+    {
+      "vector": "active tool-based validation sequence testing file upload boundary filters on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php; requires operator confirmation.",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_negative",
+      "timestamp": "2026-08-30T19:50:49.906371"
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "FH-2026-001",
+      "task_id": "",
+      "agent_id": "",
+      "target": "https://server.vulnapp.id/mutillidae/",
+      "title": "File Upload & Path Traversal Surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "severity": "High",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "parameter": "",
+      "vulnerability": "Arbitrary File Upload",
+      "tag": "file_upload,lfi",
+      "description": "Classification identified multipart file upload or file path processing on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.",
+      "evidence_ids": [
+        "EV-2026-0001"
+      ],
+      "created_at": "2026-08-30T19:45:59.844531",
+      "updated_at": "2026-08-30T19:45:59.844531",
+      "confidence": 40
+    }
+  ]
+}

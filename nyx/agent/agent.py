@@ -84,15 +84,23 @@ class NYXAgent:
         tool_name: str = "subfinder",
         risk: str = "Medium",
         confidence: int = 85,
+        step: Dict[str, Any] | None = None,
+        impact_class: str | None = None,
+        impact_justification: str | None = None,
+        target: str | None = None,
     ) -> Dict[str, Any]:
         """Propose an active execution action for human approval."""
+        eff_target = target or self.target or "example.com"
         decision = self.decision_engine.create_decision(
-            target=self.target or "example.com",
+            target=eff_target,
             action=action,
             reason=reason,
             confidence=confidence,
             risk=risk,
             tool_name=tool_name,
+            step=step,
+            impact_class=impact_class,
+            impact_justification=impact_justification,
         )
         
         action_id = self.approval_system.submit_for_approval(decision)
@@ -107,19 +115,77 @@ class NYXAgent:
         }
 
     def approve_action(self, action_id: str) -> Dict[str, Any]:
-        """Approve a pending action ID."""
+        """Approve a pending action ID and execute the step with active_permitted=True."""
         ok, msg, record = self.approval_system.approve_action(action_id)
         if not ok:
             return {"success": False, "error": msg}
-        return {"success": True, "message": msg, "record": record}
+
+        rec = record or {}
+        target = rec.get("target") or self.target or "example.com"
+        step = rec.get("step")
+        if not step or not isinstance(step, dict):
+            step = {
+                "step": 1,
+                "name": rec.get("action") or rec.get("name") or "Approved Action",
+                "tool": rec.get("tool_name") or rec.get("tool") or "nuclei",
+                "action": rec.get("action") or "custom_exec",
+                "impact_class": rec.get("impact_class") or "DESTRUCTIVE",
+                "impact_justification": rec.get("impact_justification") or rec.get("reason"),
+                "reason": rec.get("reason"),
+                "target": target,
+                "params": rec.get("params") or {},
+            }
+
+        # Actually execute the approved step via MissionPlanner with active_permitted=True
+        from nyx.ai.planner import MissionPlanner
+        planner = MissionPlanner(base_dir=getattr(self, "base_dir", None))
+        step_result = planner.execute_step(step=step, target=target, active_permitted=True)
+
+        self.state_machine.transition_to("VALIDATING")
+        return {
+            "success": True,
+            "message": f"Action '{action_id}' approved and executed.",
+            "action_id": action_id,
+            "record": rec,
+            "execution_result": step_result,
+            "result": step_result.get("result") if isinstance(step_result, dict) else step_result,
+            "status": "approved_and_executed",
+        }
 
     def deny_action(self, action_id: str, reason: str = "") -> Dict[str, Any]:
-        """Deny a pending action ID."""
-        ok, msg = self.approval_system.deny_action(action_id, reason=reason)
+        """Deny a pending action ID and persist its exclusion into engagement memory."""
+        ok, msg, record = self.approval_system.deny_action(action_id, reason=reason)
         if not ok:
             return {"success": False, "error": msg}
+
+        rec = record or {}
+        target = rec.get("target") or self.target or "example.com"
+        tool = rec.get("tool_name") or rec.get("tool")
+        action = rec.get("action")
+        rec_reason = rec.get("reason")
+        name = rec.get("name")
+        step = rec.get("step") if isinstance(rec.get("step"), dict) else {}
+
+        # Persist identifying features so future candidate generation excludes it
+        from nyx.core.engagement import add_memory
+        base_dir = getattr(self, "base_dir", None)
+        if tool:
+            add_memory(type_="vector", value=f"{tool}_execution", endpoint=target, result="denied_by_operator", base_dir=base_dir)
+        if action:
+            add_memory(type_="vector", value=f"{action}_execution", endpoint=target, result="denied_by_operator", base_dir=base_dir)
+            add_memory(type_="vector", value=str(action).lower(), endpoint=target, result="denied_by_operator", base_dir=base_dir)
+        if rec_reason:
+            add_memory(type_="vector", value=str(rec_reason).lower(), endpoint=target, result="denied_by_operator", base_dir=base_dir)
+        if name or step.get("name"):
+            n = name or step.get("name")
+            add_memory(type_="vector", value=str(n).lower(), endpoint=target, result="denied_by_operator", base_dir=base_dir)
+        if step.get("tool"):
+            add_memory(type_="vector", value=f"{step.get('tool')}_execution", endpoint=target, result="denied_by_operator", base_dir=base_dir)
+        if step.get("action"):
+            add_memory(type_="vector", value=f"{step.get('action')}_execution", endpoint=target, result="denied_by_operator", base_dir=base_dir)
+
         self.state_machine.transition_to("PLANNING")
-        return {"success": True, "message": msg}
+        return {"success": True, "message": msg, "action_id": action_id, "status": "denied"}
 
     def execute(self, action_id: str) -> Dict[str, Any]:
         """Execute an approved action ID."""

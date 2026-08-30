@@ -1,0 +1,22 @@
+{
+  "state": {
+    "state": "DISCOVERY",
+    "mode": "RESEARCH",
+    "completed": [
+      "engagement_init"
+    ],
+    "history": [],
+    "updated_at": "2026-08-28T20:32:27.566423"
+  },
+  "technologies": {
+    "frameworks": [],
+    "servers": [],
+    "APIs": [],
+    "authentication": [],
+    "cloud": [],
+    "databases": []
+  },
+  "endpoints": [],
+  "tested_vectors": [],
+  "findings": []
+}

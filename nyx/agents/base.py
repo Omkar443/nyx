@@ -35,6 +35,7 @@ class BaseSpecializedAgent:
         self.allowed_tools = allowed_tools or []
         self.created_at = created_at or datetime.now().isoformat()
         self.updated_at = updated_at or self.created_at
+        self.provider_name = provider_name
         self.inner_agent = NYXAgent(provider_name=provider_name)
         self.inner_agent.start_mission(target)
         if agent_state:
@@ -51,6 +52,7 @@ class BaseSpecializedAgent:
             "agent_state": self.inner_agent.state_machine.current_state,
             "allowed_skills": self.allowed_skills,
             "allowed_tools": self.allowed_tools,
+            "provider_name": self.provider_name,
             "pending_approvals_count": len(self.inner_agent.approval_system.get_pending_approvals()),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -74,25 +76,26 @@ class BaseSpecializedAgent:
         agent_state = data.get("agent_state")
         created_at = data.get("created_at")
         updated_at = data.get("updated_at")
+        prov = provider_name or data.get("provider_name")
 
         if agent_type == "web":
             from nyx.agents.web_agent import WebAgent
-            ag = WebAgent(target=target, provider_name=provider_name)
+            ag = WebAgent(target=target, provider_name=prov)
         elif agent_type == "api":
             from nyx.agents.api_agent import APIAgent
-            ag = APIAgent(target=target, provider_name=provider_name)
+            ag = APIAgent(target=target, provider_name=prov)
         elif agent_type == "technology":
             from nyx.agents.technology_agent import TechnologyAgent
-            ag = TechnologyAgent(target=target, provider_name=provider_name)
+            ag = TechnologyAgent(target=target, provider_name=prov)
         elif agent_type == "validation":
             from nyx.agents.validation_agent import ValidationAgent
-            ag = ValidationAgent(target=target, provider_name=provider_name)
+            ag = ValidationAgent(target=target, provider_name=prov)
         elif agent_type == "reporting":
             from nyx.agents.reporting_agent import ReportingAgent
-            ag = ReportingAgent(target=target, provider_name=provider_name)
+            ag = ReportingAgent(target=target, provider_name=prov)
         else:
             from nyx.agents.recon_agent import ReconAgent
-            ag = ReconAgent(target=target, provider_name=provider_name)
+            ag = ReconAgent(target=target, provider_name=prov)
 
         if agent_id:
             ag.agent_id = agent_id

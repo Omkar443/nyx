@@ -36,7 +36,7 @@ class AnalysisService:
             "status": "success",
             "url": target_url,
             "category": category,
-            "skills": skills if skills else ["bb-methodology", "hunt-xss", "hunt-idor"],
+            "skills": skills if skills else ["bb-methodology"],
             "matches": matches,
         }
 

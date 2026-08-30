@@ -18,6 +18,7 @@ export function DashboardView() {
   const [recentExecutions, setRecentExecutions] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isReconRunning, setIsReconRunning] = useState<boolean>(false);
+  const [reconNotice, setReconNotice] = useState<string | null>(null);
 
   async function loadDashboard() {
     try {
@@ -55,12 +56,21 @@ export function DashboardView() {
   }, [lastEvent, refreshGlobalStats]);
 
   async function handleQuickRecon() {
-    if (!target || target === 'No active target') return;
+    if (!target || target === 'No active target') {
+      setReconNotice('No active target — set a target first (use Settings to configure target scope or initialize an engagement).');
+      return;
+    }
+    setReconNotice(null);
     setIsReconRunning(true);
     try {
-      await fetchApi(`/api/v1/surface/recon?target=${encodeURIComponent(target)}`, { method: 'POST' });
+      const res = await fetchApi(`/api/v1/surface/recon?target=${encodeURIComponent(target)}`, { method: 'POST' });
+      if (!res?.success && res?.error) {
+        setReconNotice(`Recon failed: ${res.error}`);
+      }
       await loadDashboard();
       await refreshGlobalStats();
+    } catch (err: any) {
+      setReconNotice(err?.message || 'Recon request failed');
     } finally {
       setIsReconRunning(false);
     }
@@ -85,7 +95,7 @@ export function DashboardView() {
         <div className="flex items-center gap-2">
           <button 
             onClick={handleQuickRecon} 
-            disabled={isReconRunning || !target || target === 'No active target'}
+            disabled={isReconRunning}
             className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isReconRunning ? 'animate-spin' : ''}`} />
@@ -100,6 +110,22 @@ export function DashboardView() {
           </button>
         </div>
       </div>
+
+      {/* Target Notice / Error Alert */}
+      {reconNotice && (
+        <div className="p-3 rounded bg-[#FFA726]/10 border border-[#FFA726]/30 text-xs text-[#FFA726] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{reconNotice}</span>
+          </div>
+          <button 
+            onClick={() => setCurrentView('settings')}
+            className="btn-secondary text-[11px] py-1 px-2.5 ml-3 shrink-0"
+          >
+            Go to Settings
+          </button>
+        </div>
+      )}
 
       {/* ========== METRIC CARDS ========== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">

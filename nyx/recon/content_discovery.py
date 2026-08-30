@@ -89,7 +89,32 @@ def extract_spa_routes(base_url: str, timeout: int = 4) -> list[dict[str, Any]]:
                 "discovery_method": "spa_html_inline"
             })
 
-    # 3. Fetch each JS bundle and extract API routes
+    # 3. Extract HTML hyperlinks and form actions (classic & modern web applications)
+    href_matches = re.findall(r'(?:href|action)=["\']([^"\'#\s>]+)["\']', html, re.IGNORECASE)
+    seen_urls = {d["url"] for d in discovered}
+    for h in href_matches:
+        if h.startswith(("javascript:", "mailto:", "tel:", "#", "data:")):
+            continue
+        if h.startswith("http://") or h.startswith("https://"):
+            full_link = h
+        else:
+            full_link = urllib.parse.urljoin(f"{clean_base}/", h)
+
+        if is_hostname_in_scope(full_link) and full_link not in seen_urls:
+            p_obj = urllib.parse.urlparse(full_link)
+            path_str = p_obj.path or "/"
+            if not path_str.lower().endswith((".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".map", ".ttf", ".eot")):
+                seen_urls.add(full_link)
+                discovered.append({
+                    "url": full_link,
+                    "path": path_str,
+                    "status": 200,
+                    "title": "HTML Discovered Link",
+                    "source": "content_discovery",
+                    "discovery_method": "html_link_crawl"
+                })
+
+    # 4. Fetch each JS bundle and extract API routes
     api_patterns = [
         r'["\']((?:/)?(?:api|identity|community|workshop|chatbot|v\d+|auth|user|vehicle|mechanic|merchant|shop|order|orders|coupon|management)/[a-zA-Z0-9_\-\/\.]+)["\']',
         r'`((?:/)?(?:api|identity|community|workshop|chatbot|v\d+|auth|user|vehicle|mechanic|merchant|shop|order|orders|coupon|management)/[^`\s<>{}]+)`',

@@ -126,7 +126,7 @@ def test_ffuf_adapter_validation_and_build():
     assert adapter.tool_name == "ffuf"
 
     cmd = adapter.build_command("http://example.com")
-    assert "ffuf" in cmd
+    assert any("ffuf" in c for c in cmd)
     assert "-u" in cmd
     assert "http://example.com/FUZZ" in cmd
     assert "-json" in cmd

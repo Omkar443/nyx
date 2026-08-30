@@ -14,6 +14,9 @@ from nyx.infrastructure.filesystem import _get_eng_dir
 class ReconService:
     """Service facade for recon execution and memory synchronization."""
 
+    def __init__(self, base_dir: Path | None = None):
+        self.base_dir = base_dir
+
     def run_recon(
         self,
         target: str,
@@ -22,7 +25,7 @@ class ReconService:
         burp: bool = False,
     ) -> dict[str, Any]:
         res = core_recon.run_recon(
-            target=target, out_dir=out_dir, proxy=proxy, burp=burp
+            target=target, out_dir=out_dir, proxy=proxy, burp=burp, base_dir=self.base_dir
         )
         is_ok = res.get("status") == "success"
         endpoints_count = res.get("sync_total") or (res.get("content_discovery_count", 0) + res.get("live_count", 0))
@@ -47,7 +50,7 @@ class ReconService:
 
     def get_endpoints(self, target: str | None = None) -> dict[str, Any]:
         """Retrieve harvested endpoints from engagement memory, optionally filtered by target."""
-        d = _get_eng_dir()
+        d = _get_eng_dir(base_dir=self.base_dir)
         ep_file = d / "endpoints.json"
         endpoints = []
         if ep_file.exists():
@@ -68,7 +71,7 @@ class ReconService:
 
     def get_technologies(self) -> dict[str, Any]:
         """Retrieve detected technologies from engagement memory."""
-        d = _get_eng_dir()
+        d = _get_eng_dir(base_dir=self.base_dir)
         tech_file = d / "technologies.json"
         raw_tech = {}
         if tech_file.exists():

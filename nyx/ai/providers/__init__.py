@@ -24,9 +24,9 @@ _PROVIDERS: Dict[str, Type[AIProvider]] = {
 
 def get_provider_class(name: str) -> Type[AIProvider]:
     """Retrieve provider class by name."""
-    norm = (name or "gemini").lower()
+    norm = (name or "groq").lower()
     if norm not in _PROVIDERS:
-        return GeminiProvider
+        return _PROVIDERS.get("groq", LocalLLMProvider)
     return _PROVIDERS[norm]
 
 

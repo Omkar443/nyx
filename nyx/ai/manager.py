@@ -4,6 +4,7 @@ Manages AI provider configuration, registration, active provider switching, and 
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional
 from nyx.ai.base import AIProvider
 from nyx.ai.providers import (
@@ -17,23 +18,52 @@ from nyx.ai.providers import (
 )
 
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=False)
+except Exception:
+    pass
+
+
+def detect_default_provider() -> str:
+    """
+    Auto-detect the first provider with a configured, valid API key from environment / .env.
+    Checks providers in order: Groq, OpenAI, Claude, Grok, Gemini, Local.
+    Never defaults blindly to Gemini if Gemini is not configured.
+    """
+    explicit = os.environ.get("NYX_AI_PROVIDER") or os.environ.get("AI_PROVIDER")
+    if explicit:
+        return explicit.lower().strip()
+
+    # Auto-detect first provider with configured API key
+    if os.environ.get("GROQ_API_KEY"):
+        return "groq"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+    if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY"):
+        return "claude"
+    if os.environ.get("XAI_API_KEY") or os.environ.get("GROK_API_KEY"):
+        return "grok"
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        return "gemini"
+    if os.environ.get("LOCAL_LLM_URL") or os.environ.get("OLLAMA_HOST"):
+        return "local"
+
+    # Default fallback
+    return "groq"
+
+
 class AIManager:
     """Central AI provider manager and dispatcher."""
 
-    def __init__(self, default_provider: str = "gemini"):
-        self._instances: Dict[str, AIProvider] = {
-            "gemini": GeminiProvider(),
-            "grok": GrokProvider(),
-            "groq": GroqProvider(),
-            "claude": ClaudeProvider(),
-            "openai": OpenAIProvider(),
-            "local": LocalLLMProvider(),
-        }
-        self.active_provider_name: str = default_provider.lower()
+    def __init__(self, default_provider: Optional[str] = None):
+        self._instances: Dict[str, AIProvider] = {}
+        chosen = default_provider or detect_default_provider()
+        self.active_provider_name: str = chosen.lower()
 
     def get_provider(self, name: Optional[str] = None) -> AIProvider:
         """Get an AI provider instance by name or return the active provider."""
-        target_name = (name or self.active_provider_name).lower()
+        target_name = (name or self.active_provider_name or detect_default_provider()).lower()
         if target_name not in self._instances:
             cls = get_provider_class(target_name)
             self._instances[target_name] = cls()
@@ -42,7 +72,7 @@ class AIManager:
     def set_active_provider(self, name: str) -> bool:
         """Switch active AI provider."""
         norm = name.lower()
-        if norm in self._instances or norm in ("gemini", "grok", "groq", "claude", "openai", "local"):
+        if norm in ("gemini", "grok", "groq", "claude", "openai", "local"):
             self.active_provider_name = norm
             # Ensure instantiated
             self.get_provider(norm)
@@ -71,9 +101,9 @@ class AIManager:
         try:
             res = prov.analyze(context, prompt=prompt)
             if isinstance(res, dict):
-                focus = res.get("recommended_focus")
-                analysis_text = res.get("analysis")
-                if focus and analysis_text and isinstance(focus, str) and isinstance(analysis_text, str):
+                focus = res.get("recommended_focus") or res.get("focus") or res.get("decision")
+                analysis_text = res.get("analysis") or res.get("reasoning")
+                if (focus or "selected_index" in res) and analysis_text and isinstance(analysis_text, str):
                     return res
         except Exception as ex:
             return {
