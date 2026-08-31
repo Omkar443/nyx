@@ -84,25 +84,23 @@ class ExecutionFindingBridge:
                     "response": stdout[:2000],
                 })
 
-        # 3. Heuristics for FFUF sensitive path discoveries
-        if tool == "ffuf" and "results" in meta:
-            for item in meta.get("results", []):
-                url = item.get("url") or ""
-                status = item.get("status", 0)
-                if status in (200, 301, 302):
-                    path_lower = url.lower()
-                    if any(k in path_lower for k in [".env", ".git", "metrics", "security.txt", "admin", "backup", "legal.md", "openapi.json"]):
-                        candidates.append({
-                            "title": f"Sensitive Unlinked Asset Exposure: {url.split('/')[-1]}",
-                            "endpoint": url,
-                            "parameter": "",
-                            "vulnerability": "Sensitive Data Exposure" if any(k in path_lower for k in [".env", ".git", "backup", "legal.md"]) else "Information Disclosure",
-                            "severity": "High" if any(k in path_lower for k in [".env", ".git"]) else "Medium",
-                            "tag": "source-leak",
-                            "description": f"Content discovery revealed sensitive publicly accessible endpoint at {url} (HTTP {status}).",
-                            "request": f"GET {url} HTTP/1.1\nHost: {target}",
-                            "response": f"HTTP/1.1 {status} Found\nLength: {item.get('length', 0)}",
-                        })
+        # 3. Use vetted vulnerabilities from FfufAdapter if not already extracted
+        if tool == "ffuf" and not candidates:
+            for item in meta.get("vulnerabilities", []):
+                ep = item.get("endpoint", target)
+                title = item.get("title", f"FFUF Finding: {ep}")
+                is_crit = any(p in ep.lower() for p in ("passwd", "shadow", "boot.ini", ".env", ".git"))
+                candidates.append({
+                    "title": title,
+                    "endpoint": ep,
+                    "parameter": "",
+                    "vulnerability": "Local File Inclusion & Traversal" if any(p in ep.lower() for p in ("passwd", "shadow", "boot.ini", "access.log", "environ")) else "Information Disclosure",
+                    "severity": "High" if is_crit else "Medium",
+                    "tag": "lfi",
+                    "description": f"Verified fuzz match on {ep} via {tool} passing content signature checks.",
+                    "request": f"GET {ep} HTTP/1.1",
+                    "response": stdout[:2000],
+                })
 
         return candidates
 
@@ -138,9 +136,10 @@ class ExecutionFindingBridge:
                 f"{desc}\n\n"
                 f"Target: {result.target} (asset: in-scope)\n"
                 f"Vulnerability: {vuln} (severity: {sev.lower()})\n"
+                f"Authentication: unauthenticated public endpoint\n"
                 f"Execution: {result.execution_id} via tool {result.tool_name}\n"
-                f"Validation: Verified novel finding (not duplicate), attacker executed curl HTTP/1.1 request.\n"
-                f"Impact: Confirmed credential and sensitive data: leaked from production endpoint."
+                f"Validation: Verified novel finding (not duplicate), automated {result.tool_name} probe executed with curl HTTP/1.1.\n"
+                f"Impact: Potential {vuln} attack surface and data exposure on production endpoint; exploit validation in progress."
             )
 
             # 2. Create finding in HYPOTHESIS state stamped with EXEC ID

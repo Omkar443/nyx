@@ -2734,6 +2734,11 @@ def cmd_ai(args: argparse.Namespace) -> int:
             b_step = res.get("blocked_step", {})
             say("")
             say(color(f"  [BLOCKED] Policy Blocked Step: {b_step.get('name')}", "red"))
+        elif status_val == "ai_unavailable":
+            say("")
+            say(color(f"  [AI PROVIDER UNAVAILABLE] Autonomous mission halted at iteration {res.get('iteration_halted', len(res.get('iterations', [])) + 1)}", "red"))
+            say(f"  Reason: {color(res.get('error') or res.get('degradation_reason') or 'AI decision engine failed', 'yellow')}")
+            say(color("  Safety Enforcement: No further steps executed. No unverified findings generated.", "yellow"))
         elif status_val == "error":
             say("")
             say(color(f"  [ERROR] {res.get('error', 'Execution error')}", "red"))
@@ -3326,9 +3331,13 @@ def cmd_report(args: argparse.Namespace) -> int:
     out = getattr(args, "out", None)
     res = service.report_finding(path, platform=platform, out=out)
     if res.get("status") == "error":
-        say(color(f"  [error] {res.get('error')}", "red"))
+        err_msg = res.get("error") or res.get("message") or "Report generation failed."
+        say(color(f"  [error] {err_msg}", "red"))
         return 1
-    say(color(f"✓ Generated {platform.capitalize()} report at {res.get('report_path')}", "green"))
+    if res.get("report_path"):
+        say(color(f"✓ Generated {platform.capitalize()} report at {res.get('report_path')}", "green"))
+    else:
+        say(color(f"✓ Generated {platform.capitalize()} report:", "green"))
     if res.get("draft"):
         say(res.get("draft"))
     return 0

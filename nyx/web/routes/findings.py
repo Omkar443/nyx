@@ -18,9 +18,17 @@ router = APIRouter(prefix="/api/v1/findings", tags=["Findings"])
 
 def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
     if isinstance(res, dict):
+        if res.get("status") in ("error", "failed") or res.get("success") is False:
+            return False, res
+        if res.get("status") == "success" or res.get("success") is True:
+            return True, res
         return res.get("success", True), res
     if hasattr(res, "to_dict"):
         d = res.to_dict()
+        if d.get("status") in ("error", "failed") or d.get("success") is False:
+            return False, d
+        if d.get("status") == "success" or d.get("success") is True:
+            return True, d
         ok = d.get("success", getattr(res, "is_success", True))
         return ok, d
     return True, {"success": True, "data": res}
@@ -101,6 +109,9 @@ async def transition_finding(
     return data
 
 
+import asyncio
+
+
 @router.post("/{finding_id}/triage", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def triage_finding(
     finding_id: str,
@@ -108,7 +119,7 @@ async def triage_finding(
 ) -> Dict[str, Any]:
     """Run 7-Question Gate and verification rule check on finding."""
     await emit_event("validation_started", data={"finding_id": finding_id})
-    res = validation_svc.validate_finding(finding_id)
+    res = await asyncio.to_thread(validation_svc.validate_finding, finding_id)
     val = res.get("validation", {}) if isinstance(res, dict) else {}
     verdict = "PASS" if val.get("confidence", 0) >= 80 else ("CONFIRMED" if val.get("status") == "CONFIRMED" else "VALIDATING")
     
@@ -145,10 +156,11 @@ async def generate_finding_report(
     service: FindingService = Depends(get_finding_service),
 ) -> Dict[str, Any]:
     """Generate platform-formatted submission markdown draft."""
-    ok, data = _parse_res(service.report(finding_id=finding_id, platform=platform))
+    ok, data = _parse_res(await asyncio.to_thread(service.report, finding_id=finding_id, platform=platform))
     if not ok:
+        err_msg = data.get("error") or data.get("message") or "Failed to generate report draft."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": data.get("code", "REPORT_FAILED"), "message": data.get("error", "Failed to generate report draft.")},
+            detail={"code": data.get("code", "REPORT_FAILED"), "message": err_msg},
         )
     return data

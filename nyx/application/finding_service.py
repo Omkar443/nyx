@@ -92,10 +92,10 @@ class FindingService:
     triage_finding = triage
 
     def report(
-        self, finding_id: str, platform: str = "h1", out: str | Path | None = None
+        self, finding_id: str, platform: str = "h1", out: str | Path | None = None, use_ai: bool = True
     ) -> dict[str, Any]:
         res = core_findings.report_finding(
-            finding_id_or_path=finding_id, platform=platform, base_dir=self.base_dir
+            finding_id_or_path=finding_id, platform=platform, base_dir=self.base_dir, use_ai=use_ai
         )
         if isinstance(res, dict) and res.get("status") == "success" and out:
             out_p = Path(out)
@@ -103,4 +103,21 @@ class FindingService:
             res["report_path"] = str(out_p)
         return res if isinstance(res, dict) else {"success": True, "report": res}
 
-    report_finding = report
+    def review_evidence(
+        self, finding_id: str, tool_name: str, tool_output: Any
+    ) -> dict[str, Any]:
+        return core_findings.review_finding_evidence(
+            finding_id_or_data=finding_id,
+            tool_name=tool_name,
+            tool_output=tool_output,
+            base_dir=self.base_dir,
+        )
+
+    review_finding = review_evidence
+    review = review_evidence
+
+    def delete(self, finding_id: str) -> dict[str, Any]:
+        return core_findings.delete_finding(finding_id=finding_id, base_dir=self.base_dir)
+
+    delete_finding = delete
+

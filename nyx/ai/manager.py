@@ -101,23 +101,49 @@ class AIManager:
         try:
             res = prov.analyze(context, prompt=prompt)
             if isinstance(res, dict):
+                if res.get("status") == "error" or not res.get("success", True) or "error" in res:
+                    return {
+                        "provider": prov.provider_name,
+                        "target": target,
+                        "status": "error",
+                        "error": res.get("error") or res.get("analysis") or res.get("message") or "AI provider error",
+                        "error_type": res.get("error_type") or "provider_error",
+                        "recommended_focus": "AI analysis unavailable",
+                        "analysis": res.get("analysis") or str(res.get("error") or res.get("message")),
+                    }
                 focus = res.get("recommended_focus") or res.get("focus") or res.get("decision")
                 analysis_text = res.get("analysis") or res.get("reasoning")
                 if (focus or "selected_index" in res) and analysis_text and isinstance(analysis_text, str):
+                    if "AI analysis unavailable" in str(focus) or "AI analysis unavailable" in str(analysis_text):
+                        return {
+                            "provider": prov.provider_name,
+                            "target": target,
+                            "status": "error",
+                            "error": analysis_text,
+                            "error_type": "provider_error",
+                            "recommended_focus": "AI analysis unavailable",
+                            "analysis": analysis_text,
+                        }
                     return res
         except Exception as ex:
             return {
                 "provider": prov.provider_name,
                 "target": target,
-                "recommended_focus": "AI analysis unavailable — using deterministic methodology",
+                "status": "error",
+                "error": str(ex),
+                "error_type": getattr(ex, "error_type", None) or "provider_error",
+                "recommended_focus": "AI analysis unavailable",
                 "analysis": f"AI provider execution error: {str(ex)}",
             }
 
         return {
             "provider": prov.provider_name,
             "target": target,
-            "recommended_focus": "AI analysis unavailable — using deterministic methodology",
-            "analysis": "AI response was empty or malformed — using deterministic methodology",
+            "status": "error",
+            "error": "AI response was empty or malformed",
+            "error_type": "unparseable_ai_response",
+            "recommended_focus": "AI analysis unavailable",
+            "analysis": "AI response was empty or malformed",
         }
 
     def decide(self, context: Dict[str, Any], options: List[Dict[str, Any]], provider_name: Optional[str] = None) -> Dict[str, Any]:
@@ -138,3 +164,6 @@ class AIManager:
             "model": info.get("model", "default"),
             "message": f"Provider '{prov.provider_name}' status: {info.get('status')}",
         }
+
+
+AIProviderManager = AIManager

@@ -35,13 +35,16 @@ def _parse_res(res: Any) -> tuple[bool, Dict[str, Any]]:
     return True, {"success": True, "data": res}
 
 
+import asyncio
+
+
 @router.post("/start", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def start_agent_mission(
     target: str = Query(..., description="Target domain"),
     service: AgentService = Depends(get_agent_service),
 ) -> Dict[str, Any]:
     """Start autonomous agent research mission."""
-    _, data = _parse_res(service.start_mission(target))
+    _, data = _parse_res(await asyncio.to_thread(service.start_mission, target))
     await emit_event("mission_started", data={"target": target, "agent": True})
     return data
 
@@ -54,7 +57,7 @@ async def get_agent_context(
     """Retrieve reasoning context for autonomous agent."""
     from nyx.core.engagement import get_engagement_target
     active_target = target or get_engagement_target() or "No active target"
-    _, data = _parse_res(service.get_context(active_target))
+    _, data = _parse_res(await asyncio.to_thread(service.get_context, active_target))
     return data
 
 
@@ -66,7 +69,7 @@ async def get_agent_plan(
     """Generate structured research plan."""
     from nyx.core.engagement import get_engagement_target
     active_target = target or get_engagement_target() or "No active target"
-    _, data = _parse_res(service.plan_mission(active_target))
+    _, data = _parse_res(await asyncio.to_thread(service.plan_mission, active_target))
     return data
 
 
@@ -91,7 +94,8 @@ async def propose_agent_action(
     impact_class = b.get("impact_class")
     impact_justification = b.get("impact_justification")
 
-    _, data = _parse_res(service.propose_action(
+    _, data = _parse_res(await asyncio.to_thread(
+        service.propose_action,
         target=eff_target,
         action=eff_action,
         reason=eff_reason,
@@ -107,7 +111,7 @@ async def propose_agent_action(
 @router.get("/approvals", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_pending_approvals(service: AgentService = Depends(get_agent_service)) -> Dict[str, Any]:
     """Get list of pending action approval requests."""
-    _, data = _parse_res(service.get_approvals())
+    _, data = _parse_res(await asyncio.to_thread(service.get_approvals))
     return data
 
 
@@ -117,7 +121,7 @@ async def approve_agent_action(
     service: AgentService = Depends(get_agent_service),
 ) -> Dict[str, Any]:
     """Approve a pending action ID."""
-    ok, data = _parse_res(service.approve_action(action_id))
+    ok, data = _parse_res(await asyncio.to_thread(service.approve_action, action_id))
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -133,7 +137,7 @@ async def deny_agent_action(
     service: AgentService = Depends(get_agent_service),
 ) -> Dict[str, Any]:
     """Deny a pending action ID."""
-    ok, data = _parse_res(service.deny_action(action_id, reason=reason))
+    ok, data = _parse_res(await asyncio.to_thread(service.deny_action, action_id, reason=reason))
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -145,5 +149,5 @@ async def deny_agent_action(
 @router.get("/status", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def get_agent_status(service: AgentService = Depends(get_agent_service)) -> Dict[str, Any]:
     """Get current agent status and pending approval queue count."""
-    _, data = _parse_res(service.get_status())
+    _, data = _parse_res(await asyncio.to_thread(service.get_status))
     return data

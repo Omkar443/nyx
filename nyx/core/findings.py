@@ -22,6 +22,7 @@ NYX Core Findings & Lifecycle Module
 Canonical business logic for finding CRUD, timeline tracking, state machine transitions, deduplication, triage, and reporting.
 """
 
+import builtins
 import datetime
 import json
 import os
@@ -34,11 +35,12 @@ from nyx.infrastructure.urls import normalize_url
 from nyx.security.authorization import _sanitize_text_content
 
 ALLOWED_FINDING_TRANSITIONS = {
-    "HYPOTHESIS": ["TRIAGED", "REJECTED"],
-    "TRIAGED": ["VALIDATED", "REJECTED"],
-    "VALIDATED": ["REPORTED", "REJECTED"],
+    "HYPOTHESIS": ["TRIAGED", "VALIDATED", "CONFIRMED", "REJECTED"],
+    "TRIAGED": ["VALIDATED", "CONFIRMED", "REJECTED"],
+    "VALIDATED": ["CONFIRMED", "REPORTED", "REJECTED", "HYPOTHESIS"],
+    "CONFIRMED": ["REPORTED", "REJECTED", "HYPOTHESIS"],
     "REPORTED": ["REJECTED"],
-    "REJECTED": ["HYPOTHESIS"],
+    "REJECTED": ["HYPOTHESIS", "TRIAGED"],
 }
 
 TRIAGE_QUESTIONS = [
@@ -108,6 +110,11 @@ TRIAGE_QUESTIONS = [
             "production",
             "oob callback",
             "interactsh",
+            "exposure",
+            "attack surface",
+            "unauthorized",
+            "file disclosure",
+            "access",
         ],
     ),
     (
@@ -127,23 +134,28 @@ TRIAGE_QUESTIONS = [
 ]
 
 
+import threading
+_FINDINGS_LOCK = threading.RLock()
+
+
 def _sync_findings_index(d: Path):
-    f_dir = d / "findings"
-    findings_file = d / "findings.json"
-    if not f_dir.exists():
-        return
+    with _FINDINGS_LOCK:
+        f_dir = d / "findings"
+        findings_file = d / "findings.json"
+        if not f_dir.exists():
+            return
 
-    items = []
-    for sub in sorted(f_dir.glob("FH-*")):
-        f_json = sub / "finding.json"
-        if f_json.exists():
-            try:
-                data = json.loads(f_json.read_text(encoding="utf-8"))
-                items.append(data)
-            except Exception:
-                pass
+        items = []
+        for sub in sorted(f_dir.glob("FH-*")):
+            f_json = sub / "finding.json"
+            if f_json.exists():
+                try:
+                    data = json.loads(f_json.read_text(encoding="utf-8"))
+                    items.append(data)
+                except Exception:
+                    pass
 
-    findings_file.write_text(json.dumps(items, indent=2), encoding="utf-8")
+        findings_file.write_text(json.dumps(items, indent=2), encoding="utf-8")
 
 
 def _generate_finding_id(eng_dir: Path, year: int | None = None) -> str:
@@ -203,77 +215,78 @@ def create_finding(
     evidence_ids: list[str] | None = None,
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
-    d = _get_eng_dir(create=False, base_dir=base_dir)
-    if not d.exists():
-        return {
-            "status": "error",
-            "message": "No active engagement workspace found.",
+    with _FINDINGS_LOCK:
+        d = _get_eng_dir(create=False, base_dir=base_dir)
+        if not d.exists():
+            return {
+                "status": "error",
+                "message": "No active engagement workspace found.",
+            }
+
+        # Check duplicate finding first (synchronized under lock)
+        dup = duplicate_check(endpoint=endpoint, parameter=parameter, vulnerability=vulnerability, base_dir=base_dir)
+        if dup.get("is_duplicate"):
+            existing_f = dup.get("existing_finding", {})
+            return {
+                "status": "duplicate",
+                "is_duplicate": True,
+                "finding_id": existing_f.get("finding_id"),
+                "finding": existing_f,
+                "message": f"Duplicate finding '{existing_f.get('finding_id')}' already recorded.",
+            }
+
+        fid = _generate_finding_id(d)
+        now_str = datetime.datetime.now().isoformat()
+
+        san_title, _ = _sanitize_text_content(title)
+        san_ep_raw, _ = _sanitize_text_content(endpoint)
+        san_ep = normalize_url(san_ep_raw)
+        san_param, _ = _sanitize_text_content(parameter)
+        san_vuln, _ = _sanitize_text_content(vulnerability)
+        san_desc, _ = _sanitize_text_content(description)
+
+        fdata = {
+            "finding_id": fid,
+            "task_id": task_id,
+            "agent_id": agent_id,
+            "target": target or (san_ep.split("/")[2] if "://" in san_ep else san_ep),
+            "title": san_title,
+            "severity": severity,
+            "status": "HYPOTHESIS",
+            "endpoint": san_ep,
+            "parameter": san_param,
+            "vulnerability": san_vuln,
+            "tag": tag,
+            "description": san_desc,
+            "evidence_ids": evidence_ids or [],
+            "created_at": now_str,
+            "updated_at": now_str,
         }
 
-    # Check duplicate finding first
-    dup = duplicate_check(endpoint=endpoint, parameter=parameter, vulnerability=vulnerability, base_dir=base_dir)
-    if dup.get("is_duplicate"):
-        existing_f = dup.get("existing_finding", {})
-        return {
-            "status": "duplicate",
-            "is_duplicate": True,
-            "finding_id": existing_f.get("finding_id"),
-            "finding": existing_f,
-            "message": f"Duplicate finding '{existing_f.get('finding_id')}' already recorded.",
-        }
+        f_dir = d / "findings" / fid
+        f_dir.mkdir(parents=True, exist_ok=True)
+        (f_dir / "finding.json").write_text(
+            json.dumps(fdata, indent=2), encoding="utf-8"
+        )
 
-    fid = _generate_finding_id(d)
-    now_str = datetime.datetime.now().isoformat()
+        tdata = [
+            {
+                "timestamp": now_str,
+                "event": "created",
+                "from": None,
+                "to": "HYPOTHESIS",
+                "reason": "Finding recorded",
+                "source": "nyx",
+            }
+        ]
+        (f_dir / "timeline.json").write_text(
+            json.dumps(tdata, indent=2), encoding="utf-8"
+        )
+        (f_dir / "hypotheses.json").write_text("[]", encoding="utf-8")
 
-    san_title, _ = _sanitize_text_content(title)
-    san_ep_raw, _ = _sanitize_text_content(endpoint)
-    san_ep = normalize_url(san_ep_raw)
-    san_param, _ = _sanitize_text_content(parameter)
-    san_vuln, _ = _sanitize_text_content(vulnerability)
-    san_desc, _ = _sanitize_text_content(description)
+        _sync_findings_index(d)
 
-    fdata = {
-        "finding_id": fid,
-        "task_id": task_id,
-        "agent_id": agent_id,
-        "target": target or (san_ep.split("/")[2] if "://" in san_ep else san_ep),
-        "title": san_title,
-        "severity": severity,
-        "status": "HYPOTHESIS",
-        "endpoint": san_ep,
-        "parameter": san_param,
-        "vulnerability": san_vuln,
-        "tag": tag,
-        "description": san_desc,
-        "evidence_ids": evidence_ids or [],
-        "created_at": now_str,
-        "updated_at": now_str,
-    }
-
-    f_dir = d / "findings" / fid
-    f_dir.mkdir(parents=True, exist_ok=True)
-    (f_dir / "finding.json").write_text(
-        json.dumps(fdata, indent=2), encoding="utf-8"
-    )
-
-    tdata = [
-        {
-            "timestamp": now_str,
-            "event": "created",
-            "from": None,
-            "to": "HYPOTHESIS",
-            "reason": "Finding recorded",
-            "source": "nyx",
-        }
-    ]
-    (f_dir / "timeline.json").write_text(
-        json.dumps(tdata, indent=2), encoding="utf-8"
-    )
-    (f_dir / "hypotheses.json").write_text("[]", encoding="utf-8")
-
-    _sync_findings_index(d)
-
-    return {"status": "success", "finding_id": fid, "finding": fdata}
+        return {"status": "success", "finding_id": fid, "finding": fdata}
 
 
 def transition_finding(
@@ -392,40 +405,94 @@ def list_findings(
     return FindingDictList({"status": "success", "findings": findings}, findings)
 
 
+def delete_finding(finding_id: str, base_dir: Path | None = None) -> dict[str, Any]:
+    """Deletes a finding record and its directory from the engagement workspace."""
+    with _FINDINGS_LOCK:
+        d = _get_eng_dir(create=False, base_dir=base_dir)
+        if not d.exists():
+            return {"status": "error", "message": "No active engagement workspace found."}
+
+        fid = (finding_id or "").strip().upper()
+        f_dir = d / "findings" / fid
+        deleted = False
+        if f_dir.exists():
+            import shutil
+            shutil.rmtree(f_dir, ignore_errors=True)
+            deleted = True
+
+        findings_file = d / "findings.json"
+        if findings_file.exists():
+            try:
+                findings_arr = json.loads(findings_file.read_text(encoding="utf-8"))
+                if isinstance(findings_arr, list):
+                    new_arr = [f for f in findings_arr if f.get("finding_id") != fid]
+                    if len(new_arr) != len(findings_arr):
+                        deleted = True
+                    findings_file.write_text(json.dumps(new_arr, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
+        _sync_findings_index(d)
+        if deleted:
+            return {"status": "success", "message": f"Finding '{fid}' deleted."}
+        return {"status": "error", "message": f"Finding '{fid}' not found."}
+
+
 def duplicate_check(
     endpoint: str,
     parameter: str = "",
     vulnerability: str = "",
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
-    d = _get_eng_dir(create=False, base_dir=base_dir)
-    findings_file = d / "findings.json"
+    with _FINDINGS_LOCK:
+        d = _get_eng_dir(create=False, base_dir=base_dir)
+        if not d.exists():
+            return {"status": "pass", "is_duplicate": False}
 
-    ep = normalize_url(endpoint or "").lower()
-    param = (parameter or "").strip().lower()
-    vuln = (vulnerability or "").strip().lower()
+        ep = normalize_url(endpoint or "").lower()
+        param = (parameter or "").strip().lower()
+        vuln = (vulnerability or "").strip().lower()
 
-    if not findings_file.exists():
+        findings_map: dict[str, dict] = {}
+
+        # 1. Check directory ground-truth (individual finding.json files)
+        f_dir = d / "findings"
+        if f_dir.exists():
+            for sub in f_dir.glob("FH-*"):
+                f_json = sub / "finding.json"
+                if f_json.exists():
+                    try:
+                        data = json.loads(f_json.read_text(encoding="utf-8"))
+                        if isinstance(data, dict) and data.get("finding_id"):
+                            findings_map[data["finding_id"]] = data
+                    except Exception:
+                        pass
+
+        # 2. Check findings.json index
+        findings_file = d / "findings.json"
+        if findings_file.exists():
+            try:
+                findings_arr = json.loads(findings_file.read_text(encoding="utf-8"))
+                if isinstance(findings_arr, list):
+                    for f in findings_arr:
+                        if isinstance(f, dict) and f.get("finding_id"):
+                            findings_map[f["finding_id"]] = f
+            except Exception:
+                pass
+
+        for f in findings_map.values():
+            f_ep = normalize_url(str(f.get("endpoint", ""))).lower()
+            f_param = str(f.get("parameter", "")).strip().lower()
+            f_vuln = str(f.get("vulnerability", "")).strip().lower()
+
+            if f_ep == ep and f_param == param and f_vuln == vuln:
+                return {
+                    "status": "duplicate",
+                    "is_duplicate": True,
+                    "existing_finding": f,
+                }
+
         return {"status": "pass", "is_duplicate": False}
-
-    try:
-        findings = json.loads(findings_file.read_text(encoding="utf-8"))
-    except Exception as e:
-        return {"status": "error", "message": f"Malformed findings.json: {e}"}
-
-    for f in findings:
-        f_ep = normalize_url(str(f.get("endpoint", ""))).lower()
-        f_param = str(f.get("parameter", "")).strip().lower()
-        f_vuln = str(f.get("vulnerability", "")).strip().lower()
-
-        if f_ep == ep and f_param == param and f_vuln == vuln:
-            return {
-                "status": "duplicate",
-                "is_duplicate": True,
-                "existing_finding": f,
-            }
-
-    return {"status": "pass", "is_duplicate": False}
 
 
 def triage_finding(
@@ -524,34 +591,117 @@ def parse_finding_metadata(text: str) -> dict[str, str]:
     return md
 
 
-def render_report(md: dict, platform: str) -> str:
+def generate_ai_report_content(md: dict, platform: str, base_dir: Path | None = None) -> tuple[bool, dict]:
+    """Invoke AI provider to draft tailored technical sections for a vulnerability report."""
+    try:
+        from nyx.ai.manager import AIManager
+        ai_mgr = AIManager()
+
+        status_val = md.get("status", "HYPOTHESIS").upper()
+        finding_id = md.get("finding_id", "FH-UNKNOWN")
+        title = md.get("title", "")
+        endpoint = md.get("endpoint") or md.get("asset", "")
+        param = md.get("parameter", "")
+        vuln = md.get("vulnerability", "")
+        severity = md.get("severity", "Medium")
+        desc = md.get("description", "")
+        evidence_text = md.get("evidence_summary", "")
+        techs = md.get("technologies", [])
+
+        prompt = (
+            f"You are a Senior Security Researcher writing a technical vulnerability submission report for {platform.capitalize()}.\n"
+            "Author realistic, technically accurate, and structured report sections for this security finding.\n\n"
+            f"Finding Metadata:\n"
+            f"- Finding ID: {finding_id}\n"
+            f"- Title: {title}\n"
+            f"- Target Asset / Endpoint: {endpoint}\n"
+            f"- Parameter: {param or 'N/A'}\n"
+            f"- Vulnerability Type: {vuln}\n"
+            f"- Severity: {severity}\n"
+            f"- Finding Lifecycle Status: {status_val}\n"
+            f"- Classification & Context: {desc}\n"
+            f"- Evidence Summary: {evidence_text or 'Preliminary surface classification / HTTP route discovery'}\n"
+            f"- Detected Stack: {', '.join(techs) if techs else 'Web Application'}\n\n"
+            "CRITICAL REPORTING CONSTRAINTS:\n"
+            "1. Ground all steps and explanations specifically in the provided endpoint, parameter, and technology context (e.g. PHP LFI parameter handling, file upload multipart boundaries, etc.). Do not output generic placeholder brackets.\n"
+            f"2. STATUS INTEGRITY: The current status is '{status_val}'. If status is 'HYPOTHESIS' or 'VALIDATING' (unconfirmed), the summary and impact MUST explicitly clarify that this finding represents an identified vulnerable attack surface or theoretical vector pending active PoC confirmation — do NOT hallucinate or claim confirmed remote code execution, database exfiltration, or successful exploitation.\n"
+            "3. If status is 'CONFIRMED' or verified evidence is present, describe the confirmed exploit flow and verified impact.\n"
+            "4. Output ONLY a valid JSON object with the following keys:\n"
+            "{\n"
+            '  "vrt_category": "<suggested Bugcrowd VRT category or vulnerability category>",\n'
+            '  "severity_justification": "<concise 2-3 sentence explanation justifying the requested severity score>",\n'
+            '  "summary": "<2-3 paragraph technical summary explaining the vulnerability, affected asset/parameter, and architecture>",\n'
+            '  "steps_to_reproduce": "<detailed step-by-step reproduction instructions with exact HTTP request/curl or browser actions for this endpoint>",\n'
+            '  "impact": "<technical impact assessment detailing the security risks if exploited, clearly reflecting finding status>",\n'
+            '  "remediation": "<actionable, language/framework-specific code and configuration fix recommendations>"\n'
+            "}"
+        )
+
+        resp_text = ai_mgr.generate(prompt, options={"max_completion_tokens": 3000})
+        if resp_text:
+            m = re.search(r"\{.*\}", resp_text, re.DOTALL)
+            if m:
+                raw_json = m.group(0)
+                data = None
+                try:
+                    data = json.loads(raw_json)
+                except Exception:
+                    try:
+                        data = json.loads(raw_json, strict=False)
+                    except Exception:
+                        pass
+                if isinstance(data, dict) and data.get("summary") and data.get("impact"):
+                    return True, data
+    except Exception as ex:
+        import logging
+        logging.getLogger("nyx.core.findings").warning("[REPORT] AI report generation failed (%s) — falling back to deterministic template", ex)
+
+    return False, {}
+
+
+def render_report(md: dict, platform: str, ai_content: dict | None = None, is_fallback: bool = False) -> str:
     title = md.get("title") or "Untitled finding"
     severity = md.get("severity") or "Medium"
-    summary = md.get("summary") or "(fill in)"
-    steps = md.get("steps") or "(fill in — curl commands per step)"
-    impact = (
-        md.get("impact") or "(fill in — concrete dollar / PII / state impact)"
-    )
-    remediation = md.get("remediation") or "(fill in)"
     asset = md.get("asset") or md.get("endpoint") or "(fill in)"
     user = os.environ.get("USER", "researcher")
     today = datetime.date.today().isoformat()
 
-    if platform == "bugcrowd":
-        return f"""# {title}
+    if ai_content:
+        vrt_category = ai_content.get("vrt_category") or "Server-Side Injection > File Inclusion"
+        sev_just = ai_content.get("severity_justification") or f"Requested evaluation at {severity} based on technical analysis of the attack surface."
+        summary = ai_content.get("summary") or md.get("summary", "")
+        steps = ai_content.get("steps_to_reproduce") or md.get("steps", "")
+        impact = ai_content.get("impact") or md.get("impact", "")
+        remediation = ai_content.get("remediation") or md.get("remediation", "")
+    else:
+        vrt_category = "_<VRT-path>_"
+        sev_just = (
+            f"The closest VRT category for this finding is _<VRT-path>_, which Bugcrowd defaults to **<default-severity>**. "
+            f"**I am requesting evaluation at {severity}** for the following reasons:\n\n"
+            f"1. _<concrete impact reason>_\n"
+            f"2. _<exploit complexity reason>_\n"
+            f"3. _<chained-finding cross-reference if applicable>_"
+        )
+        summary = md.get("summary") or "(fill in)"
+        steps = md.get("steps") or "(fill in — curl commands per step)"
+        impact = md.get("impact") or "(fill in — concrete dollar / PII / state impact)"
+        remediation = md.get("remediation") or "(fill in)"
 
-**Bug type (VRT):** _to be filled in — pick the closest match from VRT 1.x and include the manual override paragraph below if defaults underrate impact._
+    fallback_banner = ""
+    if is_fallback:
+        fallback_banner = "> [!NOTE]\n> **Fallback Report Template**: AI drafting was unavailable; please review and populate remaining placeholders manually.\n\n"
+
+    if platform == "bugcrowd":
+        return f"""{fallback_banner}# {title}
+
+**Bug type (VRT):** {vrt_category}
 **Severity:** {severity}
 **Asset:** {asset}
 **Date:** {today}
 
 ## Severity request
 
-The closest VRT category for this finding is _<VRT-path>_, which Bugcrowd defaults to **<default-severity>**. **I am requesting evaluation at {severity}** for the following reasons:
-
-1. _<concrete impact reason>_
-2. _<exploit complexity reason>_
-3. _<chained-finding cross-reference if applicable>_
+{sev_just}
 
 ## Summary
 {summary}
@@ -572,7 +722,7 @@ The closest VRT category for this finding is _<VRT-path>_, which Bugcrowd defaul
 
     if platform == "immunefi":
         slug = re.sub(r"[^a-z0-9]+", "_", title.lower())
-        return f"""# {title}
+        return f"""{fallback_banner}# {title}
 
 **Severity:** {severity}
 **Chain ID / Contract:** {asset}
@@ -597,7 +747,7 @@ _Attach the Foundry test file producing the exploit._
 {remediation}
 """
 
-    common = f"""# {title}
+    common = f"""{fallback_banner}# {title}
 
 **Severity:** {severity}
 **Asset:** {asset}
@@ -628,14 +778,16 @@ _Attach the Foundry test file producing the exploit._
 
 def report_finding(
     finding_id_or_path: str,
-    platform: str = "h1",
+    platform: str = "bugcrowd",
     base_dir: Path | None = None,
+    use_ai: bool = True,
 ) -> dict[str, Any]:
     md = {}
     finding_path = Path(finding_id_or_path)
 
     d = _get_eng_dir(create=False, base_dir=base_dir)
     findings_file = d / "findings.json"
+    raw_finding = {}
     if findings_file.exists():
         try:
             stored = json.loads(findings_file.read_text(encoding="utf-8"))
@@ -644,12 +796,18 @@ def report_finding(
                     f.get("finding_id") == finding_id_or_path
                     or f.get("title") == finding_id_or_path
                 ):
+                    raw_finding = f
                     md = {
+                        "finding_id": f.get("finding_id", ""),
                         "title": f.get("title", ""),
                         "severity": f.get("severity", "Medium"),
+                        "status": f.get("status", "HYPOTHESIS"),
                         "asset": f.get("endpoint", ""),
                         "endpoint": f.get("endpoint", ""),
-                        "summary": f.get("title", ""),
+                        "parameter": f.get("parameter", ""),
+                        "vulnerability": f.get("vulnerability", ""),
+                        "description": f.get("description", ""),
+                        "summary": f.get("description") or f.get("title", ""),
                         "steps": f.get("evidence", "(fill in steps)"),
                         "impact": f.get("vulnerability", "(fill in impact)"),
                         "remediation": f.get(
@@ -662,18 +820,224 @@ def report_finding(
 
     if not md and finding_path.exists():
         md = parse_finding_metadata(finding_path.read_text(encoding="utf-8"))
+        raw_finding = md
     elif not md:
         return {
             "status": "error",
             "message": f"Finding '{finding_id_or_path}' not found as file or in .engagement/findings.json",
         }
 
-    draft = render_report(md, platform)
+    # Enrich with tech stack & evidence summary
+    tech_stack = []
+    tech_file = d / "technologies.json"
+    if tech_file.exists():
+        try:
+            t_data = json.loads(tech_file.read_text(encoding="utf-8"))
+            tech_stack = t_data if isinstance(t_data, list) else t_data.get("technologies", [])
+        except Exception:
+            pass
+    md["technologies"] = tech_stack
+
+    ev_summaries = []
+    evidence_ids = raw_finding.get("evidence_ids") or []
+    ev_dir = d / "evidence"
+    if ev_dir.exists():
+        for eid in evidence_ids:
+            ef = ev_dir / f"{eid}.json"
+            if ef.exists():
+                try:
+                    ev_obj = json.loads(ef.read_text(encoding="utf-8"))
+                    ev_summaries.append(str(ev_obj.get("data") or ev_obj))
+                except Exception:
+                    pass
+    if ev_summaries:
+        md["evidence_summary"] = "\n".join(ev_summaries)
+
+    ai_generated = False
+    ai_content = None
+    if use_ai:
+        ok, ai_data = generate_ai_report_content(md, platform, base_dir=base_dir)
+        if ok and ai_data:
+            ai_generated = True
+            ai_content = ai_data
+
+    draft = render_report(md, platform, ai_content=ai_content, is_fallback=not ai_generated)
     return {
         "status": "success",
         "platform": platform,
         "metadata": md,
         "draft": draft,
+        "ai_generated": ai_generated,
+        "fallback": not ai_generated,
+    }
+
+
+def review_finding_evidence(
+    finding_id_or_data: str | dict[str, Any],
+    tool_name: str,
+    tool_output: str | dict[str, Any],
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Submits raw tool validation output to AI provider to evaluate whether evidence confirms the finding."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    fdata = {}
+    fid = ""
+
+    if isinstance(finding_id_or_data, dict):
+        fdata = finding_id_or_data
+        fid = fdata.get("finding_id", "")
+    else:
+        fid = str(finding_id_or_data)
+        if d.exists():
+            f_file = d / "findings" / fid / "finding.json"
+            if f_file.exists():
+                try:
+                    fdata = json.loads(f_file.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            if not fdata:
+                idx_file = d / "findings.json"
+                if idx_file.exists():
+                    try:
+                        stored = json.loads(idx_file.read_text(encoding="utf-8"))
+                        for item in stored:
+                            if item.get("finding_id") == fid:
+                                fdata = item
+                                break
+                    except Exception:
+                        pass
+
+    vuln_type = fdata.get("vulnerability") or fdata.get("title") or "Vulnerability"
+    endpoint = fdata.get("endpoint") or fdata.get("target") or "target endpoint"
+    param = fdata.get("parameter") or ""
+
+    # Format tool output representation concisely for prompt budget
+    if isinstance(tool_output, builtins.dict):
+        res_list = tool_output.get("data", {}).get("results") if isinstance(tool_output.get("data"), builtins.dict) else tool_output.get("results")
+        vulns = tool_output.get("vulnerabilities") or tool_output.get("raw_findings") or []
+        if res_list and isinstance(res_list, builtins.list):
+            sample_results = res_list[:10]
+            raw_out_str = json.dumps({"matched_count": len(res_list), "sample_results": sample_results}, indent=2)
+        elif vulns and isinstance(vulns, builtins.list):
+            raw_out_str = json.dumps({"vulnerabilities_count": len(vulns), "vulnerabilities": vulns[:10]}, indent=2)
+        else:
+            out_sample = {k: v for k, v in tool_output.items() if k not in ("data", "artifacts")}
+            if "stdout" in tool_output:
+                out_sample["stdout"] = (tool_output["stdout"] or "")[:2000]
+            raw_out_str = json.dumps(out_sample, indent=2)
+    elif isinstance(tool_output, builtins.list):
+        raw_out_str = json.dumps(tool_output[:10], indent=2)
+    else:
+        raw_out_str = str(tool_output)
+
+    if len(raw_out_str) > 3000:
+        raw_out_str = raw_out_str[:3000] + "\n... [truncated for token budget]"
+
+    prompt = f"""You are a Senior Security Researcher and Vulnerability Triager evaluating empirical tool verification results.
+Review the following raw tool execution output claiming a match for:
+- Vulnerability: {vuln_type}
+- Endpoint: {endpoint}
+- Parameter: {param}
+- Validation Tool: {tool_name}
+
+Tool Output / Evidence:
+```
+{raw_out_str}
+```
+
+Critical Evaluation Guidelines:
+1. Does this evidence genuinely prove the vulnerability (e.g. actual file contents leaked like /etc/passwd or access.log entries, SQL syntax error/delay confirmed, SSRF callback received, successful authentication bypass)?
+2. Or could it be a false positive (e.g. generic HTTP 200 returned for any input, static default page, reflected input without execution, common wordlist match without unauthorized access)?
+3. If the evidence is ambiguous, partial, or shows potential leads without conclusive empirical proof, mark as NEEDS_MORE_EVIDENCE.
+
+Respond ONLY in the following format:
+VERDICT: [CONFIRMED | LIKELY_FALSE_POSITIVE | NEEDS_MORE_EVIDENCE]
+REASONING: <concise technical justification explaining why this verdict was reached based on the empirical evidence>
+"""
+
+    verdict = "NEEDS_MORE_EVIDENCE"
+    reasoning = "AI review did not return a conclusive verdict."
+
+    try:
+        from nyx.ai.manager import AIProviderManager
+        ai_mgr = AIProviderManager()
+        resp_text = ai_mgr.generate(prompt, options={"max_completion_tokens": 800})
+        if resp_text:
+            v_match = re.search(r"VERDICT:\s*\[?(CONFIRMED|LIKELY_FALSE_POSITIVE|NEEDS_MORE_EVIDENCE)\]?", resp_text, re.IGNORECASE)
+            r_match = re.search(r"REASONING:\s*(.*)", resp_text, re.DOTALL | re.IGNORECASE)
+            if v_match:
+                verdict = v_match.group(1).upper()
+            if r_match:
+                reasoning = r_match.group(1).strip()
+            elif not r_match:
+                reasoning = resp_text.strip()
+    except Exception as ex:
+        import logging
+        logging.getLogger("nyx.core.findings").warning("[AI-REVIEW] AI review failed (%s); defaulting to NEEDS_MORE_EVIDENCE", ex)
+        reasoning = f"AI review provider error: {ex}. Retaining hypothesis status."
+
+    if verdict == "CONFIRMED":
+        new_status = "CONFIRMED"
+    elif verdict == "LIKELY_FALSE_POSITIVE":
+        new_status = "REJECTED"
+    else:
+        new_status = "HYPOTHESIS"
+
+    if d.exists() and fid:
+        with _FINDINGS_LOCK:
+            f_dir = d / "findings" / fid
+            f_json = f_dir / "finding.json"
+            if f_json.exists():
+                try:
+                    f_cur = json.loads(f_json.read_text(encoding="utf-8"))
+                    f_cur["status"] = new_status
+                    f_cur["ai_review"] = {
+                        "verdict": verdict,
+                        "reasoning": reasoning,
+                        "reviewed_at": datetime.datetime.now().isoformat(),
+                        "tool": tool_name,
+                    }
+                    f_json.write_text(json.dumps(f_cur, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+            timeline_p = f_dir / "timeline.json"
+            if timeline_p.exists():
+                try:
+                    tdata = json.loads(timeline_p.read_text(encoding="utf-8"))
+                    tdata.append({
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "event": "ai_review",
+                        "verdict": verdict,
+                        "reason": reasoning,
+                        "source": f"ai_review ({tool_name})",
+                    })
+                    timeline_p.write_text(json.dumps(tdata, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+            try:
+                from nyx.core.evidence import add_evidence
+                add_evidence(
+                    finding_id=fid,
+                    ev_type="ai_review",
+                    content=json.dumps({"verdict": verdict, "reasoning": reasoning, "tool": tool_name}),
+                    description=f"AI Validation Review Verdict: {verdict}",
+                    source="ai_reviewer",
+                    base_dir=base_dir,
+                )
+            except Exception:
+                pass
+
+            _sync_findings_index(d)
+
+    return {
+        "status": "success",
+        "finding_id": fid,
+        "verdict": verdict,
+        "reasoning": reasoning,
+        "new_status": new_status,
+        "tool": tool_name,
     }
 
 
@@ -683,3 +1047,5 @@ list = list_findings
 transition = transition_finding
 triage = triage_finding
 report = report_finding
+review = review_finding_evidence
+delete = delete_finding

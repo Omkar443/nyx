@@ -133,3 +133,175 @@ def recommend_skills(url: str, technology: str | None = None) -> list[dict]:
         if sk:
             matched_skills.append(sk)
     return matched_skills
+
+
+def resolve_skill_path(skill_ref: str) -> Path | None:
+    """Resolve a skill name or reference label to its SKILL.md Path on disk."""
+    if not skill_ref:
+        return None
+    ref_norm = skill_ref.strip().lower().replace("_", "-").replace(" ", "-")
+
+    # Common alias mappings
+    alias_map = {
+        "7-question-gate": "triage-validation",
+        "evidence-hygiene": "evidence-hygiene",
+        "auth-bypass-matrix": "hunt-auth-bypass",
+        "graphql-node-id-idor": "hunt-graphql",
+        "graphql-fintech-mutations": "hunt-fintech-graphql",
+        "tech-matrix": "bb-methodology",
+        "skill-routing-engine": "bb-methodology",
+        "tech-fingerprint-001": "web2-recon",
+        "crawl-harvest-001": "hunt-source-leak",
+    }
+    target_name = alias_map.get(ref_norm, ref_norm)
+
+    for s_dir in get_skills_dirs():
+        # Direct folder match
+        cand1 = s_dir / target_name / "SKILL.md"
+        if cand1.exists():
+            return cand1
+        # With hunt- prefix
+        if not target_name.startswith("hunt-"):
+            cand2 = s_dir / f"hunt-{target_name}" / "SKILL.md"
+            if cand2.exists():
+                return cand2
+        # Fuzzy match directory name
+        for sub in s_dir.iterdir():
+            if sub.is_dir() and (sub.name.lower() == target_name or target_name in sub.name.lower()):
+                cand3 = sub / "SKILL.md"
+                if cand3.exists():
+                    return cand3
+
+    return None
+
+
+def get_skill_summary(skill_ref: str, max_chars: int = 250) -> str | None:
+    """Extract a concise 2-3 line summary from skill frontmatter or opening paragraph."""
+    p = resolve_skill_path(skill_ref)
+    if not p or not p.exists():
+        return None
+    try:
+        text = p.read_text(encoding="utf-8")
+        # 1. Try frontmatter description
+        m_desc = re.search(r"^description:\s*(.+?)(?=\n[a-z_]+:|^---|\Z)", text, re.M | re.S)
+        if m_desc:
+            desc = m_desc.group(1).strip().strip('"').strip("'")
+            desc = re.sub(r"\s+", " ", desc)
+            if len(desc) > max_chars:
+                return desc[:max_chars].rstrip() + "..."
+            return desc
+
+        # 2. Fallback to opening content after frontmatter
+        body = re.sub(r"^---.*?---\s*", "", text, flags=re.DOTALL).strip()
+        lines = [l.strip() for l in body.splitlines() if l.strip() and not l.startswith("#")]
+        if lines:
+            first_para = " ".join(lines[:3])
+            first_para = re.sub(r"\s+", " ", first_para)
+            if len(first_para) > max_chars:
+                return first_para[:max_chars].rstrip() + "..."
+            return first_para
+    except Exception:
+        pass
+    return None
+
+
+def get_candidates_skill_summaries(candidates: list[dict], max_tokens: int = 500) -> str:
+    """Tier 1: Generate compact reference playbook summaries for all candidate skills under token budget."""
+    if not candidates:
+        return ""
+
+    seen_skills = set()
+    summary_lines = []
+    max_chars = max_tokens * 4  # rough token approximation
+
+    for cand in candidates:
+        refs = cand.get("knowledge_refs") or []
+        for ref in refs:
+            resolved_p = resolve_skill_path(ref)
+            if not resolved_p:
+                continue
+            skill_name = resolved_p.parent.name
+            if skill_name in seen_skills:
+                continue
+            seen_skills.add(skill_name)
+            summary = get_skill_summary(ref, max_chars=200)
+            if summary:
+                summary_lines.append(f"• {skill_name}: {summary}")
+
+    result = "\n".join(summary_lines)
+    if len(result) > max_chars:
+        result = result[:max_chars].rstrip() + "\n[... truncated to fit token budget ...]"
+    return result
+
+
+def get_skill_content(skill_ref: str, max_tokens: int = 1500) -> str | None:
+    """Tier 2: Load full SKILL.md body for selected candidate, prioritizing verification gates over bypass tables."""
+    p = resolve_skill_path(skill_ref)
+    if not p or not p.exists():
+        return None
+    try:
+        text = p.read_text(encoding="utf-8")
+        # Strip frontmatter
+        body = re.sub(r"^---.*?---\s*", "", text, flags=re.DOTALL).strip()
+        max_chars = max_tokens * 4
+
+        if len(body) <= max_chars:
+            return body
+
+        # Priority-aware truncation: extract sections and prioritize verification gates
+        sections = re.split(r"(?=\n##\s+)", "\n" + body)
+        priority_sections = []
+        secondary_sections = []
+
+        gate_keywords = ["gate", "confirm", "validation", "triage", "crown jewel", "false positive", "evidence", "signals", "what is confirmation"]
+        bypass_keywords = ["bypass table", "bypass technique", "wordlist", "payload list", "cheatsheet", "encoding table"]
+
+        for sec in sections:
+            sec_clean = sec.strip()
+            if not sec_clean:
+                continue
+            first_line = sec_clean.splitlines()[0].lower()
+            if any(k in first_line for k in gate_keywords):
+                priority_sections.append(sec_clean)
+            elif any(k in first_line for k in bypass_keywords):
+                secondary_sections.append(sec_clean)
+            else:
+                priority_sections.append(sec_clean)
+
+        assembled = []
+        current_len = 0
+
+        # First add high priority sections
+        for sec in priority_sections:
+            if current_len + len(sec) + 2 <= max_chars:
+                assembled.append(sec)
+                current_len += len(sec) + 2
+            else:
+                remaining = max_chars - current_len - 60
+                if remaining > 100:
+                    truncated_part = sec[:remaining].rstrip() + "\n[... Section truncated for context budget ...]"
+                    assembled.append(truncated_part)
+                    current_len += len(truncated_part) + 2
+                break
+
+        # If room remains, add secondary sections
+        if current_len < max_chars - 100:
+            for sec in secondary_sections:
+                if current_len + len(sec) + 2 <= max_chars:
+                    assembled.append(sec)
+                    current_len += len(sec) + 2
+                else:
+                    remaining = max_chars - current_len - 60
+                    if remaining > 100:
+                        truncated_part = sec[:remaining].rstrip() + "\n[... Section truncated for context budget ...]"
+                        assembled.append(truncated_part)
+                        current_len += len(truncated_part) + 2
+                    break
+
+        final_res = "\n\n".join(assembled)
+        if len(final_res) > max_chars:
+            final_res = final_res[:max_chars].rstrip()
+        return final_res
+    except Exception:
+        return None
+

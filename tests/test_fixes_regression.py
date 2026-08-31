@@ -492,10 +492,11 @@ def test_autonomous_loop_lifecycle_and_safety_guards(tmp_path: Path, monkeypatch
     res_ai_valid = planner.run_autonomous_loop("auto.target.com", active_permitted=False, max_iterations=1)
     assert len(res_ai_valid["iterations"]) <= 1
 
-    # Test invalid / out-of-bounds selected_index gracefully falls back to validated[0] without crashing
+    # Test invalid / out-of-bounds selected_index fails closed with ai_unavailable status
     planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {"selected_index": 9999, "decision": "proceed", "reasoning": "Malformed index"}
     res_ai_invalid = planner.run_autonomous_loop("auto.target.com", active_permitted=False, max_iterations=1)
-    assert res_ai_invalid["status"] in ("complete", "max_iterations_reached", "paused_for_approval")
+    assert res_ai_invalid["status"] == "ai_unavailable"
+    assert res_ai_invalid["ai_degraded"] is True
 
     # 4. Test decision branching: skip, escalate, and malformed
     # 4.a. Test decision == "skip" (step not executed, iteration recorded with skip marker, loop continues)

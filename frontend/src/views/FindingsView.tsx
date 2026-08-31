@@ -140,8 +140,14 @@ export function FindingsView() {
     setIsReporting(true);
     try {
       const res = await fetchApi(`/api/v1/findings/${findingId}/report?platform=bugcrowd`, { method: 'POST' });
-      const md = res?.data?.report || res?.report || 'Report generation complete.';
-      setReportMarkdown(md);
+      const md = res?.draft || res?.data?.draft || res?.report || res?.data?.report;
+      if (!md) {
+        setReportMarkdown(`Error: No report draft returned from server for finding ${findingId}.`);
+      } else {
+        setReportMarkdown(md);
+      }
+    } catch (err: any) {
+      setReportMarkdown(`Error generating report: ${err?.message || 'Request failed'}`);
     } finally {
       setIsReporting(false);
     }

@@ -140,7 +140,7 @@ tools:
     purpose: "Brute-force common paths and discover unlinked files"
     execution_class: "SAFE_ACTIVE"
     platforms: ["linux", "darwin", "windows"]
-    allowed_args: ["-u", "-w", "-json", "-mc", "-fc", "-t", "-rate", "-silent"]
+    allowed_args: ["-u", "-w", "-json", "-mc", "-fc", "-t", "-rate", "-silent", "-mr", "-e"]
     timeout: 180
     required_authorization: true
     authorization:

@@ -133,14 +133,60 @@ class MissionPlanner:
                     "description": f"Classification identified API resource routes on {url} exposing object identifier parameters prone to cross-tenant authorization bypass.",
                 })
 
-            # 3. Authentication & Session Flaws
-            if any(k in path for k in ["/login", "/auth", "/signin", "/signup", "/register", "/forgot", "/reset", "/oauth", "/saml", "/session"]) or any(s in matches for s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth", "hunt-saml")):
+            # 3. Differentiated Authentication, Session, and Account Recovery Flaws
+            # 3a. Password Reset & Account Recovery Flows
+            if any(k in path for k in ["/forgot", "/forget-password", "/reset-password", "/recovery", "/password-reset", "/reset_password"]):
                 vuln_candidates.append({
-                    "title": f"Authentication & Session State Flaw on {url}",
+                    "title": f"Password Recovery & Reset Flow Flaw on {url}",
+                    "vulnerability": "Broken Password Recovery",
+                    "severity": "High",
+                    "tag": "auth,password-reset,ato",
+                    "description": f"Classification identified password recovery or account reset workflow on {url} requiring token entropy, replay protection, and rate-limit validation.",
+                })
+            # 3b. Multi-Factor Authentication & OTP Validation Flows
+            elif any(k in path for k in ["/otp", "/check-otp", "/verify-otp", "/2fa", "/mfa", "/verify", "/challenge"]):
+                vuln_candidates.append({
+                    "title": f"Multi-Factor Authentication & OTP Validation Flaw on {url}",
+                    "vulnerability": "MFA Bypass",
+                    "severity": "High",
+                    "tag": "auth,mfa,otp",
+                    "description": f"Classification identified multi-factor or one-time password verification endpoint on {url} requiring concurrency, race-condition, and brute-force protection analysis.",
+                })
+            # 3c. Token-Based, Bearer, and Refresh Token Flows
+            elif any(k in path for k in ["/login-with-token", "/token", "/jwt", "/refresh-token", "/oauth/token", "/exchange", "/jwks"]):
+                vuln_candidates.append({
+                    "title": f"Token-Based Authentication & Session Handling Flaw on {url}",
+                    "vulnerability": "Token Handling Flaw",
+                    "severity": "High",
+                    "tag": "auth,jwt,token",
+                    "description": f"Classification identified token-based login or bearer authentication exchange on {url} requiring signature validation, expiration, and key confusion analysis.",
+                })
+            # 3d. Account Unlock & Lockout Mechanism
+            elif any(k in path for k in ["/unlock", "/reactivate", "/lockout"]):
+                vuln_candidates.append({
+                    "title": f"Account Unlock & Lockout Mechanism Flaw on {url}",
+                    "vulnerability": "Account Lockout Bypass",
+                    "severity": "Medium",
+                    "tag": "auth,lockout,state",
+                    "description": f"Classification identified account unlock or lockout recovery mechanism on {url} requiring state validation and authorization controls.",
+                })
+            # 3e. User Registration & Provisioning
+            elif any(k in path for k in ["/signup", "/register", "/create-account", "/user/create", "/provision"]):
+                vuln_candidates.append({
+                    "title": f"Account Registration & User Provisioning Flaw on {url}",
+                    "vulnerability": "Insecure Registration",
+                    "severity": "Medium",
+                    "tag": "auth,registration,provisioning",
+                    "description": f"Classification identified self-registration workflow on {url} requiring mass-assignment, role-injection, and identity verification analysis.",
+                })
+            # 3f. Primary Authentication Gateway / Session Login
+            elif any(k in path for k in ["/login", "/signin", "/authenticate", "/session", "/oauth", "/saml", "/auth"]) or any(s in matches for s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth", "hunt-saml")):
+                vuln_candidates.append({
+                    "title": f"Primary Authentication & Session State Flaw on {url}",
                     "vulnerability": "Authentication Bypass",
                     "severity": "High",
-                    "tag": "auth,session,ato",
-                    "description": f"Classification identified authentication, session, or OAuth routing surfaces on {url} requiring access control validation.",
+                    "tag": "auth,session,login",
+                    "description": f"Classification identified primary authentication gateway on {url} requiring credential stuffing, brute-force, and session fixation validation.",
                 })
 
             # 4. GraphQL Introspection & Mutation Flaws
@@ -397,7 +443,38 @@ class MissionPlanner:
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
 
-        # Rule 4: Add targeted validation sequence step for explicit vulnerability_type and hypothesis findings
+        # Rule 4: Add targeted validation sequence steps for explicit vulnerability_type and hypothesis findings
+        # Stack awareness helper variables for Rule 4
+        tech_list = [str(t).lower() for t in (context.get("technologies") or []) if t]
+        all_ep_strs = [e.get("url", "") if isinstance(e, dict) else str(e) for e in endpoints]
+        is_php = any("php" in t for t in tech_list) or any(".php" in e.lower() for e in all_ep_strs)
+        is_asp = any(t in ("asp.net", "iis", "c#", ".net", "windows") for t in tech_list) or any(".aspx" in e.lower() or ".axd" in e.lower() for e in all_ep_strs)
+        is_node = any(t in ("node.js", "express", "next.js", "react", "vue", "angular", "javascript") for t in tech_list)
+
+        def _get_lfi_wordlist() -> str:
+            candidates = [
+                "/usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt",
+                "/usr/share/wordlists/seclists/Fuzzing/LFI/LFI-Jhaddix.txt",
+                "/usr/share/seclists/Fuzzing/LFI/LFI-gracefulsecurity-linux.txt",
+                "/usr/share/wordlists/dirb/common.txt",
+            ]
+            for p in candidates:
+                if Path(p).exists():
+                    return p
+            return "/usr/share/seclists/Fuzzing/LFI/LFI-Jhaddix.txt"
+
+        def _get_content_wordlist() -> str:
+            candidates = [
+                "/usr/share/seclists/Discovery/Web-Content/common.txt",
+                "/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt",
+                "/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt",
+                "/usr/share/wordlists/dirb/common.txt",
+            ]
+            for p in candidates:
+                if Path(p).exists():
+                    return p
+            return "/usr/share/seclists/Discovery/Web-Content/common.txt"
+
         vuln_targets_to_validate = []
         if vulnerability_type:
             vuln_targets_to_validate.append((str(vulnerability_type), None, target_name))
@@ -416,100 +493,203 @@ class MissionPlanner:
             ev_list = [e for e in ev_list if e]
 
             if "sql" in v_lower:
-                v_name = "SQL Injection Hypothesis Validation"
-                v_desc = f"Execute automated SQL injection scanner validation against {ep_ref} parameters."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing SQL injection probes against {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-sqli", "7-question-gate"]
-                v_reason = "SQL_INJECTION_VALIDATION"
-            elif "idor" in v_lower or "bola" in v_lower:
-                v_name = "IDOR Cross-Tenant Boundary Verification"
-                v_desc = f"Execute dual-session probe (Attacker A querying Victim B object identifiers) on {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing IDOR boundary probes against {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-idor", "7-question-gate"]
-                v_reason = "IDOR_VALIDATION"
-            elif "ssrf" in v_lower:
-                v_name = "SSRF Out-of-Band Callback Verification"
-                v_desc = f"Send non-destructive collaborator token callback probe to confirm external request sink on {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing SSRF callback probes against {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-ssrf", "7-question-gate"]
-                v_reason = "SSRF_VALIDATION"
-            elif "auth" in v_lower:
-                v_name = "Authentication Bypass & Session Verification"
-                v_desc = f"Evaluate session token invalidation, role-claim tampering, and unauthenticated route boundaries on {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence testing authentication transitions on {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-auth-bypass", "hunt-jwt-crypto", "7-question-gate"]
-                v_reason = "AUTH_BYPASS_VALIDATION"
-            elif "graphql" in v_lower:
-                v_name = "GraphQL Query & Mutation Hypothesis Validation"
-                v_desc = f"Execute automated GraphQL introspection and mutation probes against {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing GraphQL security probes against {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-graphql", "7-question-gate"]
-                v_reason = "GRAPHQL_VALIDATION"
-            elif "file" in v_lower or "upload" in v_lower:
-                v_name = "Arbitrary File Upload & Traversal Validation"
-                v_desc = f"Execute controlled file upload and traversal probes against {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence testing file upload boundary filters on {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-file-upload", "hunt-lfi", "7-question-gate"]
-                v_reason = "FILE_UPLOAD_VALIDATION"
-            elif "xss" in v_lower:
-                v_name = "Reflected XSS Context & Filter Probe"
-                v_desc = f"Inject unique alphanumeric canary strings into input fields on {ep_ref} to inspect response reflection and encoding."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing XSS scanner probes on {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-xss", "7-question-gate"]
-                v_reason = "XSS_VALIDATION"
-            elif "rce" in v_lower or "command" in v_lower:
-                v_name = "Command Injection Time-Delay Verification"
-                v_desc = f"Test command separator handling using non-destructive time delay probes on {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing command injection probes on {ep_ref}; requires operator confirmation."
-                v_refs = ["hunt-rce", "7-question-gate"]
-                v_reason = "COMMAND_INJECTION_VALIDATION"
-            else:
-                v_name = f"{v_type} Hypothesis Validation"
-                v_desc = f"Execute controlled active validation sequence for {v_type} on {ep_ref}."
-                v_tool = "nyx-validate"
-                v_action = "finding_triage"
-                v_impact = "DESTRUCTIVE"
-                v_just = f"Active tool-based validation sequence executing probes for {v_type} on {ep_ref}; requires operator confirmation."
-                v_refs = ["7-question-gate", "evidence-hygiene"]
-                v_reason = f"{v_type.upper().replace(' ', '_')}_VALIDATION"
+                # 1. SQL Injection: SQLMap as primary vetted tool + Nuclei secondary
+                selected.append({
+                    "name": "SQL Injection Validation (SQLMap)",
+                    "action": "finding_triage",
+                    "tool": "sqlmap",
+                    "description": f"Execute automated SQL injection parameter validation using SQLMap against {ep_ref}.",
+                    "reason": "SQL_INJECTION_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-sqli", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing SQLMap injection probes against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-u", ep_ref, "--batch"],
+                })
+                selected.append({
+                    "name": "SQL Injection Template Scan (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Execute automated SQL injection template scan using Nuclei against {ep_ref}.",
+                    "reason": "SQL_INJECTION_NUCLEI_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-sqli", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing Nuclei SQLi templates against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "sqli", "-jsonl"],
+                })
 
-            selected.append({
-                "name": v_name,
-                "action": v_action,
-                "tool": v_tool,
-                "description": v_desc,
-                "reason": v_reason,
-                "evidence": ev_list,
-                "knowledge_refs": v_refs,
-                "impact_class": v_impact,
-                "impact_justification": v_just,
-                "policy_status": "PENDING_POLICY_VALIDATION",
-                "target": ep_ref,
-            })
+            elif "file" in v_lower or "upload" in v_lower or "lfi" in v_lower or "traversal" in v_lower:
+                # 2. LFI / Traversal / File Upload: FFUF with stack-aware wordlist + Nuclei template scan
+                has_params = "?" in ep_ref and "=" in ep_ref
+                fuzz_target = re.sub(r'=([^&]*)', '=FUZZ', ep_ref) if has_params else (ep_ref.rstrip("/") + "/FUZZ")
+                lfi_wl = _get_lfi_wordlist()
+                match_regex = "root:x:0:0|root:.*:0:0|PHP Warning|fatal error" if is_php else ("root:x:0:0|windows/win.ini|System.Exception" if is_asp else "root:x:0:0|root:.*:0:0")
+                
+                selected.append({
+                    "name": "Local File Inclusion & Traversal Fuzzing (FFUF)",
+                    "action": "finding_triage",
+                    "tool": "ffuf",
+                    "description": f"Execute active path traversal and LFI parameter fuzzing with FFUF using stack-aware wordlists against {ep_ref}.",
+                    "reason": "LFI_TRAVERSAL_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-lfi", "hunt-file-upload", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing FFUF LFI probes against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": fuzz_target,
+                    "arguments": ["-u", fuzz_target, "-w", lfi_wl, "-mr", match_regex],
+                })
+                selected.append({
+                    "name": "File Inclusion & Upload Template Scan (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Execute Nuclei template scanning for file upload and traversal vulnerabilities on {ep_ref}.",
+                    "reason": "FILE_UPLOAD_NUCLEI_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-file-upload", "hunt-lfi", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence testing file upload boundary filters on {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "lfi,fileupload,traversal", "-jsonl"],
+                })
+
+            elif any(k in v_lower for k in ("discovery", "unlinked", "shadow", "leak", "source")):
+                # 3. Directory / Content Discovery: FFUF with stack-appropriate extensions
+                content_wl = _get_content_wordlist()
+                fuzz_dir_target = ep_ref.rstrip("/") + "/FUZZ" if "FUZZ" not in ep_ref else ep_ref
+                ext_str = ".php,.html,.txt" if is_php else (".aspx,.axd,.config" if is_asp else ".js,.json,.html")
+                selected.append({
+                    "name": "Directory & Unlinked Route Discovery (FFUF)",
+                    "action": "finding_triage",
+                    "tool": "ffuf",
+                    "description": f"Execute stack-aware web directory and API route fuzzing with FFUF on {ep_ref}.",
+                    "reason": "CONTENT_DISCOVERY_FUZZING",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-source-leak", "hunt-shadow-api", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active directory fuzzing with FFUF against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": fuzz_dir_target,
+                    "arguments": ["-u", fuzz_dir_target, "-w", content_wl, "-e", ext_str],
+                })
+
+            elif "ssrf" in v_lower:
+                selected.append({
+                    "name": "SSRF Out-of-Band Callback Verification (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Send non-destructive collaborator token callback probe via Nuclei to confirm external request sink on {ep_ref}.",
+                    "reason": "SSRF_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-ssrf", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing SSRF callback probes against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "ssrf,oast", "-jsonl"],
+                })
+
+            elif "graphql" in v_lower:
+                selected.append({
+                    "name": "GraphQL Query & Mutation Validation (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Execute automated GraphQL introspection and mutation probes against {ep_ref}.",
+                    "reason": "GRAPHQL_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-graphql", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing GraphQL security probes against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "graphql", "-jsonl"],
+                })
+
+            elif "auth" in v_lower or "token" in v_lower or "jwt" in v_lower or "mfa" in v_lower or "recovery" in v_lower:
+                selected.append({
+                    "name": "Authentication Bypass & Session Verification (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Evaluate session token invalidation, role-claim tampering, and unauthenticated route boundaries on {ep_ref}.",
+                    "reason": "AUTH_BYPASS_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-auth-bypass", "hunt-jwt-crypto", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence testing authentication transitions on {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "auth,jwt,default-login", "-jsonl"],
+                })
+
+            elif "xss" in v_lower:
+                selected.append({
+                    "name": "Reflected XSS Validation (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Inject unique alphanumeric canary strings and XSS probes via Nuclei on {ep_ref}.",
+                    "reason": "XSS_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-xss", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing XSS scanner probes on {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "xss", "-jsonl"],
+                })
+
+            elif "rce" in v_lower or "command" in v_lower:
+                selected.append({
+                    "name": "Command Injection & RCE Validation (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Test command separator handling using non-destructive time delay probes on {ep_ref}.",
+                    "reason": "COMMAND_INJECTION_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-rce", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing command injection probes on {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "rce,oast", "-jsonl"],
+                })
+
+            elif "idor" in v_lower or "bola" in v_lower:
+                selected.append({
+                    "name": "IDOR Cross-Tenant Boundary Verification",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Execute dual-session probe (Attacker A querying Victim B object identifiers) on {ep_ref}.",
+                    "reason": "IDOR_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["hunt-idor", "7-question-gate"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing IDOR boundary probes against {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "idor", "-jsonl"],
+                })
+
+            else:
+                selected.append({
+                    "name": f"{v_type} Hypothesis Validation (Nuclei)",
+                    "action": "finding_triage",
+                    "tool": "nuclei",
+                    "description": f"Execute targeted Nuclei vulnerability scan for {v_type} on {ep_ref}.",
+                    "reason": f"{v_type.upper().replace(' ', '_')}_VALIDATION",
+                    "evidence": ev_list,
+                    "knowledge_refs": ["7-question-gate", "evidence-hygiene"],
+                    "impact_class": "DESTRUCTIVE",
+                    "impact_justification": f"Active tool-based validation sequence executing probes for {v_type} on {ep_ref}; requires operator confirmation.",
+                    "policy_status": "PENDING_POLICY_VALIDATION",
+                    "target": ep_ref,
+                    "arguments": ["-tags", "cve,misconfig", "-jsonl"],
+                })
 
         # Filter out candidate steps that have already been tested or denied by operator
         candidate_steps: List[Dict[str, Any]] = []
@@ -661,8 +841,15 @@ class MissionPlanner:
         step_target = step.get("target") or target
         reason = step.get("reason", tool)
 
-        if tool in ("httpx", "subfinder", "katana", "nuclei", "nmap", "ffuf", "probe", "vuln_probe"):
-            res = exec_svc.run_tool(tool, step_target, dry_run=not active_permitted, active_permitted=active_permitted)
+        if tool in ("httpx", "subfinder", "katana", "nuclei", "nmap", "ffuf", "sqlmap", "probe", "vuln_probe"):
+            arguments = step.get("arguments") or step.get("args")
+            res = exec_svc.run_tool(
+                tool,
+                step_target,
+                arguments=arguments,
+                dry_run=not active_permitted,
+                active_permitted=active_permitted,
+            )
             res_dict = res.to_dict() if hasattr(res, "to_dict") else (res if isinstance(res, dict) else {"success": getattr(res, "success", True)})
 
             # Record outcome to engagement memory
@@ -670,8 +857,61 @@ class MissionPlanner:
             v_outcome = "tested_success" if is_ok else ("blocked_by_policy" if getattr(res, "code", "") == "EXECUTION_BLOCKED" else "failed_infrastructure")
             try:
                 record_memory(mem_type="vector", val=f"{tool}_execution", endpoint=step_target, result=v_outcome, base_dir=self.base_dir)
+                if reason and reason != tool:
+                    record_memory(mem_type="vector", val=reason.lower(), endpoint=step_target, result=v_outcome, base_dir=self.base_dir)
             except Exception:
                 pass
+
+            # Attach evidence and trigger AI validation review for findings
+            ev_list = step.get("evidence", [])
+            if not isinstance(ev_list, list):
+                ev_list = [ev_list]
+
+            target_fids = [str(e) for e in ev_list if str(e).startswith("FH-")]
+            if not target_fids:
+                try:
+                    findings_data = finding_svc.list_findings(base_dir=self.base_dir)
+                    all_f = findings_data.get("findings", []) if isinstance(findings_data, dict) else []
+                    clean_st = step_target.lower().split("?")[0].rstrip("/")
+                    for f in all_f:
+                        if f.get("status") in ("HYPOTHESIS", "VALIDATING", "NEEDS VALIDATION"):
+                            f_ep = str(f.get("endpoint") or "").lower().split("?")[0].rstrip("/")
+                            if f_ep and (f_ep == clean_st or clean_st in f_ep or f_ep in clean_st):
+                                fid_val = f.get("finding_id")
+                                if fid_val and fid_val not in target_fids:
+                                    target_fids.append(fid_val)
+                except Exception:
+                    pass
+
+            target_fids = target_fids[:5]
+
+            # Only submit to AI review if the adapter/tool actually surfaced matches/vulnerabilities
+            raw_vulns = res_dict.get("data", {}).get("vulnerabilities") if isinstance(res_dict.get("data"), dict) else res_dict.get("vulnerabilities", [])
+            has_tool_matches = (len(raw_vulns) > 0) if isinstance(raw_vulns, list) else False
+
+            reviews = []
+            for fid in target_fids:
+                from nyx.core.evidence import add_evidence
+                add_evidence(
+                    finding_id=fid,
+                    ev_type="tool_output",
+                    content=json.dumps(res_dict.get("data", {})) or str(res_dict),
+                    description=f"Automated tool validation output via {tool}",
+                    source=tool,
+                    base_dir=self.base_dir,
+                )
+                if has_tool_matches and (active_permitted or tool in ("ffuf", "nuclei", "sqlmap")):
+                    from nyx.core.findings import review_finding_evidence
+                    ai_rev = review_finding_evidence(
+                        finding_id_or_data=fid,
+                        tool_name=tool,
+                        tool_output=res_dict,
+                        base_dir=self.base_dir,
+                    )
+                    reviews.append(ai_rev)
+
+            if reviews:
+                res_dict["ai_reviews"] = reviews
 
             return {"step": step.get("step"), "name": step.get("name"), "tool": tool, "result": res_dict}
 
@@ -850,6 +1090,7 @@ class MissionPlanner:
             if not isinstance(findings_ev, list):
                 findings_ev = [findings_ev]
 
+            reviews = []
             for ev_item in findings_ev:
                 if str(ev_item).startswith("FH-"):
                     fid = str(ev_item)
@@ -863,6 +1104,15 @@ class MissionPlanner:
                     )
                     if isinstance(ev_res, dict) and ev_res.get("evidence_id"):
                         ev_records.append(ev_res.get("evidence_id"))
+
+                    from nyx.core.findings import review_finding_evidence
+                    ai_rev = review_finding_evidence(
+                        finding_id_or_data=fid,
+                        tool_name=tool_to_use,
+                        tool_output=exec_res.stdout or exec_res.stderr or exec_res.metadata,
+                        base_dir=self.base_dir,
+                    )
+                    reviews.append(ai_rev)
 
             raw_findings = []
             if isinstance(exec_res.metadata, dict):
@@ -1030,6 +1280,13 @@ class MissionPlanner:
                 for it in iterations
             ]
 
+            # Tier 1 Skill Summary Injection (< 500 tokens)
+            from nyx.core.skills import get_candidates_skill_summaries, get_skill_content
+            playbook_reference_block = get_candidates_skill_summaries(validated, max_tokens=500)
+            playbook_section = ""
+            if playbook_reference_block:
+                playbook_section = f"Reference Playbooks (Methodology & Gate Guidance):\n{playbook_reference_block}\n\n"
+
             decision_prompt = (
                 "You are an AI decision engine for NYX, operating within an authorized engagement.\n"
                 f"Target: {target}\n"
@@ -1037,13 +1294,15 @@ class MissionPlanner:
                 f"Detected Technologies: {context.get('technologies', [])[:15]}\n"
                 f"Harvested Endpoints Count: {len(context.get('endpoints', []))}\n"
                 f"Prior Iterations History:\n{json.dumps(prior_history_summary, indent=2)}\n\n"
+                f"{playbook_section}"
                 f"Policy-Validated Candidate Steps:\n{json.dumps(candidates_summary, indent=2)}\n\n"
                 "Select the most strategic candidate step to execute next (by candidate index), or signal escalation/skip.\n"
+                "Ground your choice and reasoning in the provided playbook methodology and verification gates.\n"
                 "Respond ONLY with a valid JSON object with these keys:\n"
                 "{\n"
                 f'  "selected_index": <integer from 0 to {len(validated) - 1}>,\n'
                 '  "decision": "proceed" | "escalate" | "skip",\n'
-                '  "reasoning": "<concise explanation of why this candidate was selected>"\n'
+                '  "reasoning": "<concise explanation referencing playbook methodology for this selection>"\n'
                 "}"
             )
 
@@ -1051,6 +1310,7 @@ class MissionPlanner:
                 **context,
                 "validated_candidates": candidates_summary,
                 "prior_iterations": prior_history_summary,
+                "playbook_references": playbook_reference_block,
             }
 
             ai_reasoning = self.ai_manager.analyze(
@@ -1059,35 +1319,103 @@ class MissionPlanner:
                 provider_name=provider_name,
             )
 
-            # SAFETY REQUIREMENT: Parse chosen candidate index; fallback to validated[0] if unparseable/out of bounds
-            chosen_idx = 0
+            # SAFETY REQUIREMENT: Parse chosen candidate index; fail-closed if AI is unavailable / error / 429 / unparseable
+            chosen_idx = None
+            ai_degraded = False
+            degradation_reason = None
             parsed_json = None
+            candidate_idx_val = None
+
             if isinstance(ai_reasoning, dict):
-                candidate_idx_val = ai_reasoning.get("selected_index")
+                is_error_status = (
+                    ai_reasoning.get("status") == "error"
+                    or ai_reasoning.get("error_type") is not None
+                    or ai_reasoning.get("success") is False
+                    or "error" in ai_reasoning
+                    or ai_reasoning.get("recommended_focus") == "AI analysis unavailable"
+                    or "AI analysis unavailable" in str(ai_reasoning.get("analysis") or "")
+                )
+                if is_error_status:
+                    ai_degraded = True
+                    raw_err = (
+                        ai_reasoning.get("error")
+                        or ai_reasoning.get("analysis")
+                        or ai_reasoning.get("message")
+                        or ai_reasoning.get("error_type")
+                        or "AI provider unavailable"
+                    )
+                    degradation_reason = str(raw_err)
+                    if "429" in degradation_reason or "rate limit" in degradation_reason.lower():
+                        degradation_reason = f"Groq rate limit reached (HTTP 429): {degradation_reason}"
+                else:
+                    candidate_idx_val = ai_reasoning.get("selected_index")
 
-                # If the provider returned raw JSON within the analysis text, attempt regex parsing
-                if candidate_idx_val is None or "decision" not in ai_reasoning:
-                    raw_text = str(ai_reasoning.get("analysis") or "")
-                    try:
-                        m = re.search(r'\{.*\}', raw_text, re.DOTALL)
-                        if m:
-                            parsed = json.loads(m.group(0))
-                            if isinstance(parsed, dict):
-                                parsed_json = parsed
-                                if candidate_idx_val is None:
-                                    candidate_idx_val = parsed_json.get("selected_index")
-                    except Exception:
-                        pass
+                    # If the provider returned raw JSON within the analysis text, attempt regex parsing
+                    if candidate_idx_val is None or "decision" not in ai_reasoning:
+                        raw_text = str(ai_reasoning.get("analysis") or "")
+                        try:
+                            m = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                            if m:
+                                parsed = json.loads(m.group(0))
+                                if isinstance(parsed, dict):
+                                    parsed_json = parsed
+                                    if candidate_idx_val is None:
+                                        candidate_idx_val = parsed_json.get("selected_index")
+                        except Exception:
+                            pass
 
-                if isinstance(candidate_idx_val, int) and 0 <= candidate_idx_val < len(validated):
-                    chosen_idx = candidate_idx_val
-                elif isinstance(candidate_idx_val, str) and candidate_idx_val.strip().isdigit():
-                    parsed_int = int(candidate_idx_val.strip())
-                    if 0 <= parsed_int < len(validated):
-                        chosen_idx = parsed_int
+                    if isinstance(candidate_idx_val, int) and 0 <= candidate_idx_val < len(validated):
+                        chosen_idx = candidate_idx_val
+                    elif isinstance(candidate_idx_val, str) and candidate_idx_val.strip().isdigit():
+                        parsed_int = int(candidate_idx_val.strip())
+                        if 0 <= parsed_int < len(validated):
+                            chosen_idx = parsed_int
+                    else:
+                        ai_degraded = True
+                        degradation_reason = f"Unparseable AI decision response: {str(ai_reasoning.get('analysis') or ai_reasoning)[:300]}"
+            else:
+                ai_degraded = True
+                degradation_reason = f"AI provider returned non-dict response: {str(ai_reasoning)[:300]}"
+
+            # FAIL-CLOSED BEHAVIOR: Stop loop immediately when AI is unavailable
+            if ai_degraded:
+                logger.error(
+                    "[AI-UNAVAILABLE] Autonomous mission halted at iteration %d — AI provider unavailable: %s",
+                    iteration_idx,
+                    degradation_reason,
+                )
+                # Keep prior successful iterations & findings intact; halt execution immediately
+                return {
+                    "status": "ai_unavailable",
+                    "reason": "ai_provider_failure",
+                    "error": degradation_reason,
+                    "target": target,
+                    "iteration_halted": iteration_idx,
+                    "iterations": iterations,
+                    "recon_bootstrapped": recon_bootstrapped,
+                    "endpoints_count": len(context.get("endpoints", [])),
+                    "ai_degraded": True,
+                    "degradation_reason": degradation_reason,
+                    "message": f"AI provider unavailable: {degradation_reason}. Autonomous mission halted. No new findings generated.",
+                }
 
             next_step = validated[chosen_idx]
-            logger.info("[MISSION] Selected candidate #%d: '%s' [%s] using '%s' (Reason: %s)", chosen_idx, next_step.get("name"), next_step.get("impact_class"), next_step.get("tool"), next_step.get("reason"))
+            next_step["ai_degraded"] = False
+            next_step["degradation_reason"] = None
+
+            # Tier 2 Skill Body Injection (selected candidate only, <= 1500 tokens)
+            k_refs = next_step.get("knowledge_refs") or []
+            selected_skill_content = None
+            for ref in k_refs:
+                content = get_skill_content(ref, max_tokens=1500)
+                if content:
+                    selected_skill_content = content
+                    break
+
+            if selected_skill_content:
+                next_step["playbook_guidance"] = selected_skill_content
+
+            logger.info("[MISSION] Selected candidate #%d: '%s' [%s] using '%s' (Reason: %s, AI Degraded: %s)", chosen_idx, next_step.get("name"), next_step.get("impact_class"), next_step.get("tool"), next_step.get("reason"), ai_degraded)
 
             # 1.f. Pause on DESTRUCTIVE step (do NOT execute)
             if next_step.get("impact_class") == "DESTRUCTIVE":
@@ -1116,6 +1444,8 @@ class MissionPlanner:
                     "target": target,
                     "iterations": iterations,
                     "recon_bootstrapped": recon_bootstrapped,
+                    "ai_degraded": ai_degraded,
+                    "degradation_reason": degradation_reason,
                 }
 
             # 1.g. Stop if policy blocked
@@ -1127,6 +1457,8 @@ class MissionPlanner:
                     "target": target,
                     "iterations": iterations,
                     "recon_bootstrapped": recon_bootstrapped,
+                    "ai_degraded": ai_degraded,
+                    "degradation_reason": degradation_reason,
                 }
 
             # Decision branching (proceed | escalate | skip)
@@ -1149,6 +1481,8 @@ class MissionPlanner:
                     "target": target,
                     "iterations": iterations,
                     "recon_bootstrapped": recon_bootstrapped,
+                    "ai_degraded": ai_degraded,
+                    "degradation_reason": degradation_reason,
                 }
             elif decision_val == "skip":
                 logger.info("[SKIP] AI decision skipped step: '%s'", next_step.get("name"))
@@ -1163,6 +1497,8 @@ class MissionPlanner:
                     "iteration": iteration_idx,
                     "step": next_step,
                     "ai_reasoning": ai_reasoning,
+                    "ai_degraded": ai_degraded,
+                    "degradation_reason": degradation_reason,
                     "result": {
                         "status": "skipped",
                         "reason": "AI decision signalled skip",
@@ -1179,15 +1515,21 @@ class MissionPlanner:
                 "iteration": iteration_idx,
                 "step": next_step,
                 "ai_reasoning": ai_reasoning,
+                "ai_degraded": ai_degraded,
+                "degradation_reason": degradation_reason,
                 "result": result,
             })
 
         # 2. Max iterations reached without terminal state
         logger.info("[DONE] Autonomous loop reached maximum iteration limit (%d)", max_iterations)
+        any_degraded = any(it.get("ai_degraded") for it in iterations)
+        deg_reason = next((it.get("degradation_reason") for it in iterations if it.get("degradation_reason")), None)
         return {
             "status": "max_iterations_reached",
             "target": target,
             "iterations": iterations,
             "recon_bootstrapped": recon_bootstrapped,
             "endpoints_count": len(context.get("endpoints", [])),
+            "ai_degraded": any_degraded,
+            "degradation_reason": deg_reason,
         }

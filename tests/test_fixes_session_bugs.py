@@ -213,7 +213,7 @@ def test_recon_path_included_target_probes_and_crawls_subpath(tmp_path: Path):
         </body>
     </html>
     """
-    with patch("urllib.request.urlopen") as mock_open:
+    with patch("nyx.recon.content_discovery.is_hostname_in_scope", return_value=True), patch("urllib.request.urlopen") as mock_open:
         mock_resp = MagicMock()
         mock_resp.read.return_value = html_content.encode("utf-8")
         mock_resp.__enter__.return_value = mock_resp
@@ -318,6 +318,853 @@ def test_cli_agent_approvals_approve_deny(tmp_path: Path, capsys):
         assert ret_deny == 0
         captured = capsys.readouterr()
         assert "Action 'ACT-TEST02' denied successfully." in captured.out
+
+
+def test_tier1_skill_summaries_budget_and_content():
+    """Test that Tier 1 candidate skill summary extraction stays under budget and pulls real playbook descriptions."""
+    from nyx.core.skills import get_candidates_skill_summaries
+
+    candidates = [
+        {"name": "Step 1", "knowledge_refs": ["hunt-file-upload", "hunt-lfi"]},
+        {"name": "Step 2", "knowledge_refs": ["hunt-sqli", "7-question-gate"]},
+        {"name": "Step 3", "knowledge_refs": ["hunt-auth-bypass", "hunt-ato"]},
+    ]
+
+    summaries = get_candidates_skill_summaries(candidates, max_tokens=500)
+    assert summaries != ""
+    assert "hunt-file-upload" in summaries or "hunt-lfi" in summaries
+    # 500 tokens roughly translates to <= 2000 chars
+    assert len(summaries) <= 2000
+
+
+def test_tier2_skill_content_prioritizes_verification_gates():
+    """Test that Tier 2 full content extraction prioritizes verification gates when budget is capped."""
+    from nyx.core.skills import get_skill_content
+
+    # Request small budget (e.g. 300 tokens ~ 1200 chars) on a long skill file like hunt-lfi
+    content = get_skill_content("hunt-lfi", max_tokens=300)
+    assert content is not None
+    assert len(content) <= 1300
+    # Confirm high-priority verification / confirmation keywords are retained
+    content_lower = content.lower()
+    assert "confirmation" in content_lower or "gate" in content_lower or "crown jewel" in content_lower
+
+
+def test_autonomous_loop_injects_tier1_prompt_and_tier2_selected_candidate(tmp_path: Path, monkeypatch):
+    """Test that autonomous loop builds decision_prompt with Reference Playbooks and populates playbook_guidance on selected candidate."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+    from nyx.application.recon_service import ReconService
+    import json
+
+    monkeypatch.chdir(tmp_path)
+    core_eng.init_engagement("https://skill-test.local/", reset=True, force=True, base_dir=tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        {"url": "https://skill-test.local/index.php?page=upload.php", "host": "skill-test.local"}
+    ]), encoding="utf-8")
+
+    captured_prompt = None
+
+    def mock_analyze(ctx, prompt=None, provider_name=None):
+        nonlocal captured_prompt
+        captured_prompt = prompt
+        return {"selected_index": 0, "decision": "proceed", "reasoning": "Selected based on LFI playbook guidance"}
+
+    planner = MissionPlanner(base_dir=tmp_path)
+    planner.ai_manager.analyze = mock_analyze
+
+    res = planner.run_autonomous_loop("https://skill-test.local/", active_permitted=False, max_iterations=1)
+
+    # 1. Tier 1 prompt check: Reference Playbooks section present
+    assert captured_prompt is not None
+    assert "Reference Playbooks (Methodology & Gate Guidance):" in captured_prompt
+    assert "hunt-file-upload" in captured_prompt or "hunt-lfi" in captured_prompt or "bb-methodology" in captured_prompt
+
+    # 2. Tier 2 selected candidate check: only selected candidate receives playbook_guidance
+    iterations = res.get("iterations", [])
+    assert len(iterations) >= 1
+    selected_step = iterations[0].get("step", {})
+    assert "playbook_guidance" in selected_step
+    assert selected_step["playbook_guidance"] is not None
+
+
+def test_finding_report_generation_returns_real_markdown_and_draft_key(tmp_path: Path):
+    """Test that finding report generation produces real Markdown with draft key and VRT/CVSS structure."""
+    from nyx.application.finding_service import FindingService
+    from nyx.core import engagement as core_eng
+    import json
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    findings_file = eng_dir / "findings.json"
+    findings_file.write_text(json.dumps([
+        {
+            "finding_id": "FH-2026-001",
+            "title": "Local File Inclusion via page Parameter",
+            "severity": "High",
+            "endpoint": "https://test.local/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+            "parameter": "page",
+            "vulnerability": "Local File Inclusion",
+            "evidence": "1. GET https://test.local/index.php?page=../../etc/passwd\n2. Response contains root:x:0:0:",
+            "remediation": "Validate input against an allowlist.",
+        }
+    ]), encoding="utf-8")
+
+    service = FindingService(base_dir=tmp_path)
+    res = service.report(finding_id="FH-2026-001", platform="bugcrowd")
+
+    assert res.get("status") == "success"
+    assert "draft" in res
+    draft_md = res["draft"]
+    assert "# Vulnerability Report" in draft_md or "## Summary" in draft_md or "FH-2026-001" in draft_md
+    assert "Local File Inclusion" in draft_md
+    assert "https://test.local/mutillidae/index.php" in draft_md
+
+
+def test_finding_report_generation_error_raises_http_400(tmp_path: Path):
+    """Test that requesting report for a non-existent finding returns error status and triggers HTTP 400."""
+    from nyx.application.finding_service import FindingService
+    from nyx.web.routes.findings import generate_finding_report
+    from fastapi import HTTPException
+    import pytest
+    import asyncio
+
+    core_eng_dir = tmp_path / ".engagement"
+    core_eng_dir.mkdir(parents=True, exist_ok=True)
+    (core_eng_dir / "findings.json").write_text("[]", encoding="utf-8")
+
+    service = FindingService(base_dir=tmp_path)
+
+    # 1. Service level returns status: error
+    res = service.report(finding_id="FH-NONEXISTENT", platform="bugcrowd")
+    assert res.get("status") == "error"
+
+    # 2. Web route raises HTTPException(status_code=400)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_finding_report(finding_id="FH-NONEXISTENT", platform="bugcrowd", service=service))
+    assert exc_info.value.status_code == 400
+    assert "not found" in exc_info.value.detail.get("message", "").lower()
+
+
+def test_ai_authored_report_generation_produces_non_placeholder_content(tmp_path: Path, monkeypatch):
+    """Test that AI-authored report generation produces rich non-placeholder content and sets ai_generated=True."""
+    from nyx.application.finding_service import FindingService
+    from nyx.core import engagement as core_eng
+    from nyx.ai.manager import AIManager
+    import json
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    findings_file = eng_dir / "findings.json"
+    findings_file.write_text(json.dumps([
+        {
+            "finding_id": "FH-2026-001",
+            "title": "Local File Inclusion on index.php",
+            "severity": "High",
+            "status": "HYPOTHESIS",
+            "endpoint": "https://test.local/index.php?page=arbitrary-file-inclusion.php",
+            "parameter": "page",
+            "vulnerability": "Local File Inclusion",
+            "description": "Classification identified page parameter LFI vulnerability.",
+        }
+    ]), encoding="utf-8")
+
+    mock_ai_json = json.dumps({
+        "vrt_category": "Server-Side Injection > Local File Inclusion",
+        "severity_justification": "High severity due to sensitive configuration file read vector.",
+        "summary": "Detailed AI technical summary regarding index.php page parameter handling in PHP.",
+        "steps_to_reproduce": "1. Send curl GET with ../../etc/passwd\n2. Inspect response body.",
+        "impact": "Unconfirmed hypothesis: would allow unauthorized local file reads if validated.",
+        "remediation": "Implement an allowlist for page parameter values."
+    })
+
+    monkeypatch.setattr(AIManager, "generate", lambda self, prompt, options=None: mock_ai_json)
+
+    service = FindingService(base_dir=tmp_path)
+    res = service.report(finding_id="FH-2026-001", platform="bugcrowd", use_ai=True)
+
+    assert res.get("status") == "success"
+    assert res.get("ai_generated") is True
+    assert res.get("fallback") is False
+    draft = res.get("draft", "")
+
+    # Confirm non-placeholder content
+    assert "Detailed AI technical summary" in draft
+    assert "Server-Side Injection > Local File Inclusion" in draft
+    assert "High severity due to sensitive configuration file read vector." in draft
+    assert "Implement an allowlist for page parameter values." in draft
+    assert "Unconfirmed hypothesis: would allow unauthorized local file reads" in draft
+    assert "_<VRT-path>_" not in draft
+    assert "(fill in steps)" not in draft
+
+
+def test_ai_report_generation_fallback_path_is_distinguishable(tmp_path: Path, monkeypatch):
+    """Test that when AI generation fails or is disabled, fallback path is clearly marked."""
+    from nyx.application.finding_service import FindingService
+    from nyx.core import engagement as core_eng
+    from nyx.ai.manager import AIManager
+    import json
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    findings_file = eng_dir / "findings.json"
+    findings_file.write_text(json.dumps([
+        {
+            "finding_id": "FH-2026-001",
+            "title": "Local File Inclusion on index.php",
+            "severity": "High",
+            "status": "HYPOTHESIS",
+            "endpoint": "https://test.local/index.php?page=arbitrary-file-inclusion.php",
+        }
+    ]), encoding="utf-8")
+
+    # Force AI failure
+    monkeypatch.setattr(AIManager, "generate", lambda self, prompt, options=None: (_ for _ in ()).throw(RuntimeError("API down")))
+
+    service = FindingService(base_dir=tmp_path)
+    res = service.report(finding_id="FH-2026-001", platform="bugcrowd", use_ai=True)
+
+    assert res.get("status") == "success"
+    assert res.get("ai_generated") is False
+    assert res.get("fallback") is True
+    draft = res.get("draft", "")
+    assert "Fallback Report Template" in draft
+
+
+def test_duplicate_check_prevents_race_and_checks_directory_subdirs(tmp_path: Path):
+    """Test that duplicate_check inspects on-disk subdirectories and prevents duplicate creation even without findings.json."""
+    from nyx.application.finding_service import FindingService
+    from nyx.core import engagement as core_eng
+    from nyx.core.findings import duplicate_check, create_finding
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    service = FindingService(base_dir=tmp_path)
+
+    # 1. Create first finding
+    res1 = service.create(
+        title="File Upload Surface on arbitrary-file-inclusion.php",
+        endpoint="https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        vulnerability="Arbitrary File Upload",
+        severity="High",
+    )
+    assert res1.get("status") == "success"
+    fid1 = res1.get("finding_id")
+
+    # 2. Simulate stale/missing findings.json by deleting findings.json while subdirs exist
+    findings_json_file = tmp_path / ".engagement" / "findings.json"
+    if findings_json_file.exists():
+        findings_json_file.unlink()
+
+    # 3. duplicate_check directly
+    dup_res = duplicate_check(
+        endpoint="https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        vulnerability="Arbitrary File Upload",
+        base_dir=tmp_path,
+    )
+    assert dup_res.get("is_duplicate") is True
+    assert dup_res.get("existing_finding", {}).get("finding_id") == fid1
+
+    # 4. Attempt creating duplicate finding
+    res2 = service.create(
+        title="File Upload Surface on arbitrary-file-inclusion.php",
+        endpoint="https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        vulnerability="Arbitrary File Upload",
+        severity="High",
+    )
+    assert res2.get("is_duplicate") is True
+    assert res2.get("status") == "duplicate"
+    assert res2.get("finding_id") == fid1
+
+
+def test_differentiated_authentication_classification_hypotheses(tmp_path: Path):
+    """Test that auth-family endpoints produce differentiated, semantics-specific vulnerability hypotheses."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("http://localhost:8888/", reset=True, force=True, base_dir=tmp_path)
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    classified_results = [
+        {"url": "http://localhost:8888/api/auth/forget-password", "category": "auth", "skills": [], "matches": {}},
+        {"url": "http://localhost:8888/api/auth/v3/check-otp", "category": "auth", "skills": [], "matches": {}},
+        {"url": "http://localhost:8888/api/auth/v4.0/user/login-with-token", "category": "auth", "skills": [], "matches": {}},
+        {"url": "http://localhost:8888/api/auth/unlock", "category": "auth", "skills": [], "matches": {}},
+        {"url": "http://localhost:8888/api/auth/signup", "category": "auth", "skills": [], "matches": {}},
+        {"url": "http://localhost:8888/api/auth/login", "category": "auth", "skills": [], "matches": {}},
+    ]
+
+    hypotheses = planner._map_classification_to_hypotheses(
+        classified_results=classified_results,
+        target="http://localhost:8888/",
+    )
+
+    vuln_by_url = {h["finding"]["endpoint"]: h["finding"]["vulnerability"] for h in hypotheses if "finding" in h}
+
+    assert vuln_by_url.get("http://localhost:8888/api/auth/forget-password") == "Broken Password Recovery"
+    assert vuln_by_url.get("http://localhost:8888/api/auth/v3/check-otp") == "MFA Bypass"
+    assert vuln_by_url.get("http://localhost:8888/api/auth/v4.0/user/login-with-token") == "Token Handling Flaw"
+    assert vuln_by_url.get("http://localhost:8888/api/auth/unlock") == "Account Lockout Bypass"
+    assert vuln_by_url.get("http://localhost:8888/api/auth/signup") == "Insecure Registration"
+    assert vuln_by_url.get("http://localhost:8888/api/auth/login") == "Authentication Bypass"
+
+
+def test_autonomous_loop_flags_ai_degraded_on_error_or_429(tmp_path: Path, monkeypatch):
+    """Test that when AI returns 429 or an error, the autonomous loop fails closed with status ai_unavailable."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+    from nyx.ai.manager import AIManager
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    core_eng.add_memory(type_="endpoint", value="https://test.local/api/users", endpoint="https://test.local/api/users", base_dir=tmp_path)
+
+    # Mock analyze returning 429 error
+    monkeypatch.setattr(
+        AIManager,
+        "analyze",
+        lambda self, ctx, prompt=None, provider_name=None: {
+            "status": "error",
+            "error_type": "rate_limit",
+            "message": "Groq API rate limit reached (HTTP 429)",
+        }
+    )
+
+    planner = MissionPlanner(base_dir=tmp_path)
+    res = planner.run_autonomous_loop("https://test.local/", max_iterations=2)
+
+    assert res.get("status") == "ai_unavailable"
+    assert res.get("ai_degraded") is True
+    assert "429" in str(res.get("degradation_reason")) or "rate limit" in str(res.get("degradation_reason")).lower()
+    assert res.get("iteration_halted") == 1
+    # Fail-closed: No steps executed when AI fails on iteration 1
+    assert len(res.get("iterations", [])) == 0
+    assert "AI provider unavailable" in res.get("message", "")
+    assert "Autonomous mission halted" in res.get("message", "")
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_approve_agent_action_non_blocking_concurrent_requests(tmp_path: Path, monkeypatch):
+    """Test that POST /api/v1/agent/approve/{id} does not block the FastAPI event loop during tool execution."""
+    import asyncio
+    import time
+    from httpx import AsyncClient, ASGITransport
+    from nyx.web.app import create_app
+    from nyx.application.agent_service import AgentService
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("http://localhost:3000/", reset=True, force=True, base_dir=tmp_path)
+    app = create_app()
+
+    from nyx.web.auth import get_or_create_api_token
+    auth_tok = get_or_create_api_token()
+    headers = {"Authorization": f"Bearer {auth_tok}"}
+
+    # Warm up client to initialize routes
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/api/v1/findings", headers=headers)
+
+        # Mock approve_action on AgentService to simulate long-running subprocess (2.0s)
+        def _slow_approve(self, action_id: str):
+            time.sleep(2.0)
+            return {"success": True, "action_id": action_id, "status": "approved_and_executed"}
+
+        monkeypatch.setattr(AgentService, "approve_action", _slow_approve)
+
+        # Start slow approve action in background task
+        approve_task = asyncio.create_task(
+            client.post("/api/v1/agent/approve/ACT-TEST01", headers=headers)
+        )
+
+        # Wait 0.1s to ensure approve_task is actively in-flight
+        await asyncio.sleep(0.1)
+
+        # Concurrently request GET /api/v1/health and measure latency
+        start_t = time.time()
+        health_resp = await client.get("/api/v1/health", headers=headers)
+        elapsed = time.time() - start_t
+
+        # Must return before the 2.0s approve task completes (< 1.8s)
+        assert health_resp.status_code == 200
+        assert elapsed < 1.8
+
+        approve_resp = await approve_task
+        assert approve_resp.status_code == 200
+
+
+def test_rule4_generates_multi_tool_menu_based_on_hypothesis_and_stack(tmp_path: Path):
+    """Test that Rule 4 generates candidates across sqlmap, ffuf, and nuclei based on hypothesis and tech stack."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 1. Test SQLi hypothesis -> sqlmap candidate generated with DESTRUCTIVE class
+    sqli_context = {
+        "target": "https://server.vulnapp.id/mutillidae/",
+        "technologies": ["PHP", "MySQL", "Apache"],
+        "endpoints": ["https://server.vulnapp.id/mutillidae/index.php?page=user-info.php"],
+        "findings": [
+            {
+                "finding_id": "FH-2026-001",
+                "title": "SQL Injection on user-info.php",
+                "vulnerability": "SQL Injection",
+                "status": "HYPOTHESIS",
+                "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+            }
+        ],
+        "tested_vectors": [],
+    }
+
+    steps = planner._select_steps(context=sqli_context)
+    tools = [s.get("tool") for s in steps]
+    sqlmap_steps = [s for s in steps if s.get("tool") == "sqlmap"]
+
+    assert "sqlmap" in tools
+    assert len(sqlmap_steps) >= 1
+    assert sqlmap_steps[0]["impact_class"] == "DESTRUCTIVE"
+    assert sqlmap_steps[0]["reason"] == "SQL_INJECTION_VALIDATION"
+    assert "--batch" in sqlmap_steps[0].get("arguments", [])
+
+    # 2. Test LFI/traversal hypothesis on PHP stack -> ffuf candidate with stack-aware wordlist & parameterized target
+    lfi_context = {
+        "target": "https://server.vulnapp.id/mutillidae/",
+        "technologies": ["PHP", "Apache"],
+        "endpoints": ["https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php"],
+        "findings": [
+            {
+                "finding_id": "FH-2026-002",
+                "title": "Arbitrary File Inclusion on index.php",
+                "vulnerability": "Arbitrary File Upload & Traversal",
+                "status": "HYPOTHESIS",
+                "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+            }
+        ],
+        "tested_vectors": [],
+    }
+
+    lfi_steps = planner._select_steps(context=lfi_context)
+    lfi_tools = [s.get("tool") for s in lfi_steps]
+    ffuf_lfi_steps = [s for s in lfi_steps if s.get("tool") == "ffuf" and s.get("reason") == "LFI_TRAVERSAL_VALIDATION"]
+
+    assert "ffuf" in lfi_tools
+    assert len(ffuf_lfi_steps) >= 1
+    assert ffuf_lfi_steps[0]["impact_class"] == "DESTRUCTIVE"
+    assert "FUZZ" in ffuf_lfi_steps[0]["target"]
+    assert "-w" in ffuf_lfi_steps[0].get("arguments", [])
+
+    # 3. Test Directory / Unlinked route gap -> ffuf directory discovery candidate
+    content_context = {
+        "target": "https://server.vulnapp.id/mutillidae/",
+        "technologies": ["PHP", "Apache"],
+        "endpoints": ["https://server.vulnapp.id/mutillidae/"],
+        "findings": [
+            {
+                "finding_id": "FH-2026-003",
+                "title": "Unlinked Admin Surface",
+                "vulnerability": "Unlinked Content Discovery",
+                "status": "HYPOTHESIS",
+                "endpoint": "https://server.vulnapp.id/mutillidae/",
+            }
+        ],
+        "tested_vectors": [],
+    }
+
+    content_steps = planner._select_steps(context=content_context)
+    ffuf_content_steps = [s for s in content_steps if s.get("tool") == "ffuf" and s.get("reason") == "CONTENT_DISCOVERY_FUZZING"]
+
+    assert len(ffuf_content_steps) >= 1
+    assert ffuf_content_steps[0]["impact_class"] == "DESTRUCTIVE"
+    assert "-e" in ffuf_content_steps[0].get("arguments", [])
+
+
+def test_ai_review_evidence_verdict_confirmed(tmp_path: Path, monkeypatch):
+    """Test that AI review with VERDICT: CONFIRMED transitions finding to CONFIRMED and attaches evidence."""
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_findings
+    from nyx.ai.manager import AIProviderManager
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    res = core_findings.create_finding(
+        title="Arbitrary File Inclusion",
+        endpoint="https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        vulnerability="LFI",
+        severity="High",
+        base_dir=tmp_path,
+    )
+    fid = res["finding_id"]
+
+    monkeypatch.setattr(
+        AIProviderManager,
+        "generate",
+        lambda self, prompt, **kwargs: "VERDICT: CONFIRMED\nREASONING: The response body contains verified Linux /etc/passwd entries (root:x:0:0) demonstrating root system file disclosure.",
+    )
+
+    review_res = core_findings.review_finding_evidence(
+        finding_id_or_data=fid,
+        tool_name="ffuf",
+        tool_output={"results": [{"url": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd", "status": 200, "body": "root:x:0:0:root:/root:/bin/bash"}]},
+        base_dir=tmp_path,
+    )
+
+    assert review_res["verdict"] == "CONFIRMED"
+    assert review_res["new_status"] == "CONFIRMED"
+
+    updated = core_findings.get_finding(fid, base_dir=tmp_path)
+    assert updated["status"] == "CONFIRMED"
+    assert updated["ai_review"]["verdict"] == "CONFIRMED"
+    assert "root:x:0:0" in updated["ai_review"]["reasoning"]
+
+
+def test_ai_review_evidence_verdict_false_positive_retains_record(tmp_path: Path, monkeypatch):
+    """Test that AI review with VERDICT: LIKELY_FALSE_POSITIVE sets status=REJECTED and does not discard record."""
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_findings
+    from nyx.ai.manager import AIProviderManager
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    res = core_findings.create_finding(
+        title="Arbitrary File Inclusion",
+        endpoint="https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        vulnerability="LFI",
+        severity="High",
+        base_dir=tmp_path,
+    )
+    fid = res["finding_id"]
+
+    monkeypatch.setattr(
+        AIProviderManager,
+        "generate",
+        lambda self, prompt, **kwargs: "VERDICT: LIKELY_FALSE_POSITIVE\nREASONING: The application returns HTTP 200 with generic HTML template boilerplate for any random parameter. No file contents leaked.",
+    )
+
+    review_res = core_findings.review_finding_evidence(
+        finding_id_or_data=fid,
+        tool_name="ffuf",
+        tool_output={"results": [{"url": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd", "status": 200}]},
+        base_dir=tmp_path,
+    )
+
+    assert review_res["verdict"] == "LIKELY_FALSE_POSITIVE"
+    assert review_res["new_status"] == "REJECTED"
+
+    updated = core_findings.get_finding(fid, base_dir=tmp_path)
+    assert updated["status"] == "REJECTED"
+    assert updated["ai_review"]["verdict"] == "LIKELY_FALSE_POSITIVE"
+    assert "generic HTML template boilerplate" in updated["ai_review"]["reasoning"]
+
+
+def test_ai_review_evidence_verdict_needs_more_evidence(tmp_path: Path, monkeypatch):
+    """Test that AI review with VERDICT: NEEDS_MORE_EVIDENCE keeps status=HYPOTHESIS."""
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_findings
+    from nyx.ai.manager import AIProviderManager
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    res = core_findings.create_finding(
+        title="Arbitrary File Inclusion",
+        endpoint="https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        vulnerability="LFI",
+        severity="High",
+        base_dir=tmp_path,
+    )
+    fid = res["finding_id"]
+
+    monkeypatch.setattr(
+        AIProviderManager,
+        "generate",
+        lambda self, prompt, **kwargs: "VERDICT: NEEDS_MORE_EVIDENCE\nREASONING: Response code 200 with length difference observed, but response body snippet not provided to confirm actual file contents.",
+    )
+
+    review_res = core_findings.review_finding_evidence(
+        finding_id_or_data=fid,
+        tool_name="ffuf",
+        tool_output={"results": [{"url": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd", "status": 200, "length": 4512}]},
+        base_dir=tmp_path,
+    )
+
+    assert review_res["verdict"] == "NEEDS_MORE_EVIDENCE"
+    assert review_res["new_status"] == "HYPOTHESIS"
+
+    updated = core_findings.get_finding(fid, base_dir=tmp_path)
+    assert updated["status"] == "HYPOTHESIS"
+    assert updated["ai_review"]["verdict"] == "NEEDS_MORE_EVIDENCE"
+
+
+def test_ffuf_adapter_signature_verification_rejects_generic_html():
+    """Test that FfufAdapter signature check rejects generic 200 responses for known files (/etc/passwd, access.log)."""
+    from nyx.execution.adapters.ffuf import FfufAdapter
+
+    adapter = FfufAdapter()
+    generic_results = {
+        "results": [
+            {
+                "url": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd",
+                "status": 200,
+                "length": 22213,
+                "words": 932,
+                "lines": 515,
+                "body": "<html><head><title>Mutillidae</title></head><body>Generic Welcome Page</body></html>",
+            },
+            {
+                "url": "https://server.vulnapp.id/mutillidae/index.php?page=../../apache/logs/access.log",
+                "status": 200,
+                "length": 22213,
+                "words": 932,
+                "lines": 515,
+                "body": "<html><head><title>Mutillidae</title></head><body>Generic Welcome Page</body></html>",
+            },
+        ]
+    }
+
+    parsed = adapter.parse_result(stdout=json.dumps(generic_results), stderr="")
+    assert len(parsed["endpoints"]) == 2
+    # Must be 0 vulnerabilities at adapter level because signatures failed
+    assert len(parsed["vulnerabilities"]) == 0
+
+
+def test_ffuf_adapter_signature_verification_accepts_valid_passwd_content():
+    """Test that FfufAdapter accepts response containing genuine /etc/passwd signature."""
+    from nyx.execution.adapters.ffuf import FfufAdapter
+
+    adapter = FfufAdapter()
+    valid_lfi = {
+        "results": [
+            {
+                "url": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd",
+                "status": 200,
+                "length": 1520,
+                "words": 35,
+                "lines": 28,
+                "body": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n",
+            }
+        ]
+    }
+
+    parsed = adapter.parse_result(stdout=json.dumps(valid_lfi), stderr="")
+    assert len(parsed["vulnerabilities"]) == 1
+    assert "passwd" in parsed["vulnerabilities"][0]["endpoint"]
+
+
+def test_ffuf_adapter_baseline_diffing_rejects_uniform_wildcard_responses():
+    """Test that FfufAdapter baseline diffing rejects uniform soft-200 responses."""
+    from nyx.execution.adapters.ffuf import FfufAdapter
+
+    adapter = FfufAdapter()
+    # 20 uniform results simulating wildcard / template reflection
+    uniform_results = {
+        "results": [
+            {
+                "url": f"https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd{i}",
+                "status": 200,
+                "length": 22000 + i,
+                "words": 932,
+                "lines": 515,
+            }
+            for i in range(20)
+        ]
+    }
+
+    parsed = adapter.parse_result(stdout=json.dumps(uniform_results), stderr="")
+    assert len(parsed["endpoints"]) == 20
+    assert parsed["baseline_stats"] is not None
+    # All uniform matches must be rejected at the adapter level
+    assert len(parsed["vulnerabilities"]) == 0
+
+
+def test_ffuf_build_command_regex_matcher_enforces_mmode_and_omits_default_mc():
+    """Test that FfufAdapter omits default -mc and adds -mmode and when regex matcher -mr is present."""
+    from nyx.execution.adapters.ffuf import FfufAdapter
+
+    adapter = FfufAdapter()
+    cmd = adapter.build_command(
+        target="https://server.vulnapp.id/mutillidae/index.php?page=FUZZ",
+        arguments=["-w", "wordlist.txt", "-mr", "root:x:0:0"],
+    )
+
+    assert "-mr" in cmd
+    assert "root:x:0:0" in cmd
+    assert "-mmode" in cmd
+    assert cmd[cmd.index("-mmode") + 1] == "and"
+    # Default -mc status list must NOT be added when -mr is supplied
+    assert "-mc" not in cmd
+
+
+def test_bridge_candidate_finding_description_uses_conservative_unconfirmed_impact(tmp_path: Path):
+    """Test that bridge finding creation generates conservative impact text without asserting unproven leaks."""
+    from nyx.execution.bridge import bridge_execution_to_findings
+    from nyx.models.execution import ExecutionResult
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_findings
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+
+    exec_res = ExecutionResult(
+        execution_id="EXEC-TEST99",
+        status="COMPLETED",
+        target="https://server.vulnapp.id/mutillidae/",
+        tool_name="ffuf",
+        command=["ffuf"],
+        stdout="",
+        stderr="",
+        exit_code=0,
+        artifacts={"parsed": {"vulnerabilities": [{"title": "Verified LFI", "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd"}]}},
+        metadata={"vulnerabilities": [{"title": "Verified LFI", "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=../../../../etc/passwd"}]},
+    )
+
+    created = bridge_execution_to_findings(exec_res, base_dir=tmp_path)
+    assert len(created) == 1
+    fid = created[0]
+
+    f_data = core_findings.get_finding(fid, base_dir=tmp_path)
+    desc = f_data["description"]
+
+    # Must NOT contain fabricated asserts
+    assert "Confirmed credential and sensitive data: leaked" not in desc
+    assert "potential" in desc.lower() or "validation in progress" in desc.lower()
+
+
+def test_delete_finding_removes_from_index_and_disk(tmp_path: Path):
+    """Test that delete_finding removes finding record from findings.json and filesystem."""
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_findings
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    res = core_findings.create_finding(
+        title="Test Finding To Delete",
+        endpoint="https://server.vulnapp.id/mutillidae/test",
+        vulnerability="Test Vuln",
+        base_dir=tmp_path,
+    )
+    fid = res["finding_id"]
+
+    del_res = core_findings.delete_finding(fid, base_dir=tmp_path)
+    assert del_res["status"] == "success"
+
+    all_f = core_findings.list_findings(base_dir=tmp_path).get("findings", [])
+    assert all(f.get("finding_id") != fid for f in all_f)
+    assert not (tmp_path / ".engagement" / "findings" / fid).exists()
+
+
+def test_autonomous_loop_halts_mid_run_on_ai_failure_preserving_prior_findings(tmp_path: Path, monkeypatch):
+    """Test that if AI fails on iteration 2, iteration 1 results & genuine findings are preserved, and no further steps execute."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+    from nyx.core import findings as core_findings
+    from nyx.ai.manager import AIManager
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    core_eng.add_memory(type_="endpoint", value="https://test.local/api/v1/users", endpoint="https://test.local/api/v1/users", base_dir=tmp_path)
+    core_eng.add_memory(type_="endpoint", value="https://test.local/api/v1/admin", endpoint="https://test.local/api/v1/admin", base_dir=tmp_path)
+
+    # Pre-seed a genuine finding from earlier phase
+    prior_finding = core_findings.create_finding(
+        title="Genuine Validated SQLi",
+        endpoint="https://test.local/api/v1/users",
+        vulnerability="SQL Injection",
+        severity="High",
+        base_dir=tmp_path,
+    )
+    prior_fid = prior_finding["finding_id"]
+
+    call_count = 0
+
+    def mock_analyze(self, ctx, prompt=None, provider_name=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # First call succeeds with genuine AI decision
+            return {
+                "selected_index": 0,
+                "decision": "proceed",
+                "reasoning": "Genuine strategic AI selection based on recon context.",
+            }
+        else:
+            # Second call fails with 429 rate limit
+            return {
+                "status": "error",
+                "error_type": "rate_limit",
+                "error": "Groq rate limit exceeded for model (HTTP 429)",
+            }
+
+    monkeypatch.setattr(AIManager, "analyze", mock_analyze)
+
+    # Mock execute_step to simulate safe successful execution of step 1
+    def mock_exec_step(self, step, target, active_permitted=False):
+        return {
+            "step": step.get("step"),
+            "name": step.get("name"),
+            "tool": step.get("tool"),
+            "result": {"status": "success", "tool_used": step.get("tool")},
+        }
+
+    monkeypatch.setattr(MissionPlanner, "execute_step", mock_exec_step)
+
+    planner = MissionPlanner(base_dir=tmp_path)
+    res = planner.run_autonomous_loop("https://test.local/", max_iterations=5)
+
+    # 1. Must report ai_unavailable status
+    assert res.get("status") == "ai_unavailable"
+    assert res.get("iteration_halted") == 2
+    assert res.get("ai_degraded") is True
+    assert "Groq rate limit" in str(res.get("error")) or "429" in str(res.get("error"))
+
+    # 2. Must preserve iteration 1 executed results
+    assert len(res.get("iterations", [])) == 1
+    assert res["iterations"][0]["iteration"] == 1
+    assert res["iterations"][0]["result"]["result"]["status"] == "success"
+
+    # 3. Must preserve prior genuine findings
+    findings_list = core_findings.list_findings(base_dir=tmp_path).get("findings", [])
+    assert any(f.get("finding_id") == prior_fid for f in findings_list)
+
+    # 4. Message must explicitly state halting
+    assert "Autonomous mission halted" in res.get("message", "")
+    assert "No new findings generated" in res.get("message", "")
+
+
+def test_autonomous_loop_fails_closed_on_unparseable_ai_response(tmp_path: Path, monkeypatch):
+    """Test that an unparseable response from AI halts loop immediately instead of silently falling back."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+    from nyx.ai.manager import AIManager
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    core_eng.add_memory(type_="endpoint", value="https://test.local/login", endpoint="https://test.local/login", base_dir=tmp_path)
+
+    # Mock analyze returning unparseable text
+    monkeypatch.setattr(
+        AIManager,
+        "analyze",
+        lambda self, ctx, prompt=None, provider_name=None: {
+            "analysis": "I cannot help with this security query as it is restricted.",
+            "recommended_focus": "none",
+        }
+    )
+
+    planner = MissionPlanner(base_dir=tmp_path)
+    res = planner.run_autonomous_loop("https://test.local/", max_iterations=3)
+
+    assert res.get("status") == "ai_unavailable"
+    assert res.get("ai_degraded") is True
+    assert "Unparseable" in str(res.get("degradation_reason")) or "unparseable" in str(res.get("error")).lower()
+    assert len(res.get("iterations", [])) == 0
+
+
+
+
+
+
+
+
+
+
 
 
 
