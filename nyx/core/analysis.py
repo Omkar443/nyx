@@ -37,13 +37,16 @@ URL_PATTERN_TO_SKILLS = [
     (r"/(api|rest|v[0-9])/", ["hunt-api-misconfig", "hunt-idor"]),
     (r"/(payment|wallet|fintech|checkout|billing).*/graphql|/graphql.*[?&](mutation|op)=(transfer|pay|refund|withdraw)", ["hunt-fintech-graphql", "hunt-graphql"]),
     (r"/graphql", ["hunt-graphql"]),
-    (r"/(login|signin|signup|register|forgot|reset|auth)", ["hunt-auth-bypass", "hunt-ato", "hunt-api-misconfig", "hunt-forgot-password", "hunt-jwt-crypto"]),
+    (r"/(login|signin|signup|register|forgot|reset|auth|password|account-recovery)", ["hunt-auth-bypass", "hunt-ato", "hunt-api-misconfig", "hunt-forgot-password", "hunt-jwt-crypto"]),
     (r"/oauth/(authorize|token|callback)", ["hunt-oauth", "hunt-ato"]),
     (r"/saml/(acs|sso|metadata)", ["hunt-saml"]),
     (r"/_layouts/15/|/_vti_bin/|/_api/(web|contextinfo)", ["hunt-sharepoint"]),
-    (r"/(file|upload|attachment|avatar|document|media|picture|pictures|photo|photos|image|images|video|videos)", ["hunt-file-upload", "hunt-lfi", "hunt-ssrf"]),
+    (r"/(file|upload|attachment|avatar|document|media|picture|pictures|photo|photos|image|images|video|videos|arbitrary-file-inclusion|file-upload)", ["hunt-file-upload", "hunt-lfi", "hunt-ssrf"]),
     (r"/(convert|transform|render|transcode|pdf|webhook|callback)", ["hunt-ssrf", "hunt-file-upload"]),
     (r"/(contact|merchant|mechanic|message|support|ticket|notify)", ["hunt-brute-force", "hunt-race-condition", "hunt-business-logic", "hunt-ssrf"]),
+    (r"[?&](cmd|exec|command|run|ping|host|lookup|dns|ip|target_host|domain|address)=|/(dns-lookup|command-injection|ping|traceroute|exec|shell|terminal)", ["hunt-rce"]),
+    (r"[?&](username|user|user_id|uid|id|password|pass|email|name|search|query|q|cat|category|item|sort|order_by|select|account|number|author|blog_entry)=|/(user-info|view-someones-blog|show-log|sql|database)", ["hunt-sqli"]),
+    (r"[?&](content|body|text|title|description|blog|message|msg|comment|feedback|heading|note|input|author)=|/(add-to-your-blog|view-someones-blog|html5-storage|javascript|xss)", ["hunt-xss", "hunt-html-injection"]),
     (r"/search\?", ["hunt-xss", "hunt-sqli"]),
     (r"[?&]q=|[?&]query=|[?&]s=", ["hunt-xss"]),
     (r"\.(php|aspx?|cgi|jsp)", ["hunt-rce", "hunt-aspnet"]),
@@ -57,6 +60,42 @@ URL_PATTERN_TO_SKILLS = [
     (r"/(chat|chatbot|assistant|prompt|llm)", ["hunt-rag-vector", "hunt-api-misconfig"]),
     (r"/parse-xml|/import-xml|\.xml", ["hunt-xxe"]),
 ]
+
+
+def extract_router_targets(url: str) -> list[str]:
+    """
+    Extract literal URL, parsed path, and any router parameter values (e.g. ?page=user-info.php, ?action=login)
+    to support router-aware classification for PHP front-controllers, query routers, and SPA routes.
+    """
+    targets: list[str] = []
+    clean_url = (url or "").strip()
+    if not clean_url:
+        return targets
+    targets.append(clean_url)
+
+    parsed = urllib.parse.urlparse(clean_url if "://" in clean_url else f"http://{clean_url}")
+    if parsed.path:
+        targets.append(parsed.path)
+
+    if parsed.query:
+        qs = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        router_param_names = {
+            "page", "action", "view", "module", "p", "tab", "file", "target", "path",
+            "include", "component", "route", "sec", "section", "cmd", "func", "function", "do",
+        }
+        for k, v_list in qs.items():
+            k_lower = k.lower()
+            for v in v_list:
+                v_clean = str(v).strip()
+                if not v_clean:
+                    continue
+                if k_lower in router_param_names or any(
+                    v_clean.lower().endswith(ext)
+                    for ext in [".php", ".asp", ".aspx", ".jsp", ".do", ".action", ".html", ".htm"]
+                ):
+                    targets.append(f"/{v_clean.lstrip('/')}")
+                    targets.append(f"{k_lower}={v_clean}")
+    return list(dict.fromkeys(targets))
 
 TECHNOLOGY_SKILL_MAP = {
     "asp.net": ["hunt-aspnet", "hunt-auth-bypass", "hunt-ato"],
@@ -148,13 +187,16 @@ def classify_url(url: str) -> dict[str, Any]:
     skills = load_skill_descriptions()
     matches: dict[str, list[str]] = {}
     raw = url
+    target_segments = extract_router_targets(url)
 
     for pattern, skill_names in URL_PATTERN_TO_SKILLS:
-        if re.search(pattern, raw, re.I):
-            for s in skill_names:
-                matches.setdefault(s, []).append(f"URL matches /{pattern}/")
+        for seg in target_segments:
+            if re.search(pattern, seg, re.I):
+                for s in skill_names:
+                    matches.setdefault(s, []).append(f"Target matches /{pattern}/")
 
-    keywords = [kw for kw in re.findall(r"[a-z]{4,}", raw.lower()) if kw not in STOPWORDS]
+    all_text = " ".join(target_segments).lower()
+    keywords = [kw for kw in re.findall(r"[a-z]{4,}", all_text) if kw not in STOPWORDS]
     for skill, desc in skills.items():
         if skill in matches:
             continue

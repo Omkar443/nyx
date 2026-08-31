@@ -1192,19 +1192,19 @@ def is_hostname_in_scope(hostname: str, scope_list: list[str]) -> bool:
 
 STATE_COMMAND_PERMISSIONS = {
     "DISCOVERY": {
-        "allowed": ["doctor", "engagement", "recon", "surface", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["setup", "doctor", "engagement", "recon", "surface", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "ANALYSIS": {
-        "allowed": ["doctor", "engagement", "surface", "classify", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["setup", "doctor", "engagement", "surface", "classify", "memory", "technology", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "VALIDATION": {
-        "allowed": ["doctor", "engagement", "memory", "technology", "duplicate-check", "triage", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["setup", "doctor", "engagement", "memory", "technology", "duplicate-check", "triage", "state", "evidence", "finding", "findings", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     },
     "REPORTING": {
-        "allowed": ["doctor", "engagement", "memory", "technology", "findings", "report", "state", "evidence", "finding", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
+        "allowed": ["setup", "doctor", "engagement", "memory", "technology", "findings", "report", "state", "evidence", "finding", "mission", "run-mission", "knowledge", "analyze", "skills", "validate", "exec", "ai", "web", "agent", "agents", "tasks", "fleet", "workers", "browser", "runtime", "auth", "monitor", "assets", "changes", "alerts", "research"],
         "disallowed_subcommands": {}
     }
 }
@@ -2449,6 +2449,19 @@ def cmd_agent(args: argparse.Namespace) -> int:
 
     say(color("Usage: nyx agent [start|context|plan|approvals|approve|deny|status]", "yellow"))
     return 1
+
+
+def cmd_setup(args: argparse.Namespace) -> int:
+    """Launch NYX Setup & Onboarding Wizard."""
+    from nyx.setup_wizard import SetupWizard
+    non_int = getattr(args, "non_interactive", False)
+    check_only = getattr(args, "check_only", False)
+    wizard = SetupWizard(non_interactive=non_int)
+    if check_only:
+        wizard.print_banner()
+        ok = wizard.run_dependency_step()
+        return 0 if ok else 1
+    return wizard.run_all()
 
 
 def cmd_web(args: argparse.Namespace) -> int:
@@ -3866,6 +3879,12 @@ def build_parser(prog_name: str = "nyx") -> argparse.ArgumentParser:
     p_ag_stat = p_agent_sub.add_parser("status", help="show agent status & pending approval queue")
     p_ag_stat.set_defaults(func=cmd_agent)
     p_agent.set_defaults(func=cmd_agent)
+
+    # nyx setup parser
+    p_setup = sub.add_parser("setup", help="launch NYX interactive setup & onboarding wizard")
+    p_setup.add_argument("--non-interactive", action="store_true", help="run setup non-interactively")
+    p_setup.add_argument("--check-only", action="store_true", help="check dependencies only without modifying environment")
+    p_setup.set_defaults(func=cmd_setup)
 
     # nyx web parser
     p_web = sub.add_parser("web", help="launch NYX web dashboard & API server")

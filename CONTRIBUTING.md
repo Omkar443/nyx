@@ -2,16 +2,45 @@
 
 Thank you for your interest in contributing to NYX!
 
-## How to Contribute
+## Development & Contribution Guidelines
 
-1. **Fork the Repository**: Create your feature branch (`git checkout -b feature/amazing-feature`).
-2. **Follow Coding Standards**:
-   - Python code must conform to PEP 8.
-   - Maintain **zero imports** from `nyx_cli.cli` inside `nyx/*`.
-   - Ensure all automated verification tests pass (`python scratch/phase210_tests.py`).
-3. **Commit Your Changes**: (`git commit -m 'Add awesome feature'`).
-4. **Push to Branch**: (`git push origin feature/amazing-feature`).
-5. **Open a Pull Request**: Provide a detailed description of your changes.
+### 1. Development Setup
+1. Fork and clone the repository:
+   ```bash
+   git clone https://github.com/Omkar443/nyx.git
+   cd nyx
+   ```
+2. Run the onboarding wizard or install dependencies in editable mode:
+   ```bash
+   ./install.sh
+   # or
+   python3 -m pip install -e ".[all]"
+   ```
 
-## Security Reporting
-Please review our [SECURITY.md](SECURITY.md) before reporting security issues.
+### 2. Coding Standards & Architectural Invariants
+- **PEP 8 Compliance**: Python code must conform to PEP 8 style standards.
+- **Architectural Separation**: Maintain **zero imports** from `nyx_cli.cli` inside core engine packages (`nyx/*`). The CLI depends on core packages, never the reverse.
+- **Safety First**: Never bypass scope enforcement gates, authorization checks, or fail-closed policy behaviors.
+- **Evidence Integrity**: All tool execution adapters must capture raw output and support deterministic verification.
+
+### 3. Running Automated Tests
+Ensure all automated tests pass before submitting a pull request:
+```bash
+python3 -m pytest
+```
+
+### 4. Submitting a Pull Request
+1. Create a descriptive feature branch:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+2. Commit your changes with clear, semantic commit messages:
+   ```bash
+   git commit -m "feat(ai): add new provider integration"
+   ```
+3. Push to your branch and open a Pull Request against `main` detailing the changes made, tests executed, and behavioral impacts.
+
+---
+
+## Security Vulnerability Reporting
+For reporting vulnerabilities in NYX itself or understanding the responsible disclosure policy, please see [SECURITY.md](SECURITY.md).

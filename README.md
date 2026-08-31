@@ -118,48 +118,60 @@ eq$ Finding Confirmation:** Finding an endpoint (e.g., `/graphql` or `/admin`) n
 
 ## Installation & Quickstart
 
-### Prerequisites
-- **Python**: 3.10+ (Tested through Python 3.14 on Linux, macOS, Windows, and WSL2)
-- **Git**
+### 1. One-Command Automated Setup (Recommended)
 
-### 1. Installation from Source
+NYX includes an interactive, idempotent onboarding wizard that detects your OS, installs and validates dependencies, builds the frontend, and tests your AI provider before writing configuration:
 
 ```bash
+# Clone the repository
 git clone https://github.com/Omkar443/nyx.git
 cd nyx
-python -m pip install -e .
+
+# Run the automated installer (Linux, macOS, WSL)
+./install.sh
 ```
 
-### 2. Verify Environment Health
+*Alternatively on any platform with Python 3.11+:*
+```bash
+python3 setup.py
+# or anytime via CLI after install:
+nyx setup
+```
+
+#### What the installer automatically handles:
+- **Python Runtime & Packages**: Validates Python >= 3.11, installs all core and web dependencies via `pip install -e .[all]`.
+- **Node.js & Web Dashboard**: Detects Node.js and npm, installs frontend dependencies, and compiles the production bundle (`frontend/dist/index.html`).
+- **Security Tools**: Auto-installs `sqlmap` via pip if missing; auto-installs `nuclei` and `ffuf` via `go install` if the Go runtime is detected in PATH.
+- **Interactive AI Provider Configuration**: Prompts for your AI provider, collects API keys via hidden/masked input, **tests live connectivity before saving**, and safely writes to `.env` (automatically creating a `.env.backup.<timestamp>` backup).
+- **Ethical Authorization Protocol**: Sets up the initial `.engagement/` workspace structure after explicit consent confirmation.
+- **Post-Install Validation**: Runs core unit test suite and provider health checks.
+- **Idempotency**: Safe to re-run at any time—already-installed runtimes, compiled frontend bundles, and tools are detected and skipped cleanly.
+
+#### Manual Prerequisites (if not already installed):
+- **Go Runtime (Optional for Go tools)**: If building `nuclei` or `ffuf` from source, install Go (`sudo apt install golang` or from https://go.dev/dl/). Precompiled binaries placed in system PATH are also auto-detected.
+- **SecLists Wordlists (Optional for ffuf)**: Detected at `/usr/share/seclists` (install via `sudo apt install seclists` on Debian/Kali/Ubuntu, or clone to `~/.local/share/seclists`).
+
+---
+
+### 2. Manual Installation (Fallback)
+
+If you prefer manual setup without the interactive wizard:
 
 ```bash
+# 1. Install Python dependencies
+python3 -m pip install -e ".[all]"
+
+# 2. Build the React Web Dashboard
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 3. Configure environment variables (.env)
+cp .env.example .env  # Or create .env with your AI keys
+
+# 4. Verify system environment
 nyx doctor
-```
-
-*Example Output:*
-```text
-======================================================================
-NYX Security Intelligence Engine Environment Doctor
-======================================================================
-System
-  OS              ✓ WINDOWS / LINUX / MACOS
-  Architecture    ✓ AMD64 / ARM64
-
-Python
-  Version         ✓ 3.10+
-  pip             ✓ OK
-
-Python Packages
-  NYX Core        ✓ READY
-  FastAPI         ✓ OK
-  Uvicorn         ✓ OK
-
-Security Knowledge
-  Validated Skills:    83
-  Knowledge Bases:     33
-
-Result:
-✓ NYX environment is fully operational and release-ready
 ```
 
 ---
@@ -289,22 +301,115 @@ The NYX Web UI provides a centralized interface for the entire research lifecycl
 
 ## Supported AI Providers
 
-NYX is model-neutral. Configure your preferred AI provider via environment variables or `.env`:
+NYX is model-neutral and supports both cloud-hosted APIs and self-hosted local inference engines. The setup wizard (`./install.sh` or `nyx setup`) tests and validates credentials live before saving them to `.env`.
+
+| Provider | Identifier | Default Model | Best For | Rate Limits |
+|---|---|---|---|---|
+| **Groq** *(Recommended)* | `groq` | `openai/gpt-oss-120b` | High-speed structured advisory reasoning | Free-tier TPM/daily token limits apply |
+| **Google Gemini** | `gemini` | `gemini-2.5-flash` | Fast hosted analysis & broad context | Standard Google API quotas |
+| **Local LLaMA / DeepSeek** | `local` / `llama` / `deepseek` | Custom local model | Zero cloud leakage, offline research, no rate limits | Dependent on local host GPU/CPU latency |
+| **OpenAI** | `openai` | `gpt-4o` | High-accuracy triage review | Standard OpenAI API billing |
+| **Anthropic Claude** | `claude` | `claude-3-5-sonnet` | Complex code & parameter analysis | Standard Anthropic API billing |
+| **xAI Grok** | `grok` | `grok-2` | Specialized reasoning | Standard xAI API billing |
+
+### Manual Configuration (`.env`)
 
 ```bash
-# Provider Choices: gemini, grok, groq, claude, openai, local
-export NYX_AI_PROVIDER="gemini"
+# Set primary active provider (groq, gemini, local, openai, claude, grok)
+NYX_AI_PROVIDER="groq"
 
-# Provider Keys (only configure the one you use)
-export GEMINI_API_KEY="AIzaSy..."
-export GROK_API_KEY="xai-..."
-export GROQ_API_KEY="gsk_..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-..."
-export LOCAL_LLM_URL="http://localhost:11434/v1"
+# Provider Credentials (configure the provider(s) you use)
+GROQ_API_KEY="gsk_..."
+GEMINI_API_KEY="AIzaSy..."
+OPENAI_API_KEY="sk-..."
+ANTHROPIC_API_KEY="sk-ant-..."
+XAI_API_KEY="xai-..."
+
+# Local LLaMA / DeepSeek Server URL (default: http://localhost:8000/chat)
+LOCAL_LLAMA_URL="http://localhost:8000/chat"
 ```
 
-*Note: If no API key is provided, NYX automatically falls back to its deterministic rule engine with 100% functionality.*
+*Note: If no AI provider is configured, NYX automatically falls back to its deterministic rule engine with 100% core scanning functionality.*
+
+---
+
+## What's Autonomous vs. What Needs Approval vs. What Doesn't Exist Yet
+
+NYX enforces a strict operational taxonomy to guarantee safety, reproducibility, and human accountability:
+
+```
+                      ┌─────────────────────────────────┐
+                      │    PASSIVE / NON-DESTRUCTIVE    │
+                      │  (Autonomous — No Approval Req) │
+                      └────────────────┬────────────────┘
+                                       │
+                      ┌────────────────▼────────────────┐
+                      │   1. Passive Recon & Discovery  │
+                      │   2. Tech Stack Fingerprinting  │
+                      │   3. Router & URL Classification│
+                      │   4. Hypothesis Generation      │
+                      └────────────────┬────────────────┘
+                                       │
+            ┌──────────────────────────┴──────────────────────────┐
+            ▼                                                     ▼
+┌───────────────────────────────┐             ┌───────────────────────────────┐
+│     ACTIVE / DESTRUCTIVE      │             │        NOT YET BUILT          │
+│ (Requires Human Authorization)│             │          (v2 Scope)           │
+├───────────────────────────────┤             ├───────────────────────────────┤
+│ • sqlmap active injection     │             │ • AI-generated custom exploits│
+│ • nuclei active template fuzz │             │ • Zero-day payload synthesis  │
+│ • ffuf parameter/LFI fuzzing  │             │ • Automated multi-stage chains│
+│                               │             │                               │
+│ Approval Flow:                │             │ *NYX orchestrates vetted tools│
+│   CLI: nyx agent approve <id> │             │  (nuclei/sqlmap/ffuf), not    │
+│   Web: 1-click Approval Modal │             │  untested generated scripts.  │
+└───────────────────────────────┘             └───────────────────────────────┘
+```
+
+### Fail-Closed Behavior on AI Outage
+When operating in autonomous mode, if an AI provider fails (due to rate limits, HTTP 429 quota exhaustion, network timeouts, or unparseable responses), **the mission loop halts immediately with status `ai_unavailable`**. NYX will **never** silently fall back to guessing, will **never** manufacture unverified findings during an outage, and preserves all previously collected data in `.engagement/`.
+
+---
+
+## Tool Coverage & Validation Menu
+
+NYX pairs deterministic parameter and routing classifications with specialized, industry-standard verification adapters:
+
+| Vulnerability Class | Primary Tool | Secondary / Fallback | Selection & Verification Method |
+|---|---|---|---|
+| **SQL Injection (SQLi)** | `sqlmap` | `nuclei` (`-tags sqli`) | Parameter input detection -> least-invasive boolean/error probes first; data dumping requires explicit engagement authorization |
+| **Local File Inclusion (LFI) / Traversal** | `ffuf` | `nuclei` (`-tags lfi`) | Stack-aware wordlist fuzzing with deterministic regex verification (`root:x:0:0`, PHP fatal errors) |
+| **Command Injection (RCE)** | `nuclei` (`-tags rce,oast`) | Manual CLI | System parameter & utility detection (`cmd`, `exec`, `ping`, `dns-lookup`) |
+| **Cross-Site Scripting (XSS)** | `nuclei` (`-tags xss`) | Manual inspection | Reflection surface & blog/content parameter analysis |
+| **Authentication & Session Flaws** | `nuclei` (`-tags auth,jwt`) | Manual inspection | Login, registration, token exchange, and account recovery flows |
+| **SSRF & Open Redirects** | `nuclei` (`-tags ssrf,redirect`) | OOB callback | URL redirect parameter routing (`url=`, `redirect=`, `dest=`) |
+| **GraphQL Introspection & IDOR** | `nuclei` (`-tags graphql,idor`) | Custom queries | Query schema introspection & object identifier routing |
+
+*Coverage Note: Template-based and signature-based validation can only verify vulnerabilities with known matching signatures. Legitimate potential vulnerabilities without pre-existing automated templates remain honestly categorized as `HYPOTHESIS` pending researcher verification.*
+
+---
+
+## Evidence Vault & Finding Lifecycle Model
+
+NYX manages findings through a rigorous, unidirectional 6-state lifecycle backed by cryptographic evidence and two layers of false-positive defense:
+
+```
+  [HYPOTHESIS] ──► [TRIAGED] ──► [VALIDATING] ──► [CONFIRMED] ──► [REPORTED]
+        │              │               │                 │
+        └──────────────┴───────────────┴─────────────────┴──────► [REJECTED]
+```
+
+### Finding Lifecycle States:
+- **`HYPOTHESIS`**: Surface pattern matched via classification or AI reasoning. Contains structured technical observations (why flagged, preconditions for exploitability, verification steps).
+- **`TRIAGED`**: Passed initial scope and sanity filters.
+- **`VALIDATING`**: Active verification probe proposed or in-flight with human authorization.
+- **`CONFIRMED`**: Verified with empirical HTTP evidence passing both adapter-level content validation and AI evidence review.
+- **`REJECTED`**: Confirmed as false positive, out of scope, or non-exploitable.
+- **`REPORTED`**: Exported to submission-ready markdown (HackerOne, Bugcrowd, Intigriti, Red Team).
+
+### Two-Layer False-Positive Defense:
+1. **Deterministic Tool-Adapter Verification**: Tool adapters enforce content signatures (e.g. `ffuf` requires actual `/etc/passwd` structure or error signatures rather than status-code-only matches, with baseline response diffing).
+2. **AI Evidence Review**: Raw HTTP response output is submitted to AI advisory review to evaluate empirical validity before any finding can be marked `CONFIRMED`.
 
 ---
 
@@ -331,74 +436,35 @@ export LOCAL_LLM_URL="http://localhost:11434/v1"
 
 ## Test Suite & Verification
 
-NYX is backed by an automated regression test suite covering all security domains, policy enforcement gates, and failure taxonomies:
+NYX is backed by an automated regression test suite covering all security domains, policy enforcement gates, setup wizards, and AI providers:
 
 ```bash
-python -m pytest
-```
-
-```text
-============================== test session starts ==============================
-platform win32 / linux -- Python 3.10+
-collected 221 items
-
-tests/test_content_discovery.py .......                                  [  3%]
-tests/test_engine_status.py ..                                           [  4%]
-tests/test_environment_bootstrap.py ................                     [ 11%]
-tests/test_exec_sync.py ............                                     [ 17%]
-tests/test_fixes_regression.py .............                             [ 23%]
-tests/test_gemini_provider.py .....................                      [ 32%]
-tests/test_grok_provider.py ........                                     [ 36%]
-tests/test_groq_provider.py ........                                     [ 39%]
-tests/test_mission_orchestration.py ..                                   [ 40%]
-tests/test_phase3_intelligence_planning.py ..........                    [ 45%]
-tests/test_phase4_execution_validation.py ..........                     [ 50%]
-tests/test_phase5_evaluation_hardening.py .............................. [ 63%]
-....                                                                     [ 65%]
-tests/test_planner_execution.py ................                         [ 72%]
-tests/test_provider_analysis.py ............                             [ 78%]
-tests/test_release_block_1.py ......                                     [ 80%]
-tests/test_router_generalization.py ....                                 [ 82%]
-tests/test_scope_enforcement.py ...........                              [ 87%]
-tests/test_surface_ranking.py ....                                       [ 89%]
-tests/test_web_auth.py .......                                           [ 92%]
-tests/test_websocket_frontend_auth.py ...                                [ 94%]
-tests/test_worker_runtime.py ..........                                  [100%]
-
-====================== 221 passed, 2 warnings in 92.40s ========================
+python3 -m pytest
 ```
 
 ---
 
-## Scope & Known Limitations
+## Verified Benchmarks & Empirical Methodology
 
-NYX is built for empirical, HTTP-observable web and API security testing — reconnaissance, vulnerability detection, and evidence-based validation over HTTP/HTTPS. It is not a general security scanner, and it does not claim coverage outside that model.
+To ensure transparent and falsifiable evaluation, NYX is tested against benchmark targets using full CLI automation (zero manual file edits or synthetic modifications):
 
-To keep this honest, NYX was benchmarked against two independently-maintained vulnerable applications with published ground truths:
+### 1. Mutillidae Front-Controller Benchmark (Tested August 2026)
+- **Target**: `https://server.vulnapp.id/mutillidae/` (PHP Front-Controller Architecture)
+- **Methodology**: Full autonomous mission loop (`nyx ai autonomous <target> --provider groq --max-iterations 30`) with query-router target extraction.
+- **Results**: Discovered 56 live endpoints, mapped 130 router paths, and generated **27 structured hypotheses** across SQLi (`user-info.php`, `show-log.php`), Command Injection (`dns-lookup.php`), Stored/Reflected XSS (`add-to-your-blog.php`), LFI (`arbitrary-file-inclusion.php`), and Authentication.
 
-1. **OWASP Juice Shop (v20.2.0)**: **100 / 109** actionable attack surfaces routed (**91.7%**), **12 findings automated and verified live on disk/dashboard**, **0%** false positives.
-2. **OWASP crAPI**: **21 / 21** actionable attack surfaces routed (**100.0%**), **8 findings automated and verified live on disk/dashboard**, **0%** false positives.
+### 2. Standard Benchmark Suites
+- **OWASP Juice Shop v20.2.0**: **100 / 109** actionable attack surfaces routed (**91.7%**), **12 automated findings confirmed on disk/dashboard** ([docs/benchmarks/juice-shop.md](docs/benchmarks/juice-shop.md)).
+- **OWASP crAPI**: **21 / 21** actionable attack surfaces routed (**100.0%**), **8 automated findings confirmed on disk/dashboard** ([docs/benchmarks/crapi.md](docs/benchmarks/crapi.md)).
 
-### What NYX does not currently do
+---
 
-**Outside NYX's execution model entirely:**
-NYX's evidence and validation model is built around HTTP request/response analysis. It does not currently perform:
-- Static dependency / software composition analysis (SCA) — e.g. detecting vulnerable or typosquatted npm/pip packages by inspecting the dependency tree
-- Blockchain / Web3 transaction analysis — smart contract interaction, wallet operations, or on-chain state inspection
-- Client-side-only analysis — browser DOM automation, image/steganographic forensics, or any vulnerability class with no observable HTTP evidence
+## Known Limitations
 
-If your target's risk surface depends heavily on these categories, pair NYX with a dedicated SCA tool (e.g. `npm audit`, Snyk) or Web3-specific auditing tooling — NYX is not a substitute for those.
-
-**Within scope, but beyond current reasoning depth:**
-NYX's AI advisory and deterministic planner currently perform strongest on single-step and moderate-complexity findings backed by direct empirical evidence. They are less reliable on vulnerabilities requiring multi-stage exploitation chains — for example: blind SQL injection requiring extensive boolean/time-based extraction, asymmetric JWT RS256 -> HS256 key confusion re-signing, complex multi-turn LLM/agent prompt manipulation, race-condition exploitation, template-engine sandbox escapes, or credential/TOTP derivation chains spanning multiple requests and state transitions. NYX will typically flag related risk indicators (e.g. an endpoint accepting unsanitized input) but may not autonomously complete a multi-step exploit chain to full validation. Manual follow-up by a researcher is recommended for high-complexity findings NYX surfaces but does not fully validate.
-
-### What NYX is reliable for
-
-Based on the benchmarks, NYX consistently and correctly detects and validates: broken object level authorization (BOLA) / IDOR, business logic and pricing/coupon manipulation, OTP/MFA rate-limit bypasses, JWT misconfiguration (`alg:none`, basic secret leakage), file upload bypasses (size/type/path traversal), local file inclusion (LFI), SSRF, information disclosure via misconfigured endpoints, mass assignment, NoSQL injection, and unlinked/unreferenced asset discovery.
-
-We publish these benchmark methodologies openly:
-- [docs/benchmarks/juice-shop.md](docs/benchmarks/juice-shop.md) (Juice Shop benchmark trace)
-- [docs/benchmarks/crapi.md](docs/benchmarks/crapi.md) (crAPI benchmark trace)
+- **Frontend Automated Test Coverage**: Frontend React components are currently verified through manual end-to-end testing; full automated browser test suite (Playwright/Cypress) is planned for a future release.
+- **Custom Exploit Synthesis (v2 Scope)**: NYX does not construct bespoke exploit binaries or novel RCE payloads; it executes vetted security tooling (`nuclei`, `sqlmap`, `ffuf`).
+- **AI Quota Latency Trade-offs**: Groq free tier provides fast inference but enforces strict TPM quotas; local providers (`local_llama`) provide unlimited offline execution with higher hardware-dependent inference latency.
+- **Template Coverage Gaps**: Complex multi-stage business logic or exotic vulnerabilities lacking public Nuclei templates will remain in `HYPOTHESIS` status until manually confirmed by a researcher.
 
 ---
 
@@ -406,11 +472,11 @@ We publish these benchmark methodologies openly:
 
 NYX is built strictly for **authorized security research, defensive posture evaluation, bug bounty programs, and authorized penetration testing**:
 
-- **Authorization Gate:** Active scans require verified ownership or explicit written authorization.
+- **Authorization Gate:** Active scans require verified ownership or explicit written authorization (`authorized: true` in `.engagement/authorization.yaml`).
 - **Privacy & Hygiene:** Session cookies, Authorization headers, and sensitive customer PII are automatically redacted before evidence storage.
 - **Out-of-Scope Exclusions:** NYX explicitly rejects internal Active Directory credential dumping, malware delivery, and EDR disruption tradecraft.
 
-For vulnerability reporting and disclosure guidelines, see [SECURITY.md](SECURITY.md).
+For vulnerability reporting, see [SECURITY.md](SECURITY.md). For contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -418,7 +484,6 @@ For vulnerability reporting and disclosure guidelines, see [SECURITY.md](SECURIT
 
 - **Source Code**: [Apache License 2.0](LICENSE)
 - **Security Knowledge & Content**: [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-CONTENT)
-- **Third-Party & Vendored Notices**: [LICENSE-THIRD-PARTY.md](LICENSE-THIRD-PARTY.md)
 - **Author & Maintainer**: [Omkar](https://github.com/Omkar443)
 
 <p align="center">

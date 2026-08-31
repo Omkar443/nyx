@@ -14,6 +14,7 @@ from nyx.ai.providers import (
     ClaudeProvider,
     OpenAIProvider,
     LocalLLMProvider,
+    LocalLlamaProvider,
     get_provider_class,
 )
 
@@ -72,7 +73,7 @@ class AIManager:
     def set_active_provider(self, name: str) -> bool:
         """Switch active AI provider."""
         norm = name.lower()
-        if norm in ("gemini", "grok", "groq", "claude", "openai", "local"):
+        if norm in ("gemini", "grok", "groq", "claude", "openai", "local", "llama", "deepseek"):
             self.active_provider_name = norm
             # Ensure instantiated
             self.get_provider(norm)
@@ -82,7 +83,7 @@ class AIManager:
     def list_providers(self) -> List[Dict[str, Any]]:
         """List registered AI providers and their status."""
         providers = []
-        for name in ["gemini", "grok", "groq", "claude", "openai", "local"]:
+        for name in ["gemini", "grok", "groq", "claude", "openai", "local", "llama"]:
             inst = self.get_provider(name)
             info = inst.get_info()
             info["is_active"] = (name == self.active_provider_name)

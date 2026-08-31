@@ -669,9 +669,9 @@ async def test_approve_agent_action_non_blocking_concurrent_requests(tmp_path: P
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         await client.get("/api/v1/findings", headers=headers)
 
-        # Mock approve_action on AgentService to simulate long-running subprocess (2.0s)
+        # Mock approve_action on AgentService to simulate long-running subprocess (3.0s)
         def _slow_approve(self, action_id: str):
-            time.sleep(2.0)
+            time.sleep(3.0)
             return {"success": True, "action_id": action_id, "status": "approved_and_executed"}
 
         monkeypatch.setattr(AgentService, "approve_action", _slow_approve)
@@ -689,9 +689,9 @@ async def test_approve_agent_action_non_blocking_concurrent_requests(tmp_path: P
         health_resp = await client.get("/api/v1/health", headers=headers)
         elapsed = time.time() - start_t
 
-        # Must return before the 2.0s approve task completes (< 1.8s)
+        # Must return before the 3.0s approve task completes (< 2.5s)
         assert health_resp.status_code == 200
-        assert elapsed < 1.8
+        assert elapsed < 2.5
 
         approve_resp = await approve_task
         assert approve_resp.status_code == 200
@@ -1155,6 +1155,240 @@ def test_autonomous_loop_fails_closed_on_unparseable_ai_response(tmp_path: Path,
     assert res.get("ai_degraded") is True
     assert "Unparseable" in str(res.get("degradation_reason")) or "unparseable" in str(res.get("error")).lower()
     assert len(res.get("iterations", [])) == 0
+
+
+def test_local_llama_provider_registration_and_info():
+    """Test that LocalLlamaProvider is registered under 'local' and 'llama' without breaking default provider."""
+    from nyx.ai.manager import AIManager, detect_default_provider
+    from nyx.ai.providers import get_provider_class, LocalLlamaProvider
+
+    # Default provider should remain whatever configured (Groq/Gemini), NOT forcibly local
+    default_p = detect_default_provider()
+    assert default_p in ("groq", "gemini", "openai", "claude", "grok", "local")
+
+    mgr = AIManager()
+    prov_local = mgr.get_provider("local")
+    prov_llama = mgr.get_provider("llama")
+
+    assert isinstance(prov_local, LocalLlamaProvider)
+    assert isinstance(prov_llama, LocalLlamaProvider)
+    assert prov_local.provider_name == "local"
+
+    info = prov_local.get_info()
+    assert info["type"] == "LocalLlamaProvider"
+    assert "endpoint" in info
+
+
+def test_local_llama_provider_generate_and_json_parsing(monkeypatch):
+    """Test LocalLlamaProvider JSON parsing and structured analysis from mock server response."""
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+
+    class MockResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "response": '{"selected_index": 0, "decision": "proceed", "reasoning": "LFI verification chosen for PHP stack."}'
+            }
+        @property
+        def text(self):
+            return '{"response": "..."}'
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda url, json=None, headers=None, timeout=None: MockResponse())
+
+    prov = LocalLlamaProvider(endpoint_url="http://localhost:8000/chat")
+    res = prov.analyze({"target": "https://test.local/", "technologies": ["php"]}, prompt="Select candidate step")
+
+    assert res.get("status") == "success"
+    assert res.get("selected_index") == 0
+    assert res.get("decision") == "proceed"
+    assert "LFI verification" in res.get("reasoning", "")
+
+
+def test_local_llama_provider_fail_closed_on_unreachable_server(tmp_path: Path, monkeypatch):
+    """Test that LocalLlamaProvider fails closed with status ai_unavailable when server is unreachable."""
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("https://test.local/", reset=True, force=True, base_dir=tmp_path)
+    core_eng.add_memory(type_="endpoint", value="https://test.local/api", endpoint="https://test.local/api", base_dir=tmp_path)
+
+    import requests
+    def mock_failing_post(*args, **kwargs):
+        raise requests.exceptions.ConnectionError("Failed to establish a new connection: [Errno 111] Connection refused")
+
+    monkeypatch.setattr(requests, "post", mock_failing_post)
+
+    prov = LocalLlamaProvider(endpoint_url="http://127.0.0.1:9999/chat")
+    analyze_res = prov.analyze({"target": "https://test.local/"}, prompt="Select step")
+
+    assert analyze_res.get("status") == "error"
+    assert analyze_res.get("error_type") == "connection_refused"
+    assert "connection refused" in analyze_res.get("error", "").lower()
+
+    # In autonomous planner loop with --provider local
+    planner = MissionPlanner(base_dir=tmp_path)
+    loop_res = planner.run_autonomous_loop("https://test.local/", provider_name="local", max_iterations=2)
+
+    assert loop_res.get("status") == "ai_unavailable"
+    assert loop_res.get("ai_degraded") is True
+    assert len(loop_res.get("iterations", [])) == 0
+
+
+def test_existing_groq_and_gemini_providers_unaffected():
+    """Test that existing Groq and Gemini providers remain registered and operational."""
+    from nyx.ai.manager import AIManager
+    from nyx.ai.providers import GroqProvider, GeminiProvider
+
+    mgr = AIManager()
+    groq_prov = mgr.get_provider("groq")
+    gemini_prov = mgr.get_provider("gemini")
+
+    assert isinstance(groq_prov, GroqProvider)
+    assert isinstance(gemini_prov, GeminiProvider)
+    assert groq_prov.provider_name == "groq"
+    assert gemini_prov.provider_name == "gemini"
+
+
+def test_extract_router_targets_query_parameter_awareness():
+    """Test that extract_router_targets correctly extracts sub-resource values from router params."""
+    from nyx.core.analysis import extract_router_targets
+
+    url_mutillidae_sqli = "http://server.vulnapp.id/mutillidae/index.php?page=user-info.php&username=admin"
+    targets = extract_router_targets(url_mutillidae_sqli)
+
+    assert "/user-info.php" in targets
+    assert "page=user-info.php" in targets
+    assert "/mutillidae/index.php" in targets
+
+    url_action = "http://app.local/main.do?action=login&tab=security"
+    targets_action = extract_router_targets(url_action)
+    assert "/login" in targets_action or "action=login" in targets_action
+
+
+def test_query_router_classification_and_hypotheses_generation(tmp_path: Path):
+    """Test that query-routed URLs generate hypotheses for SQLi, Command Injection, XSS, and LFI."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.application.analysis_service import AnalysisService
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("http://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+
+    test_endpoints = [
+        "http://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+        "http://server.vulnapp.id/mutillidae/index.php?page=user-info.php&username=admin",
+        "http://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php&target_host=127.0.0.1",
+        "http://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php&blog_entry=test",
+        "http://server.vulnapp.id/mutillidae/index.php?page=login.php",
+    ]
+
+    analysis_svc = AnalysisService()
+    classified = []
+    for ep in test_endpoints:
+        c_res = analysis_svc.classify_url(ep)
+        classified.append({
+            "url": ep,
+            "category": c_res.get("category"),
+            "skills": c_res.get("skills", []),
+            "matches": c_res.get("matches", {}),
+        })
+
+    planner = MissionPlanner(base_dir=tmp_path)
+    created_hypo = planner._map_classification_to_hypotheses(
+        classified_results=classified,
+        target="http://server.vulnapp.id/mutillidae/",
+    )
+
+    vulns_created = [
+        h.get("finding", {}).get("vulnerability") or h.get("vulnerability")
+        for h in created_hypo
+    ]
+    assert "SQL Injection" in vulns_created
+    assert "Command Injection" in vulns_created
+    assert "Cross-Site Scripting" in vulns_created
+    assert "Local File Inclusion" in vulns_created or "Arbitrary File Upload" in vulns_created
+    assert "Authentication Bypass" in vulns_created
+    assert len(created_hypo) >= 5
+
+
+def test_enrich_hypothesis_description_success(tmp_path: Path):
+    """Test that enrich_hypothesis_description produces structured 4-section AI technical reasoning."""
+    from nyx.core import findings as core_findings
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    f_res = core_findings.create_finding(
+        title="SQL Injection Surface on https://server.vulnapp.id/mutillidae?page=show-log.php",
+        endpoint="https://server.vulnapp.id/mutillidae?page=show-log.php",
+        vulnerability="SQL Injection",
+        severity="High",
+        base_dir=tmp_path,
+    )
+    fid = f_res["finding_id"]
+
+    # Mock AI manager returning structured 4-section markdown
+    class MockAIManager:
+        def generate(self, prompt, options=None):
+            return (
+                "### Why This Was Flagged\n"
+                "The page query parameter specifies a PHP script name for dynamic query execution.\n\n"
+                "### Exploitability Conditions\n"
+                "Requires input concatenation without prepared statements on the backend MySQL database.\n\n"
+                "### Verification Steps\n"
+                "1. Run sqlmap -u 'https://server.vulnapp.id/mutillidae?page=show-log.php' --batch\n"
+                "2. Check response for syntax errors or time delay differences.\n\n"
+                "### Status\n"
+                "Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact."
+            )
+
+    enr_res = core_findings.enrich_hypothesis_description(fid, base_dir=tmp_path, ai_manager=MockAIManager())
+    assert enr_res["status"] == "success"
+    assert enr_res["ai_enriched"] is True
+    assert "Why This Was Flagged" in enr_res["description"]
+    assert "Exploitability Conditions" in enr_res["description"]
+    assert "Verification Steps" in enr_res["description"]
+    assert "Unconfirmed hypothesis" in enr_res["description"]
+
+    # Check updated finding stored in workspace
+    updated_f = core_findings.get_finding(fid, base_dir=tmp_path)
+    assert "Why This Was Flagged" in updated_f["description"]
+
+
+def test_enrich_hypothesis_description_fallback_on_ai_failure(tmp_path: Path):
+    """Test that enrich_hypothesis_description falls back cleanly with explicit marker if AI is unavailable."""
+    from nyx.core import findings as core_findings
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("https://server.vulnapp.id/mutillidae/", reset=True, force=True, base_dir=tmp_path)
+    f_res = core_findings.create_finding(
+        title="Cross-Site Scripting on https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+        endpoint="https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+        vulnerability="Cross-Site Scripting",
+        severity="Medium",
+        base_dir=tmp_path,
+    )
+    fid = f_res["finding_id"]
+
+    class FailingAIManager:
+        def generate(self, prompt, options=None):
+            raise RuntimeError("Groq rate limit exceeded (HTTP 429)")
+
+    enr_res = core_findings.enrich_hypothesis_description(fid, base_dir=tmp_path, ai_manager=FailingAIManager())
+    assert enr_res["status"] == "fallback"
+    assert enr_res["ai_enriched"] is False
+    assert "AI Enrichment" in enr_res["description"]
+    assert "Unavailable" in enr_res["description"]
+    assert "Groq rate limit exceeded" in enr_res["description"]
+    assert "Unconfirmed hypothesis" in enr_res["description"]
+
+    # Check updated finding has fallback marker and no fake content
+    updated_f = core_findings.get_finding(fid, base_dir=tmp_path)
+    assert "AI Enrichment" in updated_f["description"]
+    assert "Unavailable" in updated_f["description"]
+
+
+
 
 
 

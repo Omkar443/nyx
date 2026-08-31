@@ -23,7 +23,13 @@ class AnalysisService:
         category = "WEB_ENDPOINT"
         if "graphql" in target_url.lower() or any(s in ("hunt-graphql", "hunt-fintech-graphql") for s in skills):
             category = "GRAPHQL_SURFACE"
-        elif any(s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth") for s in skills):
+        elif any(s in ("hunt-rce",) for s in skills) or any(k in target_url.lower() for k in ("cmd", "exec", "ping", "dns-lookup", "command-injection")):
+            category = "COMMAND_INJECTION_SURFACE"
+        elif any(s in ("hunt-sqli",) for s in skills):
+            category = "SQLI_SURFACE"
+        elif any(s in ("hunt-xss", "hunt-html-injection") for s in skills):
+            category = "XSS_SURFACE"
+        elif any(s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth", "hunt-saml", "hunt-forgot-password", "hunt-mfa-bypass") for s in skills):
             category = "AUTH_IDENTITY_SURFACE"
         elif any(s in ("hunt-file-upload", "hunt-lfi") for s in skills):
             category = "FILE_UPLOAD_SURFACE"

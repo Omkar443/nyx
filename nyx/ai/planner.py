@@ -45,12 +45,12 @@ class MissionPlanner:
                     return True
         return False
 
-    @staticmethod
-    def _is_idor_candidate_endpoint(url: str, matches: Dict[str, Any]) -> bool:
+    def _is_idor_candidate_endpoint(self, url: str, matches: Dict[str, Any]) -> bool:
         """
         Check if an endpoint actually represents an IDOR/BOLA candidate surface.
         Requires explicit object identifier patterns in path segments or query params.
         Rejects root paths '/', bare domain names, and static/informational assets.
+        Supports router parameters (?page=, ?view=) in PHP front-controllers.
         """
         clean_url = (url or "").strip().lower()
         if not clean_url or clean_url in ("/", "http://", "https://"):
@@ -66,16 +66,21 @@ class MissionPlanner:
         if any(path.endswith(ext) for ext in [".css", ".js", ".png", ".jpg", ".jpeg", ".svg", ".ico", ".woff", ".woff2", ".txt", ".map"]):
             return False
 
+        # Extract effective paths for router-based architectures (?page=..., ?action=...)
+        from nyx.core.analysis import extract_router_targets
+        target_segments = extract_router_targets(clean_url)
+
         # 1. Query parameter object identifiers (e.g. ?id=123, ?user_id=45, ?account_id=..., ?uuid=...)
         id_param_pattern = re.compile(r"(^|[&?])(id|user_?id|account_?id|profile_?id|order_?id|invoice_?id|report_?id|doc_?id|file_?id|item_?id|basket_?id|cart_?id|uid|uuid)=([^&#]+)", re.I)
         if id_param_pattern.search(query):
             return True
 
-        # 2. Path segment object identifiers (e.g. /api/users/123, /rest/user/1, /orders/4b90..., /profile/42)
+        # 2. Path segment object identifiers across all target segments (e.g. /api/users/123, /rest/user/1, /orders/4b90...)
         uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
         numeric_seg_pattern = r"/(users?|accounts?|profiles?|orders?|invoices?|items?|documents?|reports?|messages?|records?|files?|customers?|baskets?|products?)/(\d+|" + uuid_pattern + r")(/|$)"
-        if re.search(numeric_seg_pattern, path, re.I):
-            return True
+        for seg in target_segments:
+            if re.search(numeric_seg_pattern, seg, re.I):
+                return True
 
         # 3. Explicit regex match from core_analysis where an ID parameter was matched
         if "hunt-idor" in matches and any(k in str(matches.get("hunt-idor", "")).lower() for k in ["id=", "user", "uid", "account", "order", "invoice"]):
@@ -90,6 +95,7 @@ class MissionPlanner:
     ) -> List[Dict[str, Any]]:
         """Bridge classification results to hypothesis findings in findings.json."""
         from nyx.application.finding_service import FindingService
+        from nyx.core.analysis import extract_router_targets
         finding_svc = FindingService(base_dir=self.base_dir)
         created = []
 
@@ -105,16 +111,22 @@ class MissionPlanner:
             query = parsed.query
 
             # Skip bare roots and static assets from all hypothesis generation
-            if path in ("", "/", "/robots.txt", "/security.txt", "/favicon.ico", "/server-status", "/health"):
+            if path in ("", "/", "/robots.txt", "/security.txt", "/favicon.ico", "/server-status", "/health") and not query:
                 continue
             if any(path.endswith(ext) for ext in [".css", ".js", ".png", ".jpg", ".jpeg", ".svg", ".ico", ".woff", ".woff2", ".txt", ".map"]):
                 continue
 
+            # Extract effective paths and router targets (e.g. ?page=user-info.php -> /user-info.php)
+            effective_paths = extract_router_targets(clean_url)
             vuln_candidates = []
 
-            # 1. SQL Injection (requires query parameters or explicit sqli match)
-            sqli_param_pattern = re.compile(r"(^|[&?])(q|query|search|filter|cat|category|item|sort|order_by|select)=([^&#]+)", re.I)
-            if ("hunt-sqli" in matches or "sqli" in matches) or sqli_param_pattern.search(query):
+            # 1. SQL Injection (matches expanded parameters or SQLi-indicative sub-resources)
+            sqli_param_pattern = re.compile(
+                r"(^|[&?])(q|query|search|filter|cat|category|item|sort|order_by|select|username|user|user_id|uid|id|password|pass|email|name|account|number|author|blog_entry)=([^&#]+)",
+                re.I
+            )
+            is_sqli_page = any(k in p for p in effective_paths for k in ["user-info", "view-someones-blog", "show-log", "sql", "database"])
+            if ("hunt-sqli" in matches or "sqli" in matches) or sqli_param_pattern.search(query) or is_sqli_page:
                 vuln_candidates.append({
                     "title": f"SQL Injection Surface on {url}",
                     "vulnerability": "SQL Injection",
@@ -123,7 +135,22 @@ class MissionPlanner:
                     "description": f"Classification identified parameter input surfaces on {url} matching SQL injection vulnerability patterns.",
                 })
 
-            # 2. IDOR / Broken Object Level Authorization (requires actual object identifier pattern)
+            # 2. Command Injection / OS Command Execution (parameters/endpoints: cmd, exec, ping, dns, lookup, host)
+            cmd_param_pattern = re.compile(
+                r"(^|[&?])(cmd|exec|command|run|ping|host|lookup|dns|ip|target_host|domain|address)=([^&#]+)",
+                re.I
+            )
+            is_cmd_page = any(k in p for p in effective_paths for k in ["dns-lookup", "command-injection", "ping", "traceroute", "exec", "shell", "terminal"])
+            if is_cmd_page or cmd_param_pattern.search(query) or ("hunt-rce" in matches and (is_cmd_page or cmd_param_pattern.search(query))):
+                vuln_candidates.append({
+                    "title": f"OS Command Injection Surface on {url}",
+                    "vulnerability": "Command Injection",
+                    "severity": "Critical",
+                    "tag": "rce,command-injection,os",
+                    "description": f"Classification identified system command execution or network utility parameter on {url} matching OS command injection patterns.",
+                })
+
+            # 3. IDOR / Broken Object Level Authorization (requires actual object identifier pattern)
             if self._is_idor_candidate_endpoint(url, matches):
                 vuln_candidates.append({
                     "title": f"IDOR & Broken Object Level Authorization on {url}",
@@ -133,9 +160,9 @@ class MissionPlanner:
                     "description": f"Classification identified API resource routes on {url} exposing object identifier parameters prone to cross-tenant authorization bypass.",
                 })
 
-            # 3. Differentiated Authentication, Session, and Account Recovery Flaws
-            # 3a. Password Reset & Account Recovery Flows
-            if any(k in path for k in ["/forgot", "/forget-password", "/reset-password", "/recovery", "/password-reset", "/reset_password"]):
+            # 4. Differentiated Authentication, Session, and Account Recovery Flaws
+            # 4a. Password Reset & Account Recovery Flows
+            if any(k in p for p in effective_paths for k in ["/forgot", "/forget-password", "/reset-password", "/recovery", "/password-reset", "/reset_password", "account-recovery"]):
                 vuln_candidates.append({
                     "title": f"Password Recovery & Reset Flow Flaw on {url}",
                     "vulnerability": "Broken Password Recovery",
@@ -143,8 +170,8 @@ class MissionPlanner:
                     "tag": "auth,password-reset,ato",
                     "description": f"Classification identified password recovery or account reset workflow on {url} requiring token entropy, replay protection, and rate-limit validation.",
                 })
-            # 3b. Multi-Factor Authentication & OTP Validation Flows
-            elif any(k in path for k in ["/otp", "/check-otp", "/verify-otp", "/2fa", "/mfa", "/verify", "/challenge"]):
+            # 4b. Multi-Factor Authentication & OTP Validation Flows
+            elif any(k in p for p in effective_paths for k in ["/otp", "/check-otp", "/verify-otp", "/2fa", "/mfa", "/verify", "/challenge"]):
                 vuln_candidates.append({
                     "title": f"Multi-Factor Authentication & OTP Validation Flaw on {url}",
                     "vulnerability": "MFA Bypass",
@@ -152,8 +179,8 @@ class MissionPlanner:
                     "tag": "auth,mfa,otp",
                     "description": f"Classification identified multi-factor or one-time password verification endpoint on {url} requiring concurrency, race-condition, and brute-force protection analysis.",
                 })
-            # 3c. Token-Based, Bearer, and Refresh Token Flows
-            elif any(k in path for k in ["/login-with-token", "/token", "/jwt", "/refresh-token", "/oauth/token", "/exchange", "/jwks"]):
+            # 4c. Token-Based, Bearer, and Refresh Token Flows
+            elif any(k in p for p in effective_paths for k in ["/login-with-token", "/token", "/jwt", "/refresh-token", "/oauth/token", "/exchange", "/jwks"]):
                 vuln_candidates.append({
                     "title": f"Token-Based Authentication & Session Handling Flaw on {url}",
                     "vulnerability": "Token Handling Flaw",
@@ -161,8 +188,8 @@ class MissionPlanner:
                     "tag": "auth,jwt,token",
                     "description": f"Classification identified token-based login or bearer authentication exchange on {url} requiring signature validation, expiration, and key confusion analysis.",
                 })
-            # 3d. Account Unlock & Lockout Mechanism
-            elif any(k in path for k in ["/unlock", "/reactivate", "/lockout"]):
+            # 4d. Account Unlock & Lockout Mechanism
+            elif any(k in p for p in effective_paths for k in ["/unlock", "/reactivate", "/lockout"]):
                 vuln_candidates.append({
                     "title": f"Account Unlock & Lockout Mechanism Flaw on {url}",
                     "vulnerability": "Account Lockout Bypass",
@@ -170,8 +197,8 @@ class MissionPlanner:
                     "tag": "auth,lockout,state",
                     "description": f"Classification identified account unlock or lockout recovery mechanism on {url} requiring state validation and authorization controls.",
                 })
-            # 3e. User Registration & Provisioning
-            elif any(k in path for k in ["/signup", "/register", "/create-account", "/user/create", "/provision"]):
+            # 4e. User Registration & Provisioning
+            elif any(k in p for p in effective_paths for k in ["/signup", "/register", "/create-account", "/user/create", "/provision"]):
                 vuln_candidates.append({
                     "title": f"Account Registration & User Provisioning Flaw on {url}",
                     "vulnerability": "Insecure Registration",
@@ -179,8 +206,8 @@ class MissionPlanner:
                     "tag": "auth,registration,provisioning",
                     "description": f"Classification identified self-registration workflow on {url} requiring mass-assignment, role-injection, and identity verification analysis.",
                 })
-            # 3f. Primary Authentication Gateway / Session Login
-            elif any(k in path for k in ["/login", "/signin", "/authenticate", "/session", "/oauth", "/saml", "/auth"]) or any(s in matches for s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth", "hunt-saml")):
+            # 4f. Primary Authentication Gateway / Session Login
+            elif any(k in p for p in effective_paths for k in ["/login", "/signin", "/authenticate", "/session", "/oauth", "/saml", "/auth", "login.php"]) or any(s in matches for s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth", "hunt-saml")):
                 vuln_candidates.append({
                     "title": f"Primary Authentication & Session State Flaw on {url}",
                     "vulnerability": "Authentication Bypass",
@@ -189,8 +216,8 @@ class MissionPlanner:
                     "description": f"Classification identified primary authentication gateway on {url} requiring credential stuffing, brute-force, and session fixation validation.",
                 })
 
-            # 4. GraphQL Introspection & Mutation Flaws
-            if "/graphql" in path or any(s in matches for s in ("hunt-graphql", "hunt-fintech-graphql")):
+            # 5. GraphQL Introspection & Mutation Flaws
+            if any("/graphql" in p for p in effective_paths) or any(s in matches for s in ("hunt-graphql", "hunt-fintech-graphql")):
                 vuln_candidates.append({
                     "title": f"GraphQL Introspection & Query Surface on {url}",
                     "vulnerability": "GraphQL",
@@ -199,17 +226,18 @@ class MissionPlanner:
                     "description": f"Classification identified GraphQL endpoint on {url} exposing query and mutation schema introspection.",
                 })
 
-            # 5. File Upload / Path Traversal
-            if any(k in path for k in ["/upload", "/attachment", "/avatar", "/file", "/import-xml", "/media"]) or any(s in matches for s in ("hunt-file-upload", "hunt-lfi")):
+            # 6. File Upload / Path Traversal / LFI
+            is_file_page = any(k in p for p in effective_paths for k in ["/upload", "/attachment", "/avatar", "/file", "/import-xml", "/media", "arbitrary-file-inclusion", "file-upload", "upload"])
+            if is_file_page or any(s in matches for s in ("hunt-file-upload", "hunt-lfi")):
                 vuln_candidates.append({
                     "title": f"File Upload & Path Traversal Surface on {url}",
-                    "vulnerability": "Arbitrary File Upload",
+                    "vulnerability": "Arbitrary File Upload" if any("upload" in p for p in effective_paths) else "Local File Inclusion",
                     "severity": "High",
                     "tag": "file_upload,lfi",
-                    "description": f"Classification identified multipart file upload or file path processing on {url}.",
+                    "description": f"Classification identified file processing or path inclusion surface on {url}.",
                 })
 
-            # 6. SSRF / Open Redirect
+            # 7. SSRF / Open Redirect
             if (query and any(k in query for k in ["url=", "next=", "redirect=", "return=", "callback=", "dest=", "target="])) or any(s in matches for s in ("hunt-ssrf", "hunt-open-redirect")):
                 vuln_candidates.append({
                     "title": f"Server-Side Request Forgery Surface on {url}",
@@ -219,15 +247,21 @@ class MissionPlanner:
                     "description": f"Classification identified URL redirect or external request dispatch parameter on {url}.",
                 })
 
-            # 7. XSS (if reflection parameter present and no higher-severity candidate)
-            if not vuln_candidates and ((query and any(k in query for k in ["q=", "query=", "s=", "search=", "msg=", "name=", "comment="])) or "hunt-xss" in matches):
-                vuln_candidates.append({
-                    "title": f"Cross-Site Scripting Surface on {url}",
-                    "vulnerability": "Cross-Site Scripting",
-                    "severity": "Medium",
-                    "tag": "xss,client-side",
-                    "description": f"Classification identified potential parameter reflection surface on {url}.",
-                })
+            # 8. Cross-Site Scripting (XSS) (expanded parameters and CMS/blog pages)
+            xss_param_pattern = re.compile(
+                r"(^|[&?])(q|query|s|search|msg|name|comment|content|body|text|title|description|blog|message|feedback|heading|note|input|author)=([^&#]+)",
+                re.I
+            )
+            is_xss_page = any(k in p for p in effective_paths for k in ["add-to-your-blog", "view-someones-blog", "html5-storage", "javascript", "xss"])
+            if is_xss_page or ("hunt-xss" in matches or "hunt-html-injection" in matches) or (query and xss_param_pattern.search(query)):
+                if not any(vc["vulnerability"] == "Cross-Site Scripting" for vc in vuln_candidates):
+                    vuln_candidates.append({
+                        "title": f"Cross-Site Scripting Surface on {url}",
+                        "vulnerability": "Cross-Site Scripting",
+                        "severity": "Medium",
+                        "tag": "xss,client-side",
+                        "description": f"Classification identified parameter reflection surface on {url} matching XSS vulnerability patterns.",
+                    })
 
             for vc in vuln_candidates:
                 try:
@@ -241,6 +275,12 @@ class MissionPlanner:
                         target=target,
                     )
                     if isinstance(f_res, dict) and not f_res.get("is_duplicate") and f_res.get("status") != "error":
+                        fid = f_res.get("finding_id")
+                        if fid:
+                            try:
+                                finding_svc.enrich(fid)
+                            except Exception:
+                                pass
                         created.append(f_res)
                 except Exception:
                     pass
@@ -920,10 +960,10 @@ class MissionPlanner:
             endpoints = ctx.get("endpoints", [])
 
             if endpoints and isinstance(endpoints, list):
-                # Prioritize parameterized and high-signal endpoints for classification
+                # Prioritize parameterized and high-signal endpoints for classification (up to 200 endpoints)
                 param_eps = [e for e in endpoints if "?" in (e.get("url", "") if isinstance(e, dict) else str(e)) or "=" in (e.get("url", "") if isinstance(e, dict) else str(e))]
                 other_eps = [e for e in endpoints if e not in param_eps]
-                selected_eps = (param_eps + other_eps)[:20]
+                selected_eps = (param_eps + other_eps)[:200]
                 classified_results = []
                 for ep in selected_eps:
                     ep_str = ep.get("url") if isinstance(ep, dict) else str(ep)

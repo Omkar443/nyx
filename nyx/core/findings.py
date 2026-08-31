@@ -1041,6 +1041,209 @@ REASONING: <concise technical justification explaining why this verdict was reac
     }
 
 
+def update_finding(
+    finding_id: str,
+    updates: dict[str, Any],
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Update fields of an existing finding in engagement workspace."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    if not d.exists():
+        return {"status": "error", "message": "No active engagement workspace found."}
+
+    f_dir = d / "findings" / finding_id
+    f_json = f_dir / "finding.json"
+    if not f_json.exists():
+        return {"status": "error", "message": f"Finding '{finding_id}' not found."}
+
+    with _FINDINGS_LOCK:
+        try:
+            fdata = json.loads(f_json.read_text(encoding="utf-8"))
+            for k, v in updates.items():
+                if k not in ("finding_id", "created_at"):
+                    fdata[k] = v
+            fdata["updated_at"] = datetime.datetime.now().isoformat()
+            f_json.write_text(json.dumps(fdata, indent=2), encoding="utf-8")
+            _sync_findings_index(d)
+            return {"status": "success", "finding_id": finding_id, "finding": fdata}
+        except Exception as ex:
+            return {"status": "error", "message": str(ex)}
+
+
+def enrich_hypothesis_description(
+    finding_id_or_data: str | dict[str, Any],
+    base_dir: Path | None = None,
+    ai_manager: Any = None,
+    timeout: float = 25.0,
+) -> dict[str, Any]:
+    """
+    Enrich a hypothesis finding description with concrete, AI-generated technical reasoning
+    covering why it was flagged, preconditions for exploitability, verification steps, and status honesty.
+    Falls back cleanly with an explicit marker if AI is unavailable.
+    """
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    fdata = {}
+    fid = ""
+
+    if isinstance(finding_id_or_data, dict):
+        fdata = finding_id_or_data.copy()
+        fid = fdata.get("finding_id", "")
+    else:
+        fid = str(finding_id_or_data)
+        if d.exists():
+            f_file = d / "findings" / fid / "finding.json"
+            if f_file.exists():
+                try:
+                    fdata = json.loads(f_file.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            if not fdata:
+                idx_file = d / "findings.json"
+                if idx_file.exists():
+                    try:
+                        stored = json.loads(idx_file.read_text(encoding="utf-8"))
+                        for item in stored:
+                            if item.get("finding_id") == fid:
+                                fdata = item.copy()
+                                break
+                    except Exception:
+                        pass
+
+    if not fdata:
+        return {"status": "error", "message": f"Finding '{finding_id_or_data}' not found."}
+
+    endpoint = fdata.get("endpoint") or fdata.get("target") or "target endpoint"
+    target = fdata.get("target") or endpoint
+    vuln = fdata.get("vulnerability") or fdata.get("title") or "Vulnerability"
+    severity = fdata.get("severity") or "Medium"
+    param = fdata.get("parameter") or ""
+    current_desc = fdata.get("description") or ""
+
+    # Retrieve detected technologies if available
+    tech_stack = []
+    if d.exists():
+        tech_file = d / "technologies.json"
+        if tech_file.exists():
+            try:
+                t_data = json.loads(tech_file.read_text(encoding="utf-8"))
+                tech_stack = t_data if isinstance(t_data, list) else t_data.get("technologies", [])
+            except Exception:
+                pass
+
+    prompt = f"""You are a senior security researcher analyzing a detected web attack surface hypothesis for NYX.
+Context:
+- Target: {target}
+- Endpoint URL: {endpoint}
+- Parameter / Route: {param or 'extracted from endpoint query/path'}
+- Vulnerability Class: {vuln}
+- Severity: {severity}
+- Detected Technologies: {tech_stack[:10]}
+
+Generate a concise, highly specific 4-section technical finding description.
+Ground your reasoning specifically in this endpoint and its parameters. Do not use generic boilerplate. Do not generate weaponized exploit code.
+
+Required Sections:
+### Why This Was Flagged
+Explain the specific structural or parameter pattern matched on this endpoint.
+
+### Exploitability Conditions
+Explain what architectural or input-handling conditions must be true for this to be exploitable.
+
+### Verification Steps
+Provide concrete, specific verification steps for a researcher (referencing standard tools like nuclei, sqlmap, ffuf, or manual inspection).
+IMPORTANT SAFETY & INVASIVENESS RULES:
+- Default to the LEAST invasive confirmation-only methods first (e.g. error-based syntax probes, boolean-blind response diffing, timing checks, harmless canary reflection).
+- Any invasive actions (such as data dumping with `sqlmap --dump` or file exfiltration) must be sequenced last and explicitly labeled: "Note: Only proceed with data extraction after confirming vulnerability existence and with explicit client/engagement authorization for data access."
+
+### Status
+State explicitly: "Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact."
+"""
+
+    enriched_desc = ""
+    ai_success = False
+    error_reason = ""
+
+    try:
+        if ai_manager is None:
+            from nyx.ai.manager import AIManager
+            ai_manager = AIManager()
+
+        generated = ai_manager.generate(prompt, options={"timeout": timeout, "max_completion_tokens": 1000})
+        clean_text = (generated or "").strip()
+        if clean_text and ("Why This Was Flagged" in clean_text or "###" in clean_text):
+            enriched_desc = clean_text
+            ai_success = True
+        elif clean_text and len(clean_text) > 40:
+            enriched_desc = clean_text
+            ai_success = True
+        else:
+            error_reason = "Empty or unparseable AI response"
+    except Exception as ex:
+        error_reason = str(ex)
+
+    if not ai_success:
+        enriched_desc = (
+            f"{current_desc}\n\n"
+            "### Finding Details & Status\n"
+            f"- **Observation**: Automated pattern match identified potential {vuln} input surface on {endpoint}.\n"
+            f"- **AI Enrichment**: Unavailable ({error_reason or 'Provider did not return content'}).\n"
+            "- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact."
+        )
+
+    # Persist updated description to finding file and index if workspace exists
+    if d.exists() and fid:
+        with _FINDINGS_LOCK:
+            f_dir = d / "findings" / fid
+            f_json = f_dir / "finding.json"
+            if f_json.exists():
+                try:
+                    f_cur = json.loads(f_json.read_text(encoding="utf-8"))
+                    f_cur["description"] = enriched_desc
+                    f_cur["ai_enriched"] = ai_success
+                    f_cur["updated_at"] = datetime.datetime.now().isoformat()
+                    f_json.write_text(json.dumps(f_cur, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+            _sync_findings_index(d)
+
+    return {
+        "status": "success" if ai_success else "fallback",
+        "finding_id": fid,
+        "ai_enriched": ai_success,
+        "description": enriched_desc,
+        "error": error_reason if not ai_success else None,
+    }
+
+
+def enrich_all_hypotheses(
+    base_dir: Path | None = None,
+    ai_manager: Any = None,
+) -> list[dict[str, Any]]:
+    """Enrich all HYPOTHESIS findings in workspace with AI technical reasoning."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    if not d.exists():
+        return []
+
+    res_list = []
+    flist = list_findings(state_filter="HYPOTHESIS", base_dir=base_dir)
+    findings = flist.get("findings", []) if isinstance(flist, dict) else []
+
+    if ai_manager is None:
+        try:
+            from nyx.ai.manager import AIManager
+            ai_manager = AIManager()
+        except Exception:
+            pass
+
+    for f in findings:
+        fid = f.get("finding_id")
+        if fid:
+            res = enrich_hypothesis_description(fid, base_dir=base_dir, ai_manager=ai_manager)
+            res_list.append(res)
+
+    return res_list
+
+
 # Function aliases for backward compatibility and test suites
 create = create_finding
 list = list_findings
@@ -1049,3 +1252,6 @@ triage = triage_finding
 report = report_finding
 review = review_finding_evidence
 delete = delete_finding
+update = update_finding
+enrich = enrich_hypothesis_description
+enrich_all = enrich_all_hypotheses
