@@ -19,9 +19,14 @@ class ApprovalSystem:
 
     def __init__(self, base_dir: Path | None = None):
         self.base_dir = base_dir
-        self._pending_queue = self._shared_pending_queue
-        self._approved_actions = self._shared_approved_actions
-        self._denied_actions = self._shared_denied_actions
+        if base_dir is not None:
+            self._pending_queue: Dict[str, Dict[str, Any]] = {}
+            self._approved_actions: Dict[str, Dict[str, Any]] = {}
+            self._denied_actions: Dict[str, Dict[str, Any]] = {}
+        else:
+            self._pending_queue = self._shared_pending_queue
+            self._approved_actions = self._shared_approved_actions
+            self._denied_actions = self._shared_denied_actions
         self._load_persisted()
 
     def _get_approvals_file(self) -> Optional[Path]:
@@ -37,15 +42,15 @@ class ApprovalSystem:
             f = self._get_approvals_file()
             if f and f.exists():
                 data = json.loads(f.read_text(encoding="utf-8"))
-                for k, v in data.get("pending", {}).items():
-                    if k not in self._pending_queue and k not in self._approved_actions and k not in self._denied_actions:
-                        self._pending_queue[k] = v
                 for k, v in data.get("approved", {}).items():
-                    if k not in self._approved_actions:
-                        self._approved_actions[k] = v
+                    self._approved_actions[k] = v
+                    self._pending_queue.pop(k, None)
                 for k, v in data.get("denied", {}).items():
-                    if k not in self._denied_actions:
-                        self._denied_actions[k] = v
+                    self._denied_actions[k] = v
+                    self._pending_queue.pop(k, None)
+                for k, v in data.get("pending", {}).items():
+                    if k not in self._approved_actions and k not in self._denied_actions:
+                        self._pending_queue[k] = v
         except Exception:
             pass
 
@@ -64,9 +69,12 @@ class ApprovalSystem:
 
     def submit_for_approval(self, decision: Dict[str, Any]) -> str:
         """Submit a decision record to the pending human approval queue."""
+        from datetime import datetime, timezone
         action_id = decision.get("action_id", "ACT-UNKNOWN")
         record = dict(decision)
         record["status"] = "PENDING_APPROVAL"
+        if "created_at" not in record or not record["created_at"]:
+            record["created_at"] = datetime.now(timezone.utc).isoformat()
         
         # Ensure full step metadata is preserved
         step = record.get("step")
@@ -83,6 +91,38 @@ class ApprovalSystem:
         self._pending_queue[action_id] = record
         self._save_persisted()
         return action_id
+
+    def expire_stale_approvals(
+        self,
+        target: Optional[str] = None,
+        exclude_action_id: Optional[str] = None,
+        reason: str = "Superseded by new autonomous mission run",
+    ) -> int:
+        """Expire leftover pending actions for a target or globally."""
+        self._load_persisted()
+        expired_keys = []
+        for k, v in list(self._pending_queue.items()):
+            if exclude_action_id and k == exclude_action_id:
+                continue
+            if target:
+                tgt = v.get("mission_target") or v.get("target") or ""
+                t_clean = target.strip("/").lower()
+                tgt_clean = tgt.strip("/").lower()
+                if t_clean and tgt_clean and (t_clean in tgt_clean or tgt_clean in t_clean):
+                    expired_keys.append(k)
+            else:
+                expired_keys.append(k)
+
+        for k in expired_keys:
+            rec = self._pending_queue.pop(k, None)
+            if rec:
+                rec["status"] = "EXPIRED"
+                rec["denial_reason"] = reason
+                self._denied_actions[k] = rec
+
+        if expired_keys:
+            self._save_persisted()
+        return len(expired_keys)
 
     def get_pending_approvals(self) -> List[Dict[str, Any]]:
         """Return list of all pending approval requests."""

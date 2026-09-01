@@ -29,12 +29,18 @@ except Exception:
 def detect_default_provider() -> str:
     """
     Auto-detect the first provider with a configured, valid API key from environment / .env.
-    Checks providers in order: Groq, OpenAI, Claude, Grok, Gemini, Local.
+    Checks explicit override (NYX_AI_PROVIDER / AI_PROVIDER) first.
+    If NYX_PREFER_LOCAL / PREFER_LOCAL is set, checks local provider first.
+    Otherwise checks providers in order: Groq, OpenAI, Claude, Grok, Gemini, Local.
     Never defaults blindly to Gemini if Gemini is not configured.
     """
     explicit = os.environ.get("NYX_AI_PROVIDER") or os.environ.get("AI_PROVIDER")
     if explicit:
         return explicit.lower().strip()
+
+    prefer_local = (os.environ.get("NYX_PREFER_LOCAL") or os.environ.get("PREFER_LOCAL") or "").lower().strip() in ("1", "true", "yes")
+    if prefer_local:
+        return "local"
 
     # Auto-detect first provider with configured API key
     if os.environ.get("GROQ_API_KEY"):
@@ -47,7 +53,7 @@ def detect_default_provider() -> str:
         return "grok"
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
         return "gemini"
-    if os.environ.get("LOCAL_LLM_URL") or os.environ.get("OLLAMA_HOST"):
+    if os.environ.get("LOCAL_LLM_URL") or os.environ.get("OLLAMA_HOST") or os.environ.get("NYX_LOCAL_URL"):
         return "local"
 
     # Default fallback

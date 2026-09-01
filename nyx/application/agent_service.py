@@ -12,9 +12,10 @@ from nyx.agent import NYXAgent
 class AgentService(BaseService):
     """Service facade for autonomous security research agent operations."""
 
-    def __init__(self, provider_name: Optional[str] = None):
+    def __init__(self, provider_name: Optional[str] = None, base_dir: Optional[Any] = None):
         super().__init__()
-        self.agent = NYXAgent(provider_name=provider_name)
+        self.base_dir = base_dir
+        self.agent = NYXAgent(provider_name=provider_name, base_dir=base_dir)
 
     def start_mission(self, target: str) -> ServiceResult:
         res = self.agent.start_mission(target)

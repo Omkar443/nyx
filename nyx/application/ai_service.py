@@ -17,11 +17,11 @@ from nyx.ai.memory import AIMemory
 class AIService(BaseService):
     """Application service facade for AI orchestration & integration."""
 
-    def __init__(self, base_dir: Optional[Path] = None):
+    def __init__(self, base_dir: Optional[Path] = None, provider_name: Optional[str] = None):
         self.base_dir = base_dir
-        self.manager = AIManager()
+        self.manager = AIManager(default_provider=provider_name)
         self.context_engine = ContextEngine(base_dir=base_dir)
-        self.planner = MissionPlanner(base_dir=base_dir)
+        self.planner = MissionPlanner(base_dir=base_dir, ai_manager=self.manager, default_provider=provider_name)
         self.memory = AIMemory(base_dir=base_dir)
 
     def list_providers(self) -> ServiceResult:
@@ -35,8 +35,12 @@ class AIService(BaseService):
     def set_active_provider(self, provider_name: str) -> ServiceResult:
         """Switch active AI provider."""
         try:
+            import os
+            os.environ["NYX_AI_PROVIDER"] = provider_name
             ok = self.manager.set_active_provider(provider_name)
             if ok:
+                if hasattr(self, "planner") and hasattr(self.planner, "ai_manager"):
+                    self.planner.ai_manager.set_active_provider(provider_name)
                 return self.ok(data={"active": self.manager.active_provider_name}, message=f"Active AI provider set to '{provider_name}'.")
             return self.fail(message=f"Provider '{provider_name}' not found.", error_code="INVALID_PROVIDER")
         except Exception as ex:

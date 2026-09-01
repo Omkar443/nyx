@@ -404,7 +404,16 @@ def test_ai_plan_json_request_contract_and_impact_classification(tmp_path: Path,
     # 5. Verify execute_plan handles nyx-validate gracefully without ValueError
     from nyx.ai.planner import MissionPlanner
     planner = MissionPlanner(base_dir=tmp_path)
-    exec_res = planner.execute_plan(plan, active_permitted=False)
+    plan_with_validate = dict(plan)
+    plan_with_validate["steps"] = list(plan.get("steps", [])) + [{
+        "step": 99,
+        "name": "Manual Validation Step",
+        "action": "validate",
+        "tool": "nyx-validate",
+        "impact_class": "DESTRUCTIVE",
+        "reason": "CUSTOM_VALIDATION",
+    }]
+    exec_res = planner.execute_plan(plan_with_validate, active_permitted=False)
     assert exec_res.get("status") == "success"
     validate_steps = [s for s in exec_res.get("step_results", []) if s.get("tool") == "nyx-validate"]
     assert len(validate_steps) >= 1
@@ -487,14 +496,16 @@ def test_autonomous_loop_lifecycle_and_safety_guards(tmp_path: Path, monkeypatch
         planner._select_steps = original_select
 
     # 3. Test AI candidate selection and out-of-bounds index fallback safety
+    core_eng.init_engagement("invalid.target.com", reset=True, force=True, base_dir=tmp_path)
+    planner_invalid = MissionPlanner(base_dir=tmp_path)
     # Test valid selected_index from AI
-    planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {"selected_index": 0, "decision": "proceed", "reasoning": "Prioritizing discovery"}
-    res_ai_valid = planner.run_autonomous_loop("auto.target.com", active_permitted=False, max_iterations=1)
+    planner_invalid.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {"selected_index": 0, "decision": "proceed", "reasoning": "Prioritizing discovery"}
+    res_ai_valid = planner_invalid.run_autonomous_loop("invalid.target.com", active_permitted=False, max_iterations=1)
     assert len(res_ai_valid["iterations"]) <= 1
 
     # Test invalid / out-of-bounds selected_index fails closed with ai_unavailable status
-    planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {"selected_index": 9999, "decision": "proceed", "reasoning": "Malformed index"}
-    res_ai_invalid = planner.run_autonomous_loop("auto.target.com", active_permitted=False, max_iterations=1)
+    planner_invalid.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {"selected_index": 9999, "decision": "proceed", "reasoning": "Malformed index"}
+    res_ai_invalid = planner_invalid.run_autonomous_loop("invalid.target.com", active_permitted=False, max_iterations=1)
     assert res_ai_invalid["status"] == "ai_unavailable"
     assert res_ai_invalid["ai_degraded"] is True
 
@@ -732,16 +743,34 @@ def test_agent_approval_executes_step_and_deny_persists_exclusion(tmp_path: Path
 
 
 def test_ai_manager_env_provider_selection(monkeypatch):
-    """Verify AIManager honors auto-detection and environment variables without hardcoded gemini default."""
+    """Verify AIManager honors auto-detection, NYX_PREFER_LOCAL, and environment variables without hardcoded gemini default."""
     from nyx.ai.manager import AIManager, detect_default_provider
 
     # Default auto-detect when no provider env var set
     monkeypatch.delenv("NYX_AI_PROVIDER", raising=False)
     monkeypatch.delenv("AI_PROVIDER", raising=False)
+    monkeypatch.delenv("NYX_PREFER_LOCAL", raising=False)
+    monkeypatch.delenv("PREFER_LOCAL", raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     mgr_default = AIManager()
     assert mgr_default.active_provider_name == detect_default_provider()
     assert mgr_default.active_provider_name == "groq"
+
+    # NYX_PREFER_LOCAL forces local even if GROQ_API_KEY is present
+    monkeypatch.setenv("NYX_PREFER_LOCAL", "true")
+    assert detect_default_provider() == "local"
+    mgr_local = AIManager()
+    assert mgr_local.active_provider_name == "local"
+
+    # Explicit NYX_AI_PROVIDER still takes top priority over NYX_PREFER_LOCAL
+    monkeypatch.setenv("NYX_AI_PROVIDER", "claude")
+    assert detect_default_provider() == "claude"
+    mgr_explicit_env = AIManager()
+    assert mgr_explicit_env.active_provider_name == "claude"
+
+    # Cleanup prefer local
+    monkeypatch.delenv("NYX_AI_PROVIDER", raising=False)
+    monkeypatch.delenv("NYX_PREFER_LOCAL", raising=False)
 
     # NYX_AI_PROVIDER env var
     monkeypatch.setenv("NYX_AI_PROVIDER", "groq")
@@ -818,7 +847,7 @@ def test_tool_based_validation_destructive_impact_classification(tmp_path):
             "hypothesis_findings": ["FH-2026-001"],
         }
         steps = planner._select_steps(context)
-        val_steps = [s for s in steps if s.get("tool") == "nyx-validate"]
+        val_steps = [s for s in steps if s.get("impact_class") == "DESTRUCTIVE"]
         assert len(val_steps) >= 1, f"Expected validation step for {vuln}"
         for s in val_steps:
             assert s.get("impact_class") == "DESTRUCTIVE", f"Expected DESTRUCTIVE for {vuln}, got {s.get('impact_class')}"

@@ -1,64 +1,22 @@
 {
   "state": {
-    "state": "REPORTING",
+    "state": "DISCOVERY",
     "mode": "RESEARCH",
     "completed": [
-      "engagement_init",
-      "DISCOVERY",
-      "ANALYSIS",
-      "VALIDATION",
-      "REPORTING"
+      "engagement_init"
     ],
-    "history": [
-      {
-        "previous_state": "DISCOVERY",
-        "new_state": "DISCOVERY",
-        "timestamp": "2026-09-01T02:33:29.286214",
-        "reason": "Workflow state change (RESEARCH mode)"
-      },
-      {
-        "previous_state": "DISCOVERY",
-        "new_state": "ANALYSIS",
-        "timestamp": "2026-09-01T02:33:29.931959",
-        "reason": "Workflow state change (RESEARCH mode)"
-      },
-      {
-        "previous_state": "ANALYSIS",
-        "new_state": "VALIDATION",
-        "timestamp": "2026-09-01T02:33:30.488088",
-        "reason": "Workflow state change (RESEARCH mode)"
-      },
-      {
-        "previous_state": "VALIDATION",
-        "new_state": "REPORTING",
-        "timestamp": "2026-09-01T02:33:31.042660",
-        "reason": "Workflow state change (RESEARCH mode)"
-      },
-      {
-        "previous_state": "REPORTING",
-        "new_state": "REPORTING",
-        "timestamp": "2026-09-01T02:33:33.590755",
-        "reason": "Workflow state change (RESEARCH mode)"
-      },
-      {
-        "previous_state": "REPORTING",
-        "new_state": "VALIDATION",
-        "timestamp": "2026-09-01T02:33:47.982262",
-        "reason": "Workflow state change (RESEARCH mode)"
-      },
-      {
-        "previous_state": "VALIDATION",
-        "new_state": "REPORTING",
-        "timestamp": "2026-09-01T02:33:48.306751",
-        "reason": "Workflow state change (RESEARCH mode)"
-      }
-    ],
-    "updated_at": "2026-09-01T02:33:48.306798"
+    "history": [],
+    "updated_at": "2026-09-01T21:48:07.603512"
   },
   "technologies": {
     "frameworks": [
       "ASP.NET",
-      "PHP"
+      "Nginx:1.24.0",
+      "PHP",
+      "PHP:5.2.4",
+      "Ubuntu",
+      "bun",
+      "jQuery"
     ],
     "servers": [
       "nginx"
@@ -70,6 +28,21 @@
   },
   "endpoints": [
     {
+      "url": "https://server.vulnapp.id/mutillidae",
+      "host": "server.vulnapp.id",
+      "status": 200,
+      "server": "nginx/1.24.0 (Ubuntu)",
+      "title": "HTML Discovered Link",
+      "priority": "P2",
+      "source": "exec",
+      "sources": [
+        "exec",
+        "recon",
+        "content_discovery"
+      ],
+      "added_at": "2026-09-01T21:49:19.939972"
+    },
+    {
       "url": "https://server.vulnapp.id/",
       "host": "server.vulnapp.id",
       "status": 200,
@@ -80,21 +53,7 @@
       "sources": [
         "recon"
       ],
-      "added_at": "2026-09-01T02:30:46.991732"
-    },
-    {
-      "url": "https://server.vulnapp.id/mutillidae",
-      "host": "https://server.vulnapp.id/mutillidae",
-      "status": 200,
-      "server": "nginx/1.24.0 (Ubuntu)",
-      "title": "HTML Discovered Link",
-      "priority": "P2",
-      "source": "recon",
-      "sources": [
-        "recon",
-        "content_discovery"
-      ],
-      "added_at": "2026-09-01T02:30:46.991770"
+      "added_at": "2026-09-01T21:49:20.000058"
     },
     {
       "url": "https://server.vulnapp.id",
@@ -108,7 +67,7 @@
       "sources": [
         "recon"
       ],
-      "added_at": "2026-09-01T02:30:46.991786"
+      "added_at": "2026-09-01T21:49:20.000119"
     },
     {
       "url": "https://server.vulnapp.id/dav",
@@ -122,7 +81,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991814"
+      "added_at": "2026-09-01T21:49:20.000174"
     },
     {
       "url": "https://server.vulnapp.id/dvwa",
@@ -136,7 +95,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991837"
+      "added_at": "2026-09-01T21:49:20.000211"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
@@ -150,7 +109,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991868"
+      "added_at": "2026-09-01T21:49:20.000254"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=credits.php",
@@ -164,7 +123,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991889"
+      "added_at": "2026-09-01T21:49:20.000281"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=login.php",
@@ -178,7 +137,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991907"
+      "added_at": "2026-09-01T21:49:20.000307"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=show-log.php",
@@ -192,7 +151,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991923"
+      "added_at": "2026-09-01T21:49:20.000332"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=source-viewer.php",
@@ -206,7 +165,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991940"
+      "added_at": "2026-09-01T21:49:20.000358"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=text-file-viewer.php",
@@ -220,7 +179,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991957"
+      "added_at": "2026-09-01T21:49:20.000383"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=user-info.php",
@@ -234,7 +193,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991974"
+      "added_at": "2026-09-01T21:49:20.000410"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
@@ -248,7 +207,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.991991"
+      "added_at": "2026-09-01T21:49:20.000435"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
@@ -262,7 +221,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992007"
+      "added_at": "2026-09-01T21:49:20.000458"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/framer.html",
@@ -276,7 +235,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992021"
+      "added_at": "2026-09-01T21:49:20.000481"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php",
@@ -290,7 +249,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992034"
+      "added_at": "2026-09-01T21:49:20.000501"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?do=toggle-hints&page=home.php",
@@ -304,7 +263,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992048"
+      "added_at": "2026-09-01T21:49:20.000522"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?do=toggle-security&page=home.php",
@@ -318,7 +277,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992062"
+      "added_at": "2026-09-01T21:49:20.000545"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php",
@@ -332,7 +291,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992075"
+      "added_at": "2026-09-01T21:49:20.000567"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
@@ -346,7 +305,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992089"
+      "added_at": "2026-09-01T21:49:20.000587"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=browser-info.php",
@@ -360,7 +319,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992102"
+      "added_at": "2026-09-01T21:49:20.000609"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=capture-data.php",
@@ -374,7 +333,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992115"
+      "added_at": "2026-09-01T21:49:20.000626"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=captured-data.php",
@@ -388,7 +347,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992129"
+      "added_at": "2026-09-01T21:49:20.000640"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=change-log.htm",
@@ -402,7 +361,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992139"
+      "added_at": "2026-09-01T21:49:20.000651"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=credits.php",
@@ -416,7 +375,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992151"
+      "added_at": "2026-09-01T21:49:20.000664"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php",
@@ -430,7 +389,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992165"
+      "added_at": "2026-09-01T21:49:20.000677"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
@@ -444,7 +403,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992179"
+      "added_at": "2026-09-01T21:49:20.000691"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
@@ -458,7 +417,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992192"
+      "added_at": "2026-09-01T21:49:20.000704"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=framing.php",
@@ -472,7 +431,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992204"
+      "added_at": "2026-09-01T21:49:20.000719"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=home.php",
@@ -486,7 +445,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992217"
+      "added_at": "2026-09-01T21:49:20.000733"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php",
@@ -500,7 +459,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992230"
+      "added_at": "2026-09-01T21:49:20.000747"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=installation.php",
@@ -514,7 +473,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992243"
+      "added_at": "2026-09-01T21:49:20.000760"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=login.php",
@@ -528,7 +487,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992256"
+      "added_at": "2026-09-01T21:49:20.000773"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=notes.php",
@@ -542,7 +501,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992268"
+      "added_at": "2026-09-01T21:49:20.000786"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
@@ -556,7 +515,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992282"
+      "added_at": "2026-09-01T21:49:20.000800"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=pen-test-tool-lookup.php",
@@ -570,7 +529,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992295"
+      "added_at": "2026-09-01T21:49:20.000812"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=php-errors.php",
@@ -584,7 +543,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992308"
+      "added_at": "2026-09-01T21:49:20.000825"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=register.php",
@@ -598,7 +557,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992320"
+      "added_at": "2026-09-01T21:49:20.000837"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=secret-administrative-pages.php",
@@ -612,7 +571,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992332"
+      "added_at": "2026-09-01T21:49:20.000849"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=set-background-color.php",
@@ -626,7 +585,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992346"
+      "added_at": "2026-09-01T21:49:20.000861"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=show-log.php",
@@ -640,7 +599,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992358"
+      "added_at": "2026-09-01T21:49:20.000873"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php",
@@ -654,7 +613,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992371"
+      "added_at": "2026-09-01T21:49:20.000887"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=source-viewer.php",
@@ -668,7 +627,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992384"
+      "added_at": "2026-09-01T21:49:20.000900"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=text-file-viewer.php",
@@ -682,7 +641,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992398"
+      "added_at": "2026-09-01T21:49:20.000913"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=usage-instructions.php",
@@ -696,7 +655,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992411"
+      "added_at": "2026-09-01T21:49:20.000925"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
@@ -710,7 +669,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992423"
+      "added_at": "2026-09-01T21:49:20.000938"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=user-poll.php",
@@ -724,7 +683,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992439"
+      "added_at": "2026-09-01T21:49:20.000950"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
@@ -738,7 +697,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992459"
+      "added_at": "2026-09-01T21:49:20.000963"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/login",
@@ -752,7 +711,7 @@
         "content_discovery"
       ],
       "discovery_method": "wordlist_probe",
-      "added_at": "2026-09-01T02:30:46.992476"
+      "added_at": "2026-09-01T21:49:20.000973"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/robots.txt",
@@ -766,7 +725,7 @@
         "content_discovery"
       ],
       "discovery_method": "wordlist_probe",
-      "added_at": "2026-09-01T02:30:46.992493"
+      "added_at": "2026-09-01T21:49:20.000983"
     },
     {
       "url": "https://server.vulnapp.id/mutillidae/set-up-database.php",
@@ -780,7 +739,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992512"
+      "added_at": "2026-09-01T21:49:20.000995"
     },
     {
       "url": "https://server.vulnapp.id/phpMyAdmin",
@@ -794,7 +753,7 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992536"
+      "added_at": "2026-09-01T21:49:20.001010"
     },
     {
       "url": "https://server.vulnapp.id/server-status",
@@ -808,7 +767,7 @@
         "content_discovery"
       ],
       "discovery_method": "wordlist_probe",
-      "added_at": "2026-09-01T02:30:46.992557"
+      "added_at": "2026-09-01T21:49:20.001022"
     },
     {
       "url": "https://server.vulnapp.id/twiki",
@@ -822,15 +781,747 @@
         "content_discovery"
       ],
       "discovery_method": "html_link_crawl",
-      "added_at": "2026-09-01T02:30:46.992583"
+      "added_at": "2026-09-01T21:49:20.001038"
     }
   ],
   "tested_vectors": [
     {
+      "vector": "surface_mapping_and_skill_routing",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T21:48:49.574331"
+    },
+    {
+      "vector": "httpx_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T21:49:19.952621"
+    },
+    {
+      "vector": "initial_host_discovery",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T21:49:19.967478"
+    },
+    {
       "vector": "auth_surface_detected",
       "endpoint": "https://server.vulnapp.id/mutillidae",
       "result": "tested_success",
-      "timestamp": "2026-09-01T02:31:21.592274"
+      "timestamp": "2026-09-01T21:55:40.353315"
+    },
+    {
+      "vector": "known_technology_detected",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T21:55:40.807549"
+    },
+    {
+      "vector": "triage_FH-2026-001",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.054608"
+    },
+    {
+      "vector": "triage_FH-2026-002",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.069705"
+    },
+    {
+      "vector": "triage_FH-2026-003",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.084957"
+    },
+    {
+      "vector": "triage_FH-2026-004",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.104926"
+    },
+    {
+      "vector": "triage_FH-2026-005",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.122694"
+    },
+    {
+      "vector": "triage_FH-2026-006",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.144284"
+    },
+    {
+      "vector": "triage_FH-2026-007",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.159321"
+    },
+    {
+      "vector": "triage_FH-2026-008",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.177598"
+    },
+    {
+      "vector": "triage_FH-2026-009",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.195316"
+    },
+    {
+      "vector": "triage_FH-2026-010",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.213415"
+    },
+    {
+      "vector": "triage_FH-2026-011",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.232117"
+    },
+    {
+      "vector": "triage_FH-2026-012",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.251508"
+    },
+    {
+      "vector": "triage_FH-2026-013",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.271922"
+    },
+    {
+      "vector": "triage_FH-2026-014",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.290907"
+    },
+    {
+      "vector": "triage_FH-2026-015",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.309593"
+    },
+    {
+      "vector": "triage_FH-2026-016",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=login.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.329539"
+    },
+    {
+      "vector": "triage_FH-2026-017",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.355231"
+    },
+    {
+      "vector": "triage_FH-2026-018",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.375940"
+    },
+    {
+      "vector": "triage_FH-2026-019",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=register.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.397524"
+    },
+    {
+      "vector": "triage_FH-2026-020",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=show-log.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.419875"
+    },
+    {
+      "vector": "triage_FH-2026-021",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.440242"
+    },
+    {
+      "vector": "triage_FH-2026-022",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.460389"
+    },
+    {
+      "vector": "triage_FH-2026-023",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.483522"
+    },
+    {
+      "vector": "triage_FH-2026-024",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.510365"
+    },
+    {
+      "vector": "triage_FH-2026-025",
+      "endpoint": "https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.535478"
+    },
+    {
+      "vector": "triage_FH-2026-026",
+      "endpoint": "https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.562511"
+    },
+    {
+      "vector": "triage_FH-2026-027",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:56:53.586388"
+    },
+    {
+      "vector": "hypothesis_validation_required",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T21:56:53.611095"
+    },
+    {
+      "vector": "triage_FH-2026-001",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:03.887570"
+    },
+    {
+      "vector": "triage_FH-2026-002",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:03.913387"
+    },
+    {
+      "vector": "triage_FH-2026-003",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:03.941302"
+    },
+    {
+      "vector": "triage_FH-2026-004",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:03.965934"
+    },
+    {
+      "vector": "triage_FH-2026-005",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:03.993802"
+    },
+    {
+      "vector": "triage_FH-2026-006",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.023458"
+    },
+    {
+      "vector": "triage_FH-2026-007",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.046358"
+    },
+    {
+      "vector": "triage_FH-2026-008",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.076345"
+    },
+    {
+      "vector": "triage_FH-2026-009",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.100446"
+    },
+    {
+      "vector": "triage_FH-2026-010",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.125844"
+    },
+    {
+      "vector": "triage_FH-2026-011",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.148166"
+    },
+    {
+      "vector": "triage_FH-2026-012",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.173260"
+    },
+    {
+      "vector": "triage_FH-2026-013",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.196487"
+    },
+    {
+      "vector": "triage_FH-2026-014",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.217452"
+    },
+    {
+      "vector": "triage_FH-2026-015",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.244398"
+    },
+    {
+      "vector": "triage_FH-2026-016",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=login.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.294052"
+    },
+    {
+      "vector": "triage_FH-2026-017",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.326351"
+    },
+    {
+      "vector": "triage_FH-2026-018",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.355709"
+    },
+    {
+      "vector": "triage_FH-2026-019",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=register.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.383852"
+    },
+    {
+      "vector": "triage_FH-2026-020",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=show-log.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.415157"
+    },
+    {
+      "vector": "triage_FH-2026-021",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.443671"
+    },
+    {
+      "vector": "triage_FH-2026-022",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.476803"
+    },
+    {
+      "vector": "triage_FH-2026-023",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.504362"
+    },
+    {
+      "vector": "triage_FH-2026-024",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.539899"
+    },
+    {
+      "vector": "triage_FH-2026-025",
+      "endpoint": "https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.569790"
+    },
+    {
+      "vector": "triage_FH-2026-026",
+      "endpoint": "https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.600856"
+    },
+    {
+      "vector": "triage_FH-2026-027",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login",
+      "result": "tested_negative",
+      "timestamp": "2026-09-01T21:58:04.626764"
+    },
+    {
+      "vector": "hypothesis_validation_required",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T21:58:04.653763"
+    },
+    {
+      "vector": "validated_FH-2026-028",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index?page=add-to-your-blog.php&page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:18:05.632353"
+    },
+    {
+      "vector": "validated_FH-2026-029",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login?page=add-to-your-blog.php&page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:18:06.735147"
+    },
+    {
+      "vector": "validated_FH-2026-030",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:18:07.935648"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:18:07.963993"
+    },
+    {
+      "vector": "cross-site_scripting_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:18:07.993338"
+    },
+    {
+      "vector": "validated_FH-2026-031",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?-d+allow_url_include%3don+-d+auto_prepend_file%3dphp%3a//input",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:33.510812"
+    },
+    {
+      "vector": "validated_FH-2026-032",
+      "endpoint": "https://server.vulnapp.id/mutillidae/phpinfo.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:34.788828"
+    },
+    {
+      "vector": "validated_FH-2026-033",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:36.048936"
+    },
+    {
+      "vector": "validated_FH-2026-034",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:37.438339"
+    },
+    {
+      "vector": "validated_FH-2026-035",
+      "endpoint": "https://server.vulnapp.id/mutillidae/includes/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:38.743453"
+    },
+    {
+      "vector": "validated_FH-2026-036",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:40.248647"
+    },
+    {
+      "vector": "validated_FH-2026-036",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:41.392671"
+    },
+    {
+      "vector": "validated_FH-2026-037",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:42.916197"
+    },
+    {
+      "vector": "validated_FH-2026-037",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:44.256531"
+    },
+    {
+      "vector": "validated_FH-2026-038",
+      "endpoint": "https://server.vulnapp.id/mutillidae/.project",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:45.743984"
+    },
+    {
+      "vector": "validated_FH-2026-039",
+      "endpoint": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:47.298858"
+    },
+    {
+      "vector": "validated_FH-2026-040",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:48.939993"
+    },
+    {
+      "vector": "validated_FH-2026-041",
+      "endpoint": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:50.461686"
+    },
+    {
+      "vector": "validated_FH-2026-042",
+      "endpoint": "http://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:52.927550"
+    },
+    {
+      "vector": "validated_FH-2026-043",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:54.785831"
+    },
+    {
+      "vector": "validated_FH-2026-044",
+      "endpoint": "http://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:57.058330"
+    },
+    {
+      "vector": "validated_FH-2026-045",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:25:59.110951"
+    },
+    {
+      "vector": "validated_FH-2026-046",
+      "endpoint": "https://server.vulnapp.id/mutillidae/.buildpath",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:26:01.049183"
+    },
+    {
+      "vector": "validated_FH-2026-047",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:26:03.359150"
+    },
+    {
+      "vector": "validated_FH-2026-048",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:26:05.110048"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:26:05.138496"
+    },
+    {
+      "vector": "active tool-based validation sequence executing probes for cross-site scripting on https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php; requires operator confirmation.",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:26:05.165988"
+    },
+    {
+      "vector": "validated_FH-2026-029",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login?page=add-to-your-blog.php&page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:39:39.804876"
+    },
+    {
+      "vector": "validated_FH-2026-028",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index?page=add-to-your-blog.php&page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:39:41.157240"
+    },
+    {
+      "vector": "validated_FH-2026-030",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:39:42.365888"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:39:42.385434"
+    },
+    {
+      "vector": "cross-site_scripting_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:39:42.404771"
+    },
+    {
+      "vector": "validated_FH-2026-031",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?-d+allow_url_include%3don+-d+auto_prepend_file%3dphp%3a//input",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:51.438885"
+    },
+    {
+      "vector": "validated_FH-2026-049",
+      "endpoint": "https://server.vulnapp.id/mutillidae//phpinfo.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:52.663344"
+    },
+    {
+      "vector": "validated_FH-2026-033",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:53.929352"
+    },
+    {
+      "vector": "validated_FH-2026-034",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:55.124132"
+    },
+    {
+      "vector": "validated_FH-2026-037",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:56.529390"
+    },
+    {
+      "vector": "validated_FH-2026-037",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:58.242400"
+    },
+    {
+      "vector": "validated_FH-2026-041",
+      "endpoint": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:54:59.452291"
+    },
+    {
+      "vector": "validated_FH-2026-046",
+      "endpoint": "https://server.vulnapp.id/mutillidae/.buildpath",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:00.647497"
+    },
+    {
+      "vector": "validated_FH-2026-038",
+      "endpoint": "https://server.vulnapp.id/mutillidae/.project",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:01.809302"
+    },
+    {
+      "vector": "validated_FH-2026-039",
+      "endpoint": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:03.062464"
+    },
+    {
+      "vector": "validated_FH-2026-047",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:04.274099"
+    },
+    {
+      "vector": "validated_FH-2026-048",
+      "endpoint": "server.vulnapp.id:443",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:05.526946"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:05.548601"
+    },
+    {
+      "vector": "active tool-based validation sequence executing probes for cross-site scripting on https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php; requires operator confirmation.",
+      "endpoint": "https://server.vulnapp.id/mutillidae/",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T22:55:05.569868"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:01:22.220637"
+    },
+    {
+      "vector": "auth_bypass_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:01:22.241046"
+    },
+    {
+      "vector": "sqlmap_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:05:15.753158"
+    },
+    {
+      "vector": "sql_injection_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:05:15.778965"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:10:00.630479"
+    },
+    {
+      "vector": "auth_bypass_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=login.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:10:00.651970"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:12:55.571144"
+    },
+    {
+      "vector": "sql_injection_nuclei_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:12:55.592592"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:23:48.705279"
+    },
+    {
+      "vector": "sql_injection_nuclei_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=show-log.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:23:48.732548"
+    },
+    {
+      "vector": "sqlmap_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:27:18.269718"
+    },
+    {
+      "vector": "sql_injection_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:27:18.298412"
+    },
+    {
+      "vector": "sqlmap_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:48:55.011214"
+    },
+    {
+      "vector": "sql_injection_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:48:55.034165"
+    },
+    {
+      "vector": "nuclei_execution",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:53:01.042264"
+    },
+    {
+      "vector": "sql_injection_nuclei_validation",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=user-info.php",
+      "result": "tested_success",
+      "timestamp": "2026-09-01T23:53:01.084289"
     }
   ],
   "findings": [
@@ -838,7 +1529,7 @@
       "finding_id": "FH-2026-001",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Cross-Site Scripting Surface on https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
       "severity": "Medium",
       "status": "HYPOTHESIS",
@@ -846,11 +1537,16 @@
       "parameter": "",
       "vulnerability": "Cross-Site Scripting",
       "tag": "xss,client-side",
-      "description": "**### Why This Was Flagged**  \nThe URL\u202f`https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php` passes the value of the **`page`** query parameter directly to a PHP `include`/`require` or `echo` routine that renders the target page. The parameter name (`page`) and the file extension (`.php`) are classic indicators of reflected XSS in the *mutillidae* training suite, where the included page often echoes back the query string (e.g., `$_GET['page']`) without proper HTML\u2011entity encoding. The detection rule looks for:\n\n* A query parameter named *page* (or similar) that is reflected in the HTTP response body.  \n* The reflected value appears inside HTML context (e.g., inside `<title>`, `<h1>`, or script blocks).  \n\nOur scanner observed the string `add-to-your-blog.php` echoed verbatim in the rendered source, triggering the pattern.\n\n---\n\n**### Exploitability Conditions**  \n1. **Reflected Output** \u2013 The application must output the raw `page` value into the HTML response (e.g., `echo $_GET['page'];`).  \n2. **HTML Context** \u2013 The reflected value must be placed in a context that allows script execution (inside element content, attribute value, or a `<script>` block).  \n3. **No Encoding/Sanitization** \u2013 There must be no HTML\u2011entity encoding, URL\u2011encoding, or JavaScript\u2011escaping performed on the parameter before insertion.  \n4. **Same\u2011Origin Policy** \u2013 The page must be served from the same origin as the vulnerable script so that a malicious payload can execute without CSP or `X\u2011Content\u2011Type\u2011Options: nosniff` blocks.  \n5. **Browser Rendering** \u2013 The victim\u2019s browser must not have a strict CSP that disables inline scripts; otherwise the payload would be blocked.\n\nIf any of the above are false (e.g., the value is sanitized with `htmlspecialchars()`), the XSS vector will not be exploitable.\n\n---\n\n**### Verification Steps**  \n\n1. **Passive Reflection Check**  \n   ```bash\n   curl -s \"https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php\" | grep -i \"add-to-your-blog.php\"\n   ```  \n   Confirm that the exact parameter value appears in the response body.\n\n2. **Harmless Canary Test**  \n   ```bash\n   curl -s \"https://server.vulnapp.id/mutillidae?page=%3Ctest%3E\" | grep -i \"<test>\"\n   ```  \n   The string `<test>` should be reflected unchanged. If it appears, the output is not being HTML\u2011escaped.\n\n3. **Context Identification**  \n   Fetch the page and view source (or use `lynx -dump`). Locate where the reflected value sits (e.g., inside `<title>`, `<h1>`, or an attribute). Note the surrounding tags.\n\n4. **Non\u2011executing Payload Probe**  \n   ```bash\n   curl -s \"https://server.vulnapp.id/mutillidae?page=%3Csvg%20onload%3D%22alert%281%29%22%3E\"\n   ```  \n   Observe the raw HTML. Do **not** execute the payload; just verify that the `<svg onload=\"alert(1)\">` markup is present verbatim.\n\n5. **Browser\u2011Based Confirmation (Least Invasive)**  \n   - Open the URL in a private browser window with the developer console closed.  \n   - Use the payload `?page=%3Csvg%20onload%3D%22alert%28document.domain%29%22%3E`.  \n   - If an alert pops up, the XSS is confirmed. (This is a harmless, observable effect.)\n\n6. **Optional Defensive Bypass Checks** (run only after step\u202f5 succeeds and with explicit permission):  \n   - Test CSP bypasses (e.g., `?page=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E`).  \n   - Test attribute injection if the value appears inside an HTML attribute.\n\n**Note:** Do **not** perform data exfiltration, automated mass\u2011payload delivery, or any destructive action without written client authorization.  \n\n---\n\n**### Status**  \nUnconfirmed",
-      "evidence_ids": [],
-      "created_at": "2026-09-01T02:30:51.712480",
-      "updated_at": "2026-09-01T02:30:54.510660",
-      "ai_enriched": true
+      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "evidence_ids": [
+        "EV-2026-0007",
+        "EV-2026-0048",
+        "EV-2026-0059",
+        "EV-2026-0084"
+      ],
+      "created_at": "2026-09-01T21:49:45.211731",
+      "updated_at": "2026-09-01T21:50:10.254717",
+      "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-002",
@@ -864,17 +1560,22 @@
       "parameter": "",
       "vulnerability": "Authentication Bypass",
       "tag": "auth,session,login",
-      "description": "**Why This Was Flagged**  \nThe request `https://server.vulnapp.id/mutillidae?page=login.php` passes the target file name (`login.php`) via the `page` query string. The Mutillidae demo intentionally routes any value of `page` to an internal `include()` call without proper validation. This pattern (unrestricted inclusion of a page parameter that resolves to the authentication script) matches known authentication\u2011bypass signatures where an attacker can force the application to load an alternate script (e.g., `login.php?` with a crafted value) that sets the session as authenticated or skips credential checks.\n\n**Exploitability Conditions**  \n1. The application must use the `page` parameter to build a file path for `include()` or `require()` without sanitising directory traversal (`../`) or whitelist checks.  \n2. The `login.php` script (or any included script) must contain logic that sets a session variable like `$_SESSION['loggedin'] = true` *before* credential verification, or must rely on a GET/POST flag that can be overridden via the included file.  \n3. PHP\u2019s `allow_url_include` must be **disabled** for remote file inclusion, but local path traversal is sufficient; the web server must permit reading files under the Mutillidae document root.  \n4. No additional CSRF tokens or same\u2011origin checks are enforced on the login form, allowing the attacker to submit the crafted request directly.\n\n**Verification Steps**  \n\n| Step | Action | Expected Indicator |\n|------|--------|--------------------|\n| 1 | **Baseline request** \u2013 `GET /mutillidae?page=login.php` in a browser or `curl -i`. Record the HTTP status, cookies (`PHPSESSID`), and response body. | Normal login page appears; a fresh session cookie is set. |\n| 2 | **File\u2011path probing** \u2013 send `GET /mutillidae?page=../login.php` and `GET /mutillidae?page=../../../../etc/passwd%00`. Use `curl -i` or `ffuf` with `-u \"https://server.vulnapp.id/mutillidae?page=FUZZ\"` and wordlist `../,../../,../../../`. | If the application includes the file, the response will contain login page markup or error messages (e.g., \u201cfailed to open stream\u201d). |\n| 3 | **Bypass test \u2013 alternate script** \u2013 craft a dummy script `bypass.php` in the webroot (if you have write access) that contains `<?php $_SESSION[\"loggedin\"]=true; header(\"Location: index.php\"); ?>`. Then request `GET /mutillidae?page=bypass.php`. | Successful redirection to the authenticated area without credential entry, indicating the `page` include is executed. |\n| 4 | **Session validation** \u2013 after step\u202f3, inspect the subsequent request\u2019s cookies and response body for indicators of an authenticated session (e.g., presence of \u201cWelcome\u201d or admin links). | Authenticated content appears, confirming the bypass. |\n| 5 *(optional, invasive)* | **Confirm code path** \u2013 run `sqlmap` or `nikto` against the endpoint with the `--level=5 --risk=3` flags **only after steps\u202f1\u20114 succeed** and with explicit client permission. | No additional exposure; this step is for deep confirmation, not required for the hypothesis. |\n\n> **Note:** Steps\u202f1\u20114 are non\u2011destructive, rely on response differences, and do not extract data. Proceed to step\u202f5 only after obtaining clear evidence of the inclusion behavior and with documented authorization.\n\n**Status**  \nUnconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
-      "evidence_ids": [],
-      "created_at": "2026-09-01T02:30:54.560704",
-      "updated_at": "2026-09-01T02:30:57.024772",
-      "ai_enriched": true
+      "description": "Classification identified primary authentication gateway on https://server.vulnapp.id/mutillidae?page=login.php requiring credential stuffing, brute-force, and session fixation validation.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Authentication Bypass input surface on https://server.vulnapp.id/mutillidae?page=login.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "evidence_ids": [
+        "EV-2026-0049",
+        "EV-2026-0085",
+        "EV-2026-0089",
+        "EV-2026-0091"
+      ],
+      "created_at": "2026-09-01T21:50:09.762614",
+      "updated_at": "2026-09-01T21:50:34.837032",
+      "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-003",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "SQL Injection Surface on https://server.vulnapp.id/mutillidae?page=show-log.php",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -882,11 +1583,17 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "**Why This Was Flagged**  \nThe request\u202f`https://server.vulnapp.id/mutillidae?page=show\u2011log.php` contains a single query parameter named **`page`** whose value is directly concatenated into a backend SQL statement (e.g., `SELECT * FROM logs WHERE page = '{page}'`). The parameter is not type\u2011restricted, contains no whitelist validation, and ends with a \u201c.php\u201d suffix that is often used by the Mutillidae training app to build dynamic queries. This pattern (`{parameter}=*.php`) is a known indicator for classic Boolean\u2011based or error\u2011based SQL injection vectors in the Mutillidae code base, prompting the high\u2011severity flag.\n\n---\n\n**Exploitability Conditions**  \n1. **Dynamic SQL Construction** \u2013 The server must build the SQL query by string\u2011concatenating the raw `page` value without using prepared statements or proper escaping.  \n2. **Direct Database Interaction** \u2013 The `page` value must be used in a `WHERE` clause (or similar) that is executed against a relational DBMS (MySQL, MariaDB, PostgreSQL, etc.).  \n3. **Error/Response Disclosure** \u2013 The application must return distinguishable responses (error messages, timing differences, or content changes) that allow an attacker to infer the success or failure of injected payloads.  \n4. **No WAF/Filter Blocking** \u2013 There must be no Web Application Firewall or input sanitiser that strips or normalises typical SQL meta\u2011characters (`'`, `\"`, `--`, `/*`, `#`).  \n\nIf any of the above are absent, the injection will be non\u2011exploitable or only detectable via blind techniques.\n\n---\n\n**Verification Steps**  \n\n| Step | Action | Expected Indicator |\n|------|--------|--------------------|\n| 1 | **Baseline request**: `GET /mutillidae?page=show-log.php` \u2013 capture status code, response size, and any visible error text. | Baseline for comparison. |\n| 2 | **Error\u2011based probe**: `GET /mutillidae?page=show-log.php'` (single\u2011quote appended). Observe if the server returns a SQL error (e.g., \u201cYou have an error in your SQL syntax\u201d). | Presence of a DB error \u2192 confirms unsanitised concatenation. |\n| 3 | **Boolean\u2011based test**: `GET /mutillidae?page=show-log.php AND 1=1` vs. `GET /mutillidae?page=show-log.php AND 1=2`. Compare response bodies or lengths. | Identical responses \u2192 likely filtered; differing responses \u2192 blind injectable. |\n| 4 | **Timing probe** (if no visible error): `GET /mutillidae?page=show-log.php AND SLEEP(5)` (MySQL) or `pg_sleep(5)` (PostgreSQL). Measure response latency. | >5\u202fs delay only on the sleep payload \u2192 confirms time\u2011based blind injection. |\n| 5 | **Automated scanner**: Run `sqlmap -u \"https://server.vulnapp.id/mutillidae?page=show-log.php\" --batch --level=1 --risk=1`. Let sqlmap perform only detection (`--batch` with no `--dump`). | sqlmap reports \u201cpossible SQL injection\u201d or \u201cbackend DBMS detected\u201d. |\n| 6 *(Optional, after confirmation)* | **Controlled data extraction** \u2013 **Only** after you have explicit written permission: `sqlmap -u \"https://server.vulnapp.id/mutillidae?page=show-log.php\" --dump`. | Dumps tables; use solely for validation, not for data theft. |\n\n**Safety Note:** Steps\u202f1\u20114 are non\u2011destructive and rely on error messages, content diffing, or timing. Proceed to step\u202f5 only if earlier steps indicate a likely injection. Step\u202f6 must be performed **only** with explicit client/engagement authorization and after a confirmed vulnerability.\n\n---\n\n**Status**  \nUnconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
-      "evidence_ids": [],
-      "created_at": "2026-09-01T02:30:57.079061",
-      "updated_at": "2026-09-01T02:30:59.809681",
-      "ai_enriched": true
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae?page=show-log.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae?page=show-log.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "evidence_ids": [
+        "EV-2026-0050",
+        "EV-2026-0086",
+        "EV-2026-0090",
+        "EV-2026-0092",
+        "EV-2026-0093"
+      ],
+      "created_at": "2026-09-01T21:50:10.312002",
+      "updated_at": "2026-09-01T21:50:35.387322",
+      "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-004",
@@ -900,17 +1607,23 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "### Why This Was Flagged  \nThe request `GET /mutillidae?page=user-info.php` passes the **`page`** query parameter directly to an internal `include()` / routing mechanism that subsequently builds a SQL statement such as:  \n\n```php\n$sql = \"SELECT * FROM users WHERE username = '\".$_GET['page'].\"'\";\n```  \n\nThe presence of a **file\u2011name\u2011type value** (`*.php`) in a parameter that is later concatenated into a string literal is a classic indicator of *SQL Injection* patterns flagged by our rule set (parameter used unsanitized in a query and not type\u2011checked).\n\n### Exploitability Conditions  \n1. **Dynamic query construction** \u2013 The application must concatenate `$_GET['page']` (or a derived value) into an SQL string without prepared statements or escaping.  \n2. **No type/whitelist enforcement** \u2013 The code must accept arbitrary values for `page` (e.g., `1' OR '1'='1`) rather than restricting to a hard\u2011coded whitelist of allowed pages.  \n3. **Error or response variation** \u2013 The backend must return distinguishable responses (SQL error messages, differing page content, or timing changes) when the injected payload alters the query execution.  \n4. **Database reachable from web tier** \u2013 The underlying DB must be directly queried by the PHP process (common with default Mutillidae setups).\n\nIf any of these controls are in place (prepared statements, strict whitelist, generic error handling), the injection will be mitigated.\n\n### Verification Steps  \n\n| Step | Tool / Method | Payload / Action | Expected Indicator |\n|------|---------------|------------------|--------------------|\n| 1 | **Manual / browser** | `https://server.vulnapp.id/mutillidae?page=admin'` | Look for a SQL error (e.g., \u201cYou have an error in your SQL syntax\u201d) or abnormal page content. |\n| 2 | **Nuclei** (or curl) | Use a simple error\u2011based template: `GET /mutillidae?page=1'%20UNION%20SELECT%20NULL-- -` | Response contains \u201cSQL syntax\u201d or \u201cMySQL server version\u201d. |\n| 3 | **ffuf** (wordlist of common SQL operators) | `ffuf -u \"https://server.vulnapp.id/mutillidae?page=FUZZ\" -w payloads/sql_injection.txt -mr \"SQL syntax\"` | Any match indicates error\u2011based injection. |\n| 4 | **sqlmap** \u2013 confirm only \u2013 *non\u2011destructive* mode: <br>`sqlmap -u \"https://server.vulnapp.id/mutillidae?page=*\" --batch --risk=1 --level=1 --technique=E,B --tamper=space2comment --threads=2` | sqlmap reports \u201cparameter is vulnerable\u201d without executing data\u2011exfiltration. |\n| 5 | **Blind verification (optional)** \u2013 Boolean test: <br>`https://server.vulnapp.id/mutillidae?page=1' AND 1=1-- -` vs <br>`https://server.vulnapp.id/mutillidae?page=1' AND 1=2-- -` <br>Compare response size / timing. | Identical vs divergent responses confirm blind injection. |\n| **Note:** Only proceed to data extraction (`sqlmap --dump`, `--search`, etc.) after the above confirmation steps and **with explicit client/engagement authorization**. |\n\n### Status  \n**Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.**",
-      "evidence_ids": [],
-      "created_at": "2026-09-01T02:30:59.866281",
-      "updated_at": "2026-09-01T02:31:02.339686",
-      "ai_enriched": true
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae?page=user-info.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae?page=user-info.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "evidence_ids": [
+        "EV-2026-0051",
+        "EV-2026-0087",
+        "EV-2026-0094",
+        "EV-2026-0095",
+        "EV-2026-0096"
+      ],
+      "created_at": "2026-09-01T21:50:34.940491",
+      "updated_at": "2026-09-01T21:51:00.061036",
+      "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-005",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "SQL Injection Surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -918,10 +1631,13 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7321, Requested 1400. Please try again in 5.4075s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
-      "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:02.406680",
-      "updated_at": "2026-09-01T02:31:02.727456",
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "evidence_ids": [
+        "EV-2026-0052",
+        "EV-2026-0088"
+      ],
+      "created_at": "2026-09-01T21:50:35.487658",
+      "updated_at": "2026-09-01T21:51:00.579859",
       "ai_enriched": false
     },
     {
@@ -936,17 +1652,17 @@
       "parameter": "",
       "vulnerability": "Cross-Site Scripting",
       "tag": "xss,client-side",
-      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7269, Requested 1267. Please try again in 4.02s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:02.805558",
-      "updated_at": "2026-09-01T02:31:03.119887",
+      "created_at": "2026-09-01T21:51:00.180641",
+      "updated_at": "2026-09-01T21:51:25.309995",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-007",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Cross-Site Scripting Surface on https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php",
       "severity": "Medium",
       "status": "HYPOTHESIS",
@@ -954,10 +1670,10 @@
       "parameter": "",
       "vulnerability": "Cross-Site Scripting",
       "tag": "xss,client-side",
-      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7208, Requested 1269. Please try again in 3.577499999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=add-to-your-blog.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:03.198135",
-      "updated_at": "2026-09-01T02:31:03.573124",
+      "created_at": "2026-09-01T21:51:00.726472",
+      "updated_at": "2026-09-01T21:51:25.835239",
       "ai_enriched": false
     },
     {
@@ -972,17 +1688,17 @@
       "parameter": "",
       "vulnerability": "Local File Inclusion",
       "tag": "file_upload,lfi",
-      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7156, Requested 1268. Please try again in 3.179999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:03.672484",
-      "updated_at": "2026-09-01T02:31:03.965022",
+      "created_at": "2026-09-01T21:51:25.539757",
+      "updated_at": "2026-09-01T21:51:50.679998",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-009",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Server-Side Request Forgery Surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -990,10 +1706,10 @@
       "parameter": "",
       "vulnerability": "SSRF",
       "tag": "ssrf,redirect",
-      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7090, Requested 1319. Please try again in 3.0675s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/index.php?page=arbitrary-file-inclusion.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:04.077395",
-      "updated_at": "2026-09-01T02:31:04.457079",
+      "created_at": "2026-09-01T21:51:26.042667",
+      "updated_at": "2026-09-01T21:51:51.167168",
       "ai_enriched": false
     },
     {
@@ -1008,17 +1724,17 @@
       "parameter": "",
       "vulnerability": "Command Injection",
       "tag": "rce,command-injection,os",
-      "description": "Classification identified system command execution or network utility parameter on https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php matching OS command injection patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Command Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7027, Requested 1401. Please try again in 3.21s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified system command execution or network utility parameter on https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php matching OS command injection patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Command Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=dns-lookup.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:04.565087",
-      "updated_at": "2026-09-01T02:31:04.950096",
+      "created_at": "2026-09-01T21:51:50.868487",
+      "updated_at": "2026-09-01T21:52:15.989223",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-011",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "File Upload & Path Traversal Surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -1026,10 +1742,10 @@
       "parameter": "",
       "vulnerability": "Local File Inclusion",
       "tag": "file_upload,lfi",
-      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6962, Requested 1413. Please try again in 2.8125s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:05.061879",
-      "updated_at": "2026-09-01T02:31:05.408002",
+      "created_at": "2026-09-01T21:51:51.337111",
+      "updated_at": "2026-09-01T21:52:16.448039",
       "ai_enriched": false
     },
     {
@@ -1044,17 +1760,17 @@
       "parameter": "",
       "vulnerability": "SSRF",
       "tag": "ssrf,redirect",
-      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6904, Requested 1328. Please try again in 1.74s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/how-to-access-Mutillidae-over-Virtual-Box-network.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:05.535565",
-      "updated_at": "2026-09-01T02:31:05.842949",
+      "created_at": "2026-09-01T21:52:16.219994",
+      "updated_at": "2026-09-01T21:52:41.344174",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-013",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "File Upload & Path Traversal Surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -1062,10 +1778,10 @@
       "parameter": "",
       "vulnerability": "Local File Inclusion",
       "tag": "file_upload,lfi",
-      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6831, Requested 1267. Please try again in 735ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:05.981645",
-      "updated_at": "2026-09-01T02:31:06.405525",
+      "created_at": "2026-09-01T21:52:16.664864",
+      "updated_at": "2026-09-01T21:52:41.787302",
       "ai_enriched": false
     },
     {
@@ -1080,17 +1796,17 @@
       "parameter": "",
       "vulnerability": "SSRF",
       "tag": "ssrf,redirect",
-      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6764, Requested 1266. Please try again in 224.999999ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/index.php?page=documentation/vulnerabilities.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:06.551233",
-      "updated_at": "2026-09-01T02:31:06.907638",
+      "created_at": "2026-09-01T21:52:41.639217",
+      "updated_at": "2026-09-01T21:53:06.798008",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-015",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Cross-Site Scripting Surface on https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php",
       "severity": "Medium",
       "status": "HYPOTHESIS",
@@ -1098,10 +1814,10 @@
       "parameter": "",
       "vulnerability": "Cross-Site Scripting",
       "tag": "xss,client-side",
-      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6689, Requested 1320. Please try again in 67.499999ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=html5-storage.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:07.078712",
-      "updated_at": "2026-09-01T02:31:07.471996",
+      "created_at": "2026-09-01T21:52:42.087738",
+      "updated_at": "2026-09-01T21:53:07.230208",
       "ai_enriched": false
     },
     {
@@ -1116,17 +1832,17 @@
       "parameter": "",
       "vulnerability": "Authentication Bypass",
       "tag": "auth,session,login",
-      "description": "Classification identified primary authentication gateway on https://server.vulnapp.id/mutillidae/index.php?page=login.php requiring credential stuffing, brute-force, and session fixation validation.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Authentication Bypass input surface on https://server.vulnapp.id/mutillidae/index.php?page=login.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6601, Requested 1400. Please try again in 7.5ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified primary authentication gateway on https://server.vulnapp.id/mutillidae/index.php?page=login.php requiring credential stuffing, brute-force, and session fixation validation.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Authentication Bypass input surface on https://server.vulnapp.id/mutillidae/index.php?page=login.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:07.638542",
-      "updated_at": "2026-09-01T02:31:08.140096",
+      "created_at": "2026-09-01T21:53:07.079278",
+      "updated_at": "2026-09-01T21:53:32.233173",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-017",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "SQL Injection Surface on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -1134,11 +1850,11 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "**Why This Was Flagged**  \nThe request\u202f`https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous` contains a *page* parameter that is directly concatenated into a PHP `include/require` statement in the original Mutillidae code base (`include($page);`). When the value is not strictly whitelisted, the underlying script builds an SQL query such as:  \n\n```php\n$sql = \"SELECT * FROM users WHERE username = '$username'\";\n```  \n\nThe *username* parameter is inserted without any escaping or prepared\u2011statement usage. The combination of an unsanitized string\u2011type parameter (`username`) that is later used in a SQL context and a `page` parameter that can be manipulated to load arbitrary PHP files makes the endpoint a classic candidate for **SQL Injection**.\n\n---\n\n**Exploitability Conditions**  \n\n1. **Dynamic SQL construction** \u2013 The server must concatenate the raw `username` value into a SQL statement (e.g., within `password-generator.php`).  \n2. **Lack of input sanitisation** \u2013 No `mysqli_real_escape_string`, prepared statements, or type\u2011casting are applied to `username`.  \n3. **Error/response feedback** \u2013 The application must return distinguishable output (error messages, differing page content, or timing differences) when the SQL query succeeds vs. fails, enabling blind or error\u2011based probing.  \n4. **Database privileges** \u2013 The DB user used by the web app must have at least `SELECT` rights on the `users` table (typical for Mutillidae).  \n5. **`page` parameter acceptance** \u2013 The `page` value must be accepted as a literal filename; if the application validates against a whitelist, injection may be blocked.  \n\nIf any of the above are not true, the vector will not be exploitable.\n\n---\n\n**Verification Steps**  \n\n1. **Baseline response capture**  \n   ```bash\n   curl -s -o /tmp/base.html \"https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous\"\n   ```\n   Save the HTML for later diffing.\n\n2. **Error\u2011based syntax probe (non\u2011invasive)**  \n   ```bash\n   curl -s \"https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous'--\"\n   ```\n   Look for MySQL syntax error strings (`You have an error in your SQL syntax`, `SQLSTATE`). If present, the query is being built with the supplied value.\n\n3. **Boolean\u2011based blind test**  \n   - True condition: `username=anonymous' AND 1=1--`  \n   - False condition: `username=anonymous' AND 1=2--`  \n   ```bash\n   curl -s -o /tmp/true.html  \"https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous' AND 1=1--\"\n   curl -s -o /tmp/false.html \"https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous' AND 1=2--\"\n   diff /tmp/true.html /tmp/false.html\n   ```\n   Any consistent content difference (or HTTP status change) confirms a blind injectable point.\n\n4. **Timing\u2011based probe (if no visible diff)**  \n   ```bash\n   time curl -s \"https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous' AND IF(1=1,SLEEP(5),0)--\"\n   ```\n   A noticeable delay (>4\u202fs) indicates that the payload reached the DB engine.\n\n5. **Automated confirmation with\u202fsqlmap (read\u2011only mode)**  \n   ```bash\n   sqlmap -u \"https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous\" \\\n          --level=2 --risk=1 --batch --technique=BEUSTQ --time-sec=5 \\\n          --threads=2 --fresh-queries\n   ```\n   *Do not* use `--dump` at this stage; the command will only enumerate the vulnerability and report possible DBMS/parameters.\n\n6. **(Optional, post\u2011confirmation) Data extraction**  \n   **Note:** Only run after you have explicit permission to retrieve data.  \n   ```bash",
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:08.324691",
-      "updated_at": "2026-09-01T02:31:10.900901",
-      "ai_enriched": true
+      "created_at": "2026-09-01T21:53:07.525523",
+      "updated_at": "2026-09-01T21:53:32.681263",
+      "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-018",
@@ -1152,17 +1868,17 @@
       "parameter": "",
       "vulnerability": "Authentication Bypass",
       "tag": "auth,session,login",
-      "description": "Classification identified primary authentication gateway on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous requiring credential stuffing, brute-force, and session fixation validation.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Authentication Bypass input surface on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7523, Requested 1268. Please try again in 5.9325s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified primary authentication gateway on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous requiring credential stuffing, brute-force, and session fixation validation.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Authentication Bypass input surface on https://server.vulnapp.id/mutillidae/index.php?page=password-generator.php&username=anonymous.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:11.183732",
-      "updated_at": "2026-09-01T02:31:11.744418",
+      "created_at": "2026-09-01T21:53:32.564214",
+      "updated_at": "2026-09-01T21:53:57.699040",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-019",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Account Registration & User Provisioning Flaw on https://server.vulnapp.id/mutillidae/index.php?page=register.php",
       "severity": "Medium",
       "status": "HYPOTHESIS",
@@ -1170,10 +1886,10 @@
       "parameter": "",
       "vulnerability": "Insecure Registration",
       "tag": "auth,registration,provisioning",
-      "description": "Classification identified self-registration workflow on https://server.vulnapp.id/mutillidae/index.php?page=register.php requiring mass-assignment, role-injection, and identity verification analysis.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Insecure Registration input surface on https://server.vulnapp.id/mutillidae/index.php?page=register.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7443, Requested 1400. Please try again in 6.3225s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified self-registration workflow on https://server.vulnapp.id/mutillidae/index.php?page=register.php requiring mass-assignment, role-injection, and identity verification analysis.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Insecure Registration input surface on https://server.vulnapp.id/mutillidae/index.php?page=register.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:11.955529",
-      "updated_at": "2026-09-01T02:31:12.381397",
+      "created_at": "2026-09-01T21:53:33.010881",
+      "updated_at": "2026-09-01T21:53:58.177281",
       "ai_enriched": false
     },
     {
@@ -1188,17 +1904,17 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=show-log.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=show-log.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7318, Requested 1400. Please try again in 5.385s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=show-log.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=show-log.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:12.605296",
-      "updated_at": "2026-09-01T02:31:13.275205",
+      "created_at": "2026-09-01T21:53:58.049446",
+      "updated_at": "2026-09-01T21:54:23.214963",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-021",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Cross-Site Scripting Surface on https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php",
       "severity": "Medium",
       "status": "HYPOTHESIS",
@@ -1206,10 +1922,10 @@
       "parameter": "",
       "vulnerability": "Cross-Site Scripting",
       "tag": "xss,client-side",
-      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7230, Requested 1407. Please try again in 4.7775s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=site-footer-xss-discussion.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:13.510566",
-      "updated_at": "2026-09-01T02:31:13.939655",
+      "created_at": "2026-09-01T21:53:58.547602",
+      "updated_at": "2026-09-01T21:54:23.768053",
       "ai_enriched": false
     },
     {
@@ -1224,17 +1940,17 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=user-info.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=user-info.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7145, Requested 1315. Please try again in 3.45s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=user-info.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=user-info.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:14.201140",
-      "updated_at": "2026-09-01T02:31:14.574430",
+      "created_at": "2026-09-01T21:54:23.632641",
+      "updated_at": "2026-09-01T21:54:48.805746",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-023",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "SQL Injection Surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -1242,10 +1958,10 @@
       "parameter": "",
       "vulnerability": "SQL Injection",
       "tag": "sqli,database",
-      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7063, Requested 1402. Please try again in 3.4875s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter input surfaces on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php matching SQL injection vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SQL Injection input surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:14.811170",
-      "updated_at": "2026-09-01T02:31:15.179225",
+      "created_at": "2026-09-01T21:54:24.152514",
+      "updated_at": "2026-09-01T21:54:49.389992",
       "ai_enriched": false
     },
     {
@@ -1260,17 +1976,17 @@
       "parameter": "",
       "vulnerability": "Cross-Site Scripting",
       "tag": "xss,client-side",
-      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6974, Requested 1321. Please try again in 2.2125s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified parameter reflection surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php matching XSS vulnerability patterns.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Cross-Site Scripting input surface on https://server.vulnapp.id/mutillidae/index.php?page=view-someones-blog.php.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:15.466221",
-      "updated_at": "2026-09-01T02:31:15.860031",
+      "created_at": "2026-09-01T21:54:49.256213",
+      "updated_at": "2026-09-01T21:55:14.426632",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-025",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "File Upload & Path Traversal Surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -1278,10 +1994,10 @@
       "parameter": "",
       "vulnerability": "Local File Inclusion",
       "tag": "file_upload,lfi",
-      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6886, Requested 1324. Please try again in 1.575s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified file processing or path inclusion surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Local File Inclusion input surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:16.114721",
-      "updated_at": "2026-09-01T02:31:16.520588",
+      "created_at": "2026-09-01T21:54:49.798148",
+      "updated_at": "2026-09-01T21:55:15.008291",
       "ai_enriched": false
     },
     {
@@ -1296,17 +2012,17 @@
       "parameter": "",
       "vulnerability": "SSRF",
       "tag": "ssrf,redirect",
-      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n- **AI Enrichment**: Unavailable (Groq API Error (error [HTTP 429]): Groq API rate limit/quota reached [HTTP 429]: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01kbb1dsnpf53swyc9egg2ch7z` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6658, Requested 1407. Please try again in 487.5ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
+      "description": "Classification identified URL redirect or external request dispatch parameter on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential SSRF input surface on https://server.vulnapp.id/mutillidae/documentation/mutillidae-installation-on-xampp-win7.pdf.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:16.792092",
-      "updated_at": "2026-09-01T02:31:18.233838",
+      "created_at": "2026-09-01T21:55:14.870155",
+      "updated_at": "2026-09-01T21:55:40.041753",
       "ai_enriched": false
     },
     {
       "finding_id": "FH-2026-027",
       "task_id": "",
       "agent_id": "",
-      "target": "https://server.vulnapp.id/mutillidae",
+      "target": "https://server.vulnapp.id/mutillidae/",
       "title": "Primary Authentication & Session State Flaw on https://server.vulnapp.id/mutillidae/login",
       "severity": "High",
       "status": "HYPOTHESIS",
@@ -1314,11 +2030,505 @@
       "parameter": "",
       "vulnerability": "Authentication Bypass",
       "tag": "auth,session,login",
-      "description": "**Why This Was Flagged**  \nThe scanner flagged `https://server.vulnapp.id/mutillidae/login` because the URL path contains the literal string **`login`** and the request accepts **GET\u2011encoded query parameters** (e.g., `?username=\u2026&password=\u2026`). The pattern matches known \u201cauthentication\u2011bypass via GET\u201d signatures where credentials are supplied in the URL and the server returns a *200 OK* with a logged\u2011in page even when the password is empty or missing. Mutillidae is known to expose such a parameter set in its demo login form.\n\n**Exploitability Conditions**  \n1. The login endpoint processes credentials **via GET** (or accepts both GET\u202f/\u202fPOST) without requiring a CSRF token or other anti\u2011automation controls.  \n2. The backend authentication routine does **not enforce a non\u2011empty password** check (e.g., treats a missing/blank `password` field as valid).  \n3. The application uses **hard\u2011coded or default credentials** (`admin:admin`, `guest:guest`, etc.) that are not changed in the deployed instance.  \n4. No rate\u2011limiting or lockout mechanism is in place, allowing repeated trial of credential combos.\n\nIf any of the above are true, an attacker can construct a URL that logs in as a privileged user without possessing valid credentials.\n\n**Verification Steps**  \n\n*All steps are read\u2011only and safe unless explicitly noted otherwise.*\n\n1. **Baseline request** \u2013 capture the normal login response:  \n   ```bash\n   curl -s -D - \"https://server.vulnapp.id/mutillidae/login\" -o /dev/null\n   ```  \n   Note the HTTP status, `Set-Cookie` headers, and any HTML marker that indicates a logged\u2011out page (e.g., \u201cPlease login\u201d).\n\n2. **Empty\u2011password GET test** \u2013 send a GET request with a known username and no password:  \n   ```bash\n   curl -s -D - \"https://server.vulnapp.id/mutillidae/login?username=admin&password=\" \\\n        -o resp.html\n   ```  \n   *Confirm exploitability if:*  \n   - Status remains `200 OK` and the response contains a logged\u2011in marker (e.g., \u201cWelcome admin\u201d, dashboard links, or a session cookie different from step\u202f1).  \n\n3. **Default\u2011credential GET test** \u2013 try the common default pair:  \n   ```bash\n   curl -s -D - \"https://server.vulnapp.id/mutillidae/login?username=admin&password=admin\" \\\n        -o resp.html\n   ```  \n   *Look for the same logged\u2011in markers as above.*\n\n4. **Fuzz parameter names** (if the above fails, enumerate possible fields):  \n   ```bash\n   ffuf -u \"https://server.vulnapp.id/mutillidae/login?FUZZ=admin&password=admin\" \\\n        -w /usr/share/wordlists/dirb/common",
+      "description": "Classification identified primary authentication gateway on https://server.vulnapp.id/mutillidae/login requiring credential stuffing, brute-force, and session fixation validation.\n\n### Finding Details & Status\n- **Observation**: Automated pattern match identified potential Authentication Bypass input surface on https://server.vulnapp.id/mutillidae/login.\n- **AI Enrichment**: Unavailable (Local AI Server Error: Local AI server connection timed out: HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=25.0)).\n- **Status**: Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact.",
       "evidence_ids": [],
-      "created_at": "2026-09-01T02:31:18.534728",
-      "updated_at": "2026-09-01T02:31:21.439757",
-      "ai_enriched": true
+      "created_at": "2026-09-01T21:55:15.444886",
+      "updated_at": "2026-09-01T21:55:40.629260",
+      "ai_enriched": false
+    },
+    {
+      "finding_id": "FH-2026-028",
+      "task_id": "EXEC-43D2D2AE",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Apache mod_negotiation - Pseudo Directory Listing",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index?page=add-to-your-blog.php&page=add-to-your-blog.php",
+      "parameter": "",
+      "vulnerability": "Apache mod_negotiation - Pseudo Directory Listing",
+      "tag": "apache-mod-negotiation-listing",
+      "description": "Identified by tool nuclei (Execution: EXEC-43D2D2AE).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Apache mod_negotiation - Pseudo Directory Listing (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-43D2D2AE via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Apache mod_negotiation - Pseudo Directory Listing attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0001",
+        "EV-2026-0002",
+        "EV-2026-0055",
+        "EV-2026-0056"
+      ],
+      "created_at": "2026-09-01T22:18:05.046375",
+      "updated_at": "2026-09-01T22:18:05.046375",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-029",
+      "task_id": "EXEC-43D2D2AE",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Apache mod_negotiation - Pseudo Directory Listing",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login?page=add-to-your-blog.php&page=add-to-your-blog.php",
+      "parameter": "",
+      "vulnerability": "Apache mod_negotiation - Pseudo Directory Listing",
+      "tag": "apache-mod-negotiation-listing",
+      "description": "Identified by tool nuclei (Execution: EXEC-43D2D2AE).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Apache mod_negotiation - Pseudo Directory Listing (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-43D2D2AE via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Apache mod_negotiation - Pseudo Directory Listing attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0003",
+        "EV-2026-0004",
+        "EV-2026-0053",
+        "EV-2026-0054"
+      ],
+      "created_at": "2026-09-01T22:18:06.081345",
+      "updated_at": "2026-09-01T22:18:06.081345",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-030",
+      "task_id": "EXEC-43D2D2AE",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "HTTPS to HTTP redirect Misconfiguration",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae?page=add-to-your-blog.php",
+      "parameter": "",
+      "vulnerability": "HTTPS to HTTP redirect Misconfiguration",
+      "tag": "https-to-http-redirect",
+      "description": "Identified by tool nuclei (Execution: EXEC-43D2D2AE).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: HTTPS to HTTP redirect Misconfiguration (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-43D2D2AE via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential HTTPS to HTTP redirect Misconfiguration attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0005",
+        "EV-2026-0006",
+        "EV-2026-0057",
+        "EV-2026-0058"
+      ],
+      "created_at": "2026-09-01T22:18:07.243693",
+      "updated_at": "2026-09-01T22:18:07.243693",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-031",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "PHP CGI v5.3.12/5.4.2 Remote Code Execution",
+      "severity": "High",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index.php?-d+allow_url_include%3don+-d+auto_prepend_file%3dphp%3a//input",
+      "parameter": "",
+      "vulnerability": "PHP CGI v5.3.12/5.4.2 Remote Code Execution",
+      "tag": "CVE-2012-1823",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: PHP CGI v5.3.12/5.4.2 Remote Code Execution (severity: high)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential PHP CGI v5.3.12/5.4.2 Remote Code Execution attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0008",
+        "EV-2026-0009",
+        "EV-2026-0060",
+        "EV-2026-0061"
+      ],
+      "created_at": "2026-09-01T22:25:32.667956",
+      "updated_at": "2026-09-01T22:25:32.667956",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-032",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "PHPinfo Page - Detect",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/phpinfo.php",
+      "parameter": "",
+      "vulnerability": "PHPinfo Page - Detect",
+      "tag": "phpinfo-files",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: PHPinfo Page - Detect (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential PHPinfo Page - Detect attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0010",
+        "EV-2026-0011"
+      ],
+      "created_at": "2026-09-01T22:25:33.990670",
+      "updated_at": "2026-09-01T22:25:33.990670",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-033",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Apache mod_negotiation - Pseudo Directory Listing",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/index",
+      "parameter": "",
+      "vulnerability": "Apache mod_negotiation - Pseudo Directory Listing",
+      "tag": "apache-mod-negotiation-listing",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Apache mod_negotiation - Pseudo Directory Listing (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Apache mod_negotiation - Pseudo Directory Listing attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0012",
+        "EV-2026-0013",
+        "EV-2026-0064",
+        "EV-2026-0065"
+      ],
+      "created_at": "2026-09-01T22:25:35.225939",
+      "updated_at": "2026-09-01T22:25:35.225939",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-034",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Apache mod_negotiation - Pseudo Directory Listing",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/login",
+      "parameter": "",
+      "vulnerability": "Apache mod_negotiation - Pseudo Directory Listing",
+      "tag": "apache-mod-negotiation-listing",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Apache mod_negotiation - Pseudo Directory Listing (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Apache mod_negotiation - Pseudo Directory Listing attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0014",
+        "EV-2026-0015",
+        "EV-2026-0066",
+        "EV-2026-0067"
+      ],
+      "created_at": "2026-09-01T22:25:36.522515",
+      "updated_at": "2026-09-01T22:25:36.522515",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-035",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Drupal Directory Listing",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/includes",
+      "parameter": "",
+      "vulnerability": "Drupal Directory Listing",
+      "tag": "drupal-directory-listing",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Drupal Directory Listing (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Drupal Directory Listing attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0016",
+        "EV-2026-0017"
+      ],
+      "created_at": "2026-09-01T22:25:37.931582",
+      "updated_at": "2026-09-01T22:25:37.931582",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-036",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "WAF Detection",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "parameter": "",
+      "vulnerability": "WAF Detection",
+      "tag": "waf-detect",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: WAF Detection (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential WAF Detection attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0018",
+        "EV-2026-0019",
+        "EV-2026-0020",
+        "EV-2026-0021"
+      ],
+      "created_at": "2026-09-01T22:25:39.262323",
+      "updated_at": "2026-09-01T22:25:39.262323",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-037",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "TLS Version - Detect",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "server.vulnapp.id:443",
+      "parameter": "",
+      "vulnerability": "TLS Version - Detect",
+      "tag": "tls-version",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: TLS Version - Detect (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential TLS Version - Detect attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0022",
+        "EV-2026-0023",
+        "EV-2026-0024",
+        "EV-2026-0025",
+        "EV-2026-0068",
+        "EV-2026-0069",
+        "EV-2026-0070",
+        "EV-2026-0071"
+      ],
+      "created_at": "2026-09-01T22:25:41.886451",
+      "updated_at": "2026-09-01T22:25:41.886451",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-038",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Eclipse .project Configuration - Exposure",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/.project",
+      "parameter": "",
+      "vulnerability": "Eclipse .project Configuration - Exposure",
+      "tag": "eclipse-project-exposure",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Eclipse .project Configuration - Exposure (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Eclipse .project Configuration - Exposure attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0026",
+        "EV-2026-0027",
+        "EV-2026-0076",
+        "EV-2026-0077"
+      ],
+      "created_at": "2026-09-01T22:25:44.721495",
+      "updated_at": "2026-09-01T22:25:44.721495",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-039",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "robots.txt endpoint prober",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "parameter": "",
+      "vulnerability": "robots.txt endpoint prober",
+      "tag": "robots-txt-endpoint",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: robots.txt endpoint prober (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential robots.txt endpoint prober attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0028",
+        "EV-2026-0029",
+        "EV-2026-0078",
+        "EV-2026-0079"
+      ],
+      "created_at": "2026-09-01T22:25:46.275135",
+      "updated_at": "2026-09-01T22:25:46.275135",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-040",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "HTTPS to HTTP redirect Misconfiguration",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "parameter": "",
+      "vulnerability": "HTTPS to HTTP redirect Misconfiguration",
+      "tag": "https-to-http-redirect",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: HTTPS to HTTP redirect Misconfiguration (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential HTTPS to HTTP redirect Misconfiguration attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0030",
+        "EV-2026-0031"
+      ],
+      "created_at": "2026-09-01T22:25:47.903453",
+      "updated_at": "2026-09-01T22:25:47.903453",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-041",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "robots.txt file",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/robots.txt",
+      "parameter": "",
+      "vulnerability": "robots.txt file",
+      "tag": "robots-txt",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: robots.txt file (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential robots.txt file attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0032",
+        "EV-2026-0033",
+        "EV-2026-0072",
+        "EV-2026-0073"
+      ],
+      "created_at": "2026-09-01T22:25:49.484374",
+      "updated_at": "2026-09-01T22:25:49.484374",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-042",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Nginx End-of-Life - Detect",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "http://server.vulnapp.id/mutillidae",
+      "parameter": "",
+      "vulnerability": "Nginx End-of-Life - Detect",
+      "tag": "nginx-eol",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Nginx End-of-Life - Detect (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Nginx End-of-Life - Detect attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0034",
+        "EV-2026-0035"
+      ],
+      "created_at": "2026-09-01T22:25:51.337805",
+      "updated_at": "2026-09-01T22:25:51.337805",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-043",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Nginx End-of-Life - Detect",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "parameter": "",
+      "vulnerability": "Nginx End-of-Life - Detect",
+      "tag": "nginx-eol",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Nginx End-of-Life - Detect (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Nginx End-of-Life - Detect attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0036",
+        "EV-2026-0037"
+      ],
+      "created_at": "2026-09-01T22:25:53.574672",
+      "updated_at": "2026-09-01T22:25:53.574672",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-044",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Wappalyzer Technology Detection",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "http://server.vulnapp.id/mutillidae",
+      "parameter": "",
+      "vulnerability": "Wappalyzer Technology Detection",
+      "tag": "tech-detect",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Wappalyzer Technology Detection (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Wappalyzer Technology Detection attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0038",
+        "EV-2026-0039"
+      ],
+      "created_at": "2026-09-01T22:25:55.750690",
+      "updated_at": "2026-09-01T22:25:55.750690",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-045",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Wappalyzer Technology Detection",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae",
+      "parameter": "",
+      "vulnerability": "Wappalyzer Technology Detection",
+      "tag": "tech-detect",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Wappalyzer Technology Detection (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Wappalyzer Technology Detection attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0040",
+        "EV-2026-0041"
+      ],
+      "created_at": "2026-09-01T22:25:57.813963",
+      "updated_at": "2026-09-01T22:25:57.813963",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-046",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": ".buildpath - File Disclosure",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae/.buildpath",
+      "parameter": "",
+      "vulnerability": ".buildpath - File Disclosure",
+      "tag": "buildpath-file-disclosure",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: .buildpath - File Disclosure (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential .buildpath - File Disclosure attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0042",
+        "EV-2026-0043",
+        "EV-2026-0074",
+        "EV-2026-0075"
+      ],
+      "created_at": "2026-09-01T22:25:59.755733",
+      "updated_at": "2026-09-01T22:25:59.755733",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-047",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "Detect SSL Certificate Issuer",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "server.vulnapp.id:443",
+      "parameter": "",
+      "vulnerability": "Detect SSL Certificate Issuer",
+      "tag": "ssl-issuer",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: Detect SSL Certificate Issuer (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential Detect SSL Certificate Issuer attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0044",
+        "EV-2026-0045",
+        "EV-2026-0080",
+        "EV-2026-0081"
+      ],
+      "created_at": "2026-09-01T22:26:01.879722",
+      "updated_at": "2026-09-01T22:26:01.879722",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-048",
+      "task_id": "EXEC-C250E130",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "SSL DNS Names",
+      "severity": "Info",
+      "status": "VALIDATING",
+      "endpoint": "server.vulnapp.id:443",
+      "parameter": "",
+      "vulnerability": "SSL DNS Names",
+      "tag": "ssl-dns-names",
+      "description": "Identified by tool nuclei (Execution: EXEC-C250E130).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: SSL DNS Names (severity: info)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-C250E130 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential SSL DNS Names attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0046",
+        "EV-2026-0047",
+        "EV-2026-0082",
+        "EV-2026-0083"
+      ],
+      "created_at": "2026-09-01T22:26:03.982446",
+      "updated_at": "2026-09-01T22:26:03.982446",
+      "confidence": 90
+    },
+    {
+      "finding_id": "FH-2026-049",
+      "task_id": "EXEC-E9230A59",
+      "agent_id": "",
+      "target": "server.vulnapp.id",
+      "title": "PHPinfo Page - Detect",
+      "severity": "Low",
+      "status": "VALIDATING",
+      "endpoint": "https://server.vulnapp.id/mutillidae//phpinfo.php",
+      "parameter": "",
+      "vulnerability": "PHPinfo Page - Detect",
+      "tag": "phpinfo-files",
+      "description": "Identified by tool nuclei (Execution: EXEC-E9230A59).\n\nTarget: server.vulnapp.id (asset: in-scope)\nVulnerability: PHPinfo Page - Detect (severity: low)\nAuthentication: unauthenticated public endpoint\nExecution: EXEC-E9230A59 via tool nuclei\nValidation: Verified novel finding (not duplicate), automated nuclei probe executed with curl HTTP/1.1.\nImpact: Potential PHPinfo Page - Detect attack surface and data exposure on production endpoint; exploit validation in progress.",
+      "evidence_ids": [
+        "EV-2026-0062",
+        "EV-2026-0063"
+      ],
+      "created_at": "2026-09-01T22:54:51.847445",
+      "updated_at": "2026-09-01T22:54:51.847445",
+      "confidence": 90
     }
   ]
 }

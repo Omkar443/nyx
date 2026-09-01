@@ -12,6 +12,7 @@ export function AgentView() {
   const [isProposing, setIsProposing] = useState<boolean>(false);
   const [confirmingApproval, setConfirmingApproval] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toolName, setToolName] = useState('nuclei');
   const [targetScope, setTargetScope] = useState(target || '');
   const [reason, setReason] = useState('Active parameter injection validation');
@@ -42,16 +43,31 @@ export function AgentView() {
   }, [lastEvent, refreshGlobalStats]);
 
   async function handleApproveConfirmed(id: string) {
-    setIsProcessing(true);
+    // 1. Immediately dismiss modal and clear spinning state
+    setConfirmingApproval(null);
+    setIsProcessing(false);
+    setErrorMessage(null);
+
+    // 2. Optimistically update local action card status to 'APPROVED'
+    setApprovals(prev =>
+      prev.map(a =>
+        (a.action_id === id || a.id === id) ? { ...a, status: 'APPROVED' } : a
+      )
+    );
+
+    // 3. Trigger backend approval and execution asynchronously
     try {
-      await fetchApi(`/api/v1/agent/approve/${encodeURIComponent(id)}`, { method: 'POST' });
-      setConfirmingApproval(null);
+      const res = await fetchApi(`/api/v1/agent/approve/${encodeURIComponent(id)}`, { method: 'POST' });
+      if (res && res.success === false) {
+        throw new Error(res.error || res.message || 'Approval execution failed on server.');
+      }
       await loadApprovals();
       await refreshGlobalStats();
-    } catch {
-      // Handled
-    } finally {
-      setIsProcessing(false);
+    } catch (err: any) {
+      const msg = err?.message || err?.detail?.message || `Approval execution failed for ${id}.`;
+      setErrorMessage(`Action ${id} authorization error: ${msg}`);
+      await loadApprovals();
+      await refreshGlobalStats();
     }
   }
 
@@ -104,6 +120,22 @@ export function AgentView() {
         </div>
       </div>
 
+      {/* ========== ERROR / TOAST BANNER ========== */}
+      {errorMessage && (
+        <div className="p-3 bg-[#EF5350]/15 border border-[#EF5350]/40 rounded flex items-center justify-between text-xs text-[#EF5350] animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-[#EF5350]" />
+            <span className="font-mono">{errorMessage}</span>
+          </div>
+          <button 
+            onClick={() => setErrorMessage(null)} 
+            className="text-[#888888] hover:text-white font-bold ml-2 px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ========== APPROVAL CARDS ========== */}
       {approvals.length === 0 ? (
         <div className="card text-center py-16 space-y-2">
@@ -124,7 +156,7 @@ export function AgentView() {
             return (
               <div key={actionId} className="card flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-[#3A3A3A] bg-[#222222]">
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold text-[#ebb94b]">{actionId}</span>
                     <span className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded bg-[#303030] text-[#CCCCCC] border border-[#404040]">
                       {tool}
@@ -135,9 +167,21 @@ export function AgentView() {
                     }`}>
                       {impactClass}
                     </span>
+                    {a.current_iteration !== undefined && a.current_iteration !== null && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#2A2A2A] text-[#ebb94b] border border-[#ebb94b]/30">
+                        Iter #{a.current_iteration}{a.max_iterations ? `/${a.max_iterations}` : ''}
+                      </span>
+                    )}
+                    {a.created_at && (
+                      <span className="text-[10px] font-mono text-[#888888] flex items-center gap-1 bg-[#1A1A1A] px-1.5 py-0.2 rounded border border-[#333333]">
+                        <Clock className="w-2.5 h-2.5 text-[#777777]" />
+                        {new Date(a.created_at).toLocaleTimeString()}
+                      </span>
+                    )}
                     <span className={`text-[10px] font-mono uppercase px-1.5 py-0.2 rounded border ${
                       a.status === 'APPROVED' ? 'text-[#4CAF50] bg-[#4CAF50]/15 border-[#4CAF50]/30' :
                       a.status === 'DENIED' ? 'text-[#EF5350] bg-[#EF5350]/15 border-[#EF5350]/30' :
+                      a.status === 'EXPIRED' ? 'text-[#888888] bg-[#888888]/15 border-[#888888]/30' :
                       'text-[#FFA726] bg-[#FFA726]/15 border-[#FFA726]/30'
                     }`}>
                       {a.status || 'PENDING_APPROVAL'}

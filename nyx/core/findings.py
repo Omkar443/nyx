@@ -591,11 +591,20 @@ def parse_finding_metadata(text: str) -> dict[str, str]:
     return md
 
 
-def generate_ai_report_content(md: dict, platform: str, base_dir: Path | None = None) -> tuple[bool, dict]:
+def generate_ai_report_content(
+    md: dict,
+    platform: str,
+    base_dir: Path | None = None,
+    ai_manager: Any = None,
+    provider_name: str | None = None,
+) -> tuple[bool, dict]:
     """Invoke AI provider to draft tailored technical sections for a vulnerability report."""
     try:
-        from nyx.ai.manager import AIManager
-        ai_mgr = AIManager()
+        if ai_manager is None:
+            from nyx.ai.manager import AIManager
+            ai_mgr = AIManager(default_provider=provider_name)
+        else:
+            ai_mgr = ai_manager
 
         status_val = md.get("status", "HYPOTHESIS").upper()
         finding_id = md.get("finding_id", "FH-UNKNOWN")
@@ -877,6 +886,8 @@ def review_finding_evidence(
     tool_name: str,
     tool_output: str | dict[str, Any],
     base_dir: Path | None = None,
+    ai_manager: Any = None,
+    provider_name: str | None = None,
 ) -> dict[str, Any]:
     """Submits raw tool validation output to AI provider to evaluate whether evidence confirms the finding."""
     d = _get_eng_dir(create=False, base_dir=base_dir)
@@ -959,8 +970,11 @@ REASONING: <concise technical justification explaining why this verdict was reac
     reasoning = "AI review did not return a conclusive verdict."
 
     try:
-        from nyx.ai.manager import AIProviderManager
-        ai_mgr = AIProviderManager()
+        if ai_manager is None:
+            from nyx.ai.manager import AIProviderManager
+            ai_mgr = AIProviderManager(default_provider=provider_name)
+        else:
+            ai_mgr = ai_manager
         resp_text = ai_mgr.generate(prompt, options={"max_completion_tokens": 800})
         if resp_text:
             v_match = re.search(r"VERDICT:\s*\[?(CONFIRMED|LIKELY_FALSE_POSITIVE|NEEDS_MORE_EVIDENCE)\]?", resp_text, re.IGNORECASE)
@@ -1074,7 +1088,8 @@ def enrich_hypothesis_description(
     finding_id_or_data: str | dict[str, Any],
     base_dir: Path | None = None,
     ai_manager: Any = None,
-    timeout: float = 25.0,
+    timeout: float = 120.0,
+    provider_name: str | None = None,
 ) -> dict[str, Any]:
     """
     Enrich a hypothesis finding description with concrete, AI-generated technical reasoning
@@ -1166,7 +1181,7 @@ State explicitly: "Unconfirmed hypothesis based on automated pattern matching. R
     try:
         if ai_manager is None:
             from nyx.ai.manager import AIManager
-            ai_manager = AIManager()
+            ai_manager = AIManager(default_provider=provider_name)
 
         generated = ai_manager.generate(prompt, options={"timeout": timeout, "max_completion_tokens": 1000})
         clean_text = (generated or "").strip()
@@ -1218,6 +1233,7 @@ State explicitly: "Unconfirmed hypothesis based on automated pattern matching. R
 def enrich_all_hypotheses(
     base_dir: Path | None = None,
     ai_manager: Any = None,
+    provider_name: str | None = None,
 ) -> list[dict[str, Any]]:
     """Enrich all HYPOTHESIS findings in workspace with AI technical reasoning."""
     d = _get_eng_dir(create=False, base_dir=base_dir)
@@ -1231,14 +1247,14 @@ def enrich_all_hypotheses(
     if ai_manager is None:
         try:
             from nyx.ai.manager import AIManager
-            ai_manager = AIManager()
+            ai_manager = AIManager(default_provider=provider_name)
         except Exception:
             pass
 
     for f in findings:
         fid = f.get("finding_id")
         if fid:
-            res = enrich_hypothesis_description(fid, base_dir=base_dir, ai_manager=ai_manager)
+            res = enrich_hypothesis_description(fid, base_dir=base_dir, ai_manager=ai_manager, provider_name=provider_name)
             res_list.append(res)
 
     return res_list

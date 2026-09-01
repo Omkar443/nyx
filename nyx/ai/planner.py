@@ -22,10 +22,10 @@ logger = get_logger("nyx.ai")
 class MissionPlanner:
     """Converts high-level AI analysis into structured, policy-validated security missions."""
 
-    def __init__(self, base_dir: Optional[Path] = None):
+    def __init__(self, base_dir: Optional[Path] = None, ai_manager: Optional[AIManager] = None, default_provider: Optional[str] = None):
         self.base_dir = base_dir
         self.context_engine = ContextEngine(base_dir=base_dir)
-        self.ai_manager = AIManager()
+        self.ai_manager = ai_manager or AIManager(default_provider=default_provider)
         self.policy_engine = AIPolicyEngine(base_dir=base_dir)
         self.memory = AIMemory(base_dir=base_dir)
 
@@ -35,7 +35,7 @@ class MissionPlanner:
         for tv in tested_vectors:
             if not isinstance(tv, dict):
                 continue
-            v = str(tv.get("vector") or tv.get("name") or "")
+            v = str(tv.get("vector") or tv.get("name") or tv.get("value") or "")
             res = str(tv.get("result") or tv.get("status") or "")
             ep = tv.get("endpoint")
             if v.lower() == vector_name.lower():
@@ -278,7 +278,7 @@ class MissionPlanner:
                         fid = f_res.get("finding_id")
                         if fid:
                             try:
-                                finding_svc.enrich(fid)
+                                finding_svc.enrich(fid, ai_manager=self.ai_manager, provider_name=self.ai_manager.active_provider_name)
                             except Exception:
                                 pass
                         created.append(f_res)
@@ -772,6 +772,10 @@ class MissionPlanner:
         context_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Generate a structured multi-step security mission for a target."""
+        if provider_name:
+            import os
+            os.environ["NYX_AI_PROVIDER"] = provider_name
+            self.ai_manager.set_active_provider(provider_name)
         context = self.context_engine.get_target_context(target)
         if context_override and isinstance(context_override, dict):
             context.update(context_override)
@@ -1151,6 +1155,8 @@ class MissionPlanner:
                         tool_name=tool_to_use,
                         tool_output=exec_res.stdout or exec_res.stderr or exec_res.metadata,
                         base_dir=self.base_dir,
+                        ai_manager=self.ai_manager,
+                        provider_name=self.ai_manager.active_provider_name,
                     )
                     reviews.append(ai_rev)
 
@@ -1208,10 +1214,16 @@ class MissionPlanner:
         provider_name: Optional[str] = None,
         active_permitted: bool = False,
         max_iterations: int = 15,
+        start_iteration: int = 1,
+        prior_iterations: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Execute autonomous mission loop with AI-guided candidate selection, policy gates, and pause-on-destructive safety."""
         import re
-        iterations: List[Dict[str, Any]] = []
+        if provider_name:
+            import os
+            os.environ["NYX_AI_PROVIDER"] = provider_name
+            self.ai_manager.set_active_provider(provider_name)
+        iterations: List[Dict[str, Any]] = list(prior_iterations or [])
 
         # 0. Initial Context & Scope Check
         init_context = self.context_engine.get_target_context(target)
@@ -1224,14 +1236,30 @@ class MissionPlanner:
             }
 
         # 0.b. Auto-bootstrap reconnaissance if target context shows zero endpoints mapped
-        logger.info("[MISSION] Starting autonomous loop for target: %s (max_iterations: %d, active_permitted: %s)", target, max_iterations, active_permitted)
+        logger.info(
+            "[MISSION] Starting autonomous loop for target: %s (iterations: %d-%d, active_permitted: %s)",
+            target,
+            start_iteration,
+            max_iterations,
+            active_permitted,
+        )
 
-        # 0. Context Bootstrap Gate: If zero endpoints are mapped, auto-bootstrap recon
+        # 0. Context Bootstrap Gate: If zero endpoints are mapped and start_iteration == 1, auto-bootstrap recon
         initial_ctx = self.context_engine.get_target_context(target)
         initial_eps = initial_ctx.get("endpoints") or []
         recon_bootstrapped = False
 
-        if len(initial_eps) == 0:
+        if start_iteration == 1:
+            try:
+                from nyx.agent.approval import ApprovalSystem
+                ApprovalSystem(base_dir=self.base_dir).expire_stale_approvals(
+                    target=target,
+                    reason="Superseded by new autonomous mission run",
+                )
+            except Exception:
+                pass
+
+        if len(initial_eps) == 0 and start_iteration == 1:
             recon_step = {
                 "name": "Attack Surface Reconnaissance Bootstrap",
                 "action": "passive_recon",
@@ -1251,7 +1279,16 @@ class MissionPlanner:
                 except Exception:
                     pass
 
-        for iteration_idx in range(1, max_iterations + 1):
+        if start_iteration > max_iterations:
+            return {
+                "status": "complete",
+                "reason": "iteration_limit_reached",
+                "target": target,
+                "iterations": iterations,
+                "message": f"Autonomous mission reached max_iterations limit ({max_iterations}).",
+            }
+
+        for iteration_idx in range(start_iteration, max_iterations + 1):
             # 1.a. Re-fetch context fresh every iteration
             context = self.context_engine.get_target_context(target)
 
@@ -1273,6 +1310,14 @@ class MissionPlanner:
 
             # 1.d. Check if remaining candidates is empty
             if not validated:
+                try:
+                    from nyx.agent.approval import ApprovalSystem
+                    ApprovalSystem(base_dir=self.base_dir).expire_stale_approvals(
+                        target=target,
+                        reason="Autonomous mission loop complete",
+                    )
+                except Exception:
+                    pass
                 tested_vectors = context.get("tested_vectors") or []
                 tested_count = len(tested_vectors)
                 is_dedup = tested_count > 0 and len(iterations) == 0
@@ -1460,6 +1505,7 @@ class MissionPlanner:
             # 1.f. Pause on DESTRUCTIVE step (do NOT execute)
             if next_step.get("impact_class") == "DESTRUCTIVE":
                 logger.warning("[PAUSED] Autonomous loop paused for operator approval on DESTRUCTIVE step: '%s' (Tool: %s, Target: %s)", next_step.get("name"), next_step.get("tool"), next_step.get("target") or target)
+                act_id = None
                 try:
                     from nyx.agent.approval import ApprovalSystem
                     import uuid
@@ -1467,7 +1513,9 @@ class MissionPlanner:
                     act_id = f"ACT-{uuid.uuid4().hex[:6].upper()}"
                     app_sys.submit_for_approval({
                         "action_id": act_id,
+                        "mission_target": target,
                         "target": next_step.get("target") or target,
+                        "step_target": next_step.get("target") or target,
                         "action": next_step.get("action", "validate"),
                         "reason": next_step.get("reason", "DESTRUCTIVE_VALIDATION"),
                         "tool_name": next_step.get("tool", "nyx-validate"),
@@ -1475,17 +1523,25 @@ class MissionPlanner:
                         "impact_class": next_step.get("impact_class", "DESTRUCTIVE"),
                         "impact_justification": next_step.get("impact_justification", ""),
                         "step": next_step,
+                        "provider_name": provider_name,
+                        "max_iterations": max_iterations,
+                        "current_iteration": iteration_idx,
+                        "prior_iterations": iterations,
+                        "active_permitted": active_permitted,
                     })
                 except Exception:
                     pass
                 return {
                     "status": "paused_for_approval",
                     "pending_step": next_step,
+                    "action_id": act_id,
                     "target": target,
                     "iterations": iterations,
                     "recon_bootstrapped": recon_bootstrapped,
                     "ai_degraded": ai_degraded,
                     "degradation_reason": degradation_reason,
+                    "current_iteration": iteration_idx,
+                    "max_iterations": max_iterations,
                 }
 
             # 1.g. Stop if policy blocked

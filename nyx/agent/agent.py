@@ -20,16 +20,17 @@ from nyx.application.finding_service import FindingService
 class NYXAgent:
     """Controlled autonomous security research agent."""
 
-    def __init__(self, provider_name: Optional[str] = None):
+    def __init__(self, provider_name: Optional[str] = None, base_dir: Optional[Any] = None):
+        self.base_dir = base_dir
         self.state_machine = AgentStateMachine(initial_state="IDLE")
         self.context_engine = AgentContextEngine()
         self.planner = ResearchPlanner()
         self.decision_engine = DecisionEngine()
-        self.approval_system = ApprovalSystem()
+        self.approval_system = ApprovalSystem(base_dir=base_dir)
         self.memory = AgentMemory()
         self.reasoning_engine = ReasoningEngine(provider_name=provider_name)
-        self.execution_service = ExecutionService()
-        self.finding_service = FindingService()
+        self.execution_service = ExecutionService(base_dir=base_dir)
+        self.finding_service = FindingService(base_dir=base_dir)
         self.target: Optional[str] = None
         self.active_context: Optional[Dict[str, Any]] = None
         self.active_plan: Optional[Dict[str, Any]] = None
@@ -62,13 +63,16 @@ class NYXAgent:
         }
 
     def plan(self) -> Dict[str, Any]:
-        """Generate structured research plan."""
-        if not self.active_context:
-            self.analyze()
+        """Generate research plan for target."""
+        if not self.target:
+            self.target = "example.com"
         
-        self.state_machine.transition_to("PLANNING")
-        self.active_plan = self.planner.create_plan(self.target or "example.com", self.active_context or {})
-        self.memory.record_plan(self.active_plan)
+        self.state_machine.transition_to("PLANNING", force=True)
+        if not self.active_context:
+            self.active_context = self.context_engine.get_agent_context(self.target)
+        
+        plan_res = self.planner.generate_plan(self.target, self.active_context)
+        self.active_plan = plan_res
         
         return {
             "status": "completed",
@@ -84,10 +88,10 @@ class NYXAgent:
         tool_name: str = "subfinder",
         risk: str = "Medium",
         confidence: int = 85,
-        step: Dict[str, Any] | None = None,
-        impact_class: str | None = None,
-        impact_justification: str | None = None,
-        target: str | None = None,
+        step: Optional[Dict[str, Any]] = None,
+        impact_class: Optional[str] = None,
+        impact_justification: Optional[str] = None,
+        target: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Propose an active execution action for human approval."""
         eff_target = target or self.target or "example.com"
@@ -102,11 +106,9 @@ class NYXAgent:
             impact_class=impact_class,
             impact_justification=impact_justification,
         )
-        
         action_id = self.approval_system.submit_for_approval(decision)
         self.memory.record_decision(decision)
         self.state_machine.transition_to("WAITING_APPROVAL")
-        
         return {
             "status": "proposed",
             "action_id": action_id,
@@ -115,13 +117,14 @@ class NYXAgent:
         }
 
     def approve_action(self, action_id: str) -> Dict[str, Any]:
-        """Approve a pending action ID and execute the step with active_permitted=True."""
+        """Approve a pending action ID and execute the step with active_permitted=True, then resume autonomous loop."""
         ok, msg, record = self.approval_system.approve_action(action_id)
         if not ok:
             return {"success": False, "error": msg}
 
         rec = record or {}
-        target = rec.get("target") or self.target or "example.com"
+        mission_target = rec.get("mission_target") or self.target or rec.get("target") or "example.com"
+        step_target = rec.get("step_target") or rec.get("target") or mission_target
         step = rec.get("step")
         if not step or not isinstance(step, dict):
             step = {
@@ -132,16 +135,45 @@ class NYXAgent:
                 "impact_class": rec.get("impact_class") or "DESTRUCTIVE",
                 "impact_justification": rec.get("impact_justification") or rec.get("reason"),
                 "reason": rec.get("reason"),
-                "target": target,
+                "target": step_target,
                 "params": rec.get("params") or {},
             }
 
         # Actually execute the approved step via MissionPlanner with active_permitted=True
         from nyx.ai.planner import MissionPlanner
         planner = MissionPlanner(base_dir=getattr(self, "base_dir", None))
-        step_result = planner.execute_step(step=step, target=target, active_permitted=True)
+        step_result = planner.execute_step(step=step, target=step_target, active_permitted=True)
 
         self.state_machine.transition_to("VALIDATING")
+
+        # Automatically resume the autonomous loop if this action originated from a paused autonomous mission loop
+        resumed_loop_result = None
+        current_iter = rec.get("current_iteration")
+        max_iter = rec.get("max_iterations")
+        provider_name = rec.get("provider_name")
+        active_perm = rec.get("active_permitted", False)
+        prior_iters = list(rec.get("prior_iterations") or [])
+
+        if current_iter is not None and max_iter is not None:
+            # Append this approved step execution to the iteration history
+            prior_iters.append({
+                "iteration": current_iter,
+                "step": step,
+                "result": step_result,
+                "action_id": action_id,
+                "status": "approved_and_executed",
+            })
+            next_start_iter = current_iter + 1
+            if next_start_iter <= max_iter:
+                resumed_loop_result = planner.run_autonomous_loop(
+                    target=mission_target,
+                    provider_name=provider_name,
+                    active_permitted=active_perm,
+                    max_iterations=max_iter,
+                    start_iteration=next_start_iter,
+                    prior_iterations=prior_iters,
+                )
+
         return {
             "success": True,
             "message": f"Action '{action_id}' approved and executed.",
@@ -150,6 +182,7 @@ class NYXAgent:
             "execution_result": step_result,
             "result": step_result.get("result") if isinstance(step_result, dict) else step_result,
             "status": "approved_and_executed",
+            "resumed_loop": resumed_loop_result,
         }
 
     def deny_action(self, action_id: str, reason: str = "") -> Dict[str, Any]:

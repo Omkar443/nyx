@@ -2427,6 +2427,21 @@ def cmd_agent(args: argparse.Namespace) -> int:
                 tool_used = exec_res.get("tool")
                 status_v = exec_res.get("result", {}).get("status") if isinstance(exec_res.get("result"), dict) else "completed"
                 say(f"  Tool: {tool_used} | Status: {status_v}")
+            resumed = res.data.get("resumed_loop") if isinstance(res.data, dict) else None
+            if resumed and isinstance(resumed, dict):
+                r_status = resumed.get("status", "unknown").upper()
+                r_target = resumed.get("target", "")
+                r_iters = len(resumed.get("iterations", []))
+                say("")
+                say(color(f"=== Autonomous Mission Resumed ({r_target}) ===", "cyan"))
+                say(f"  Loop Status:     {color(r_status, 'yellow' if r_status == 'PAUSED_FOR_APPROVAL' else 'green')}")
+                say(f"  Total Iterations: {r_iters}")
+                if r_status == "PAUSED_FOR_APPROVAL":
+                    p_step = resumed.get("pending_step", {})
+                    say("")
+                    say(color(f"  [PAUSED] Next Destructive Step Pending Approval: {p_step.get('name')} ({p_step.get('tool')})", "yellow"))
+                    say(f"  Impact: {p_step.get('impact_justification', 'Modifies system/database state')}")
+                    say(f"  Run 'nyx agent approvals' to inspect and approve.")
             return 0
         else:
             say(color(f"Error: {res.error}", "red"))
@@ -2496,8 +2511,20 @@ def cmd_web(args: argparse.Namespace) -> int:
 
 
 def cmd_ai(args: argparse.Namespace) -> int:
+    provider = getattr(args, "provider", None)
+    if not provider and sys.argv and "--provider" in sys.argv:
+        try:
+            p_idx = sys.argv.index("--provider")
+            if p_idx + 1 < len(sys.argv):
+                provider = sys.argv[p_idx + 1]
+        except Exception:
+            pass
+    if provider:
+        import os
+        os.environ["NYX_AI_PROVIDER"] = provider
+
     from nyx.application.ai_service import AIService
-    service = AIService()
+    service = AIService(provider_name=provider)
 
     subcmd = getattr(args, "ai_subcommand", None) or getattr(args, "subcmd", None)
     target = getattr(args, "target", "") or ""
@@ -2890,7 +2917,11 @@ def cmd_mission(args: argparse.Namespace) -> int:
     elif subcmd == "status":
         return status_mission()
     elif subcmd == "run":
-        return run_mission(args.target, provider=getattr(args, "provider", None))
+        prov = getattr(args, "provider", None)
+        if prov:
+            import os
+            os.environ["NYX_AI_PROVIDER"] = prov
+        return run_mission(args.target, provider=prov)
     return 0
 
 

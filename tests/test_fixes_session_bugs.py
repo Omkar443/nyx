@@ -268,11 +268,18 @@ def test_cli_agent_approvals_approve_deny(tmp_path: Path, capsys):
     from nyx.agent.approval import ApprovalSystem
 
     core_eng.init_engagement("https://test.local/", base_dir=tmp_path)
+    ApprovalSystem._shared_pending_queue.clear()
+    ApprovalSystem._shared_approved_actions.clear()
+    ApprovalSystem._shared_denied_actions.clear()
     app_sys = ApprovalSystem(base_dir=tmp_path)
 
     # 1. Test empty approvals
     args_list = argparse.Namespace(agent_subcommand="approvals")
-    with patch("nyx.agent.approval.ApprovalSystem._get_approvals_file", return_value=tmp_path / ".engagement" / "approvals.json"):
+    with patch("nyx.core.engagement._get_eng_dir", return_value=tmp_path / ".engagement"), \
+         patch("nyx.agent.approval.ApprovalSystem._get_approvals_file", return_value=tmp_path / ".engagement" / "approvals.json"):
+        ApprovalSystem._shared_pending_queue.clear()
+        ApprovalSystem._shared_approved_actions.clear()
+        ApprovalSystem._shared_denied_actions.clear()
         ret = cmd_agent(args_list)
         assert ret == 0
         captured = capsys.readouterr()
@@ -1295,6 +1302,7 @@ def test_query_router_classification_and_hypotheses_generation(tmp_path: Path):
         })
 
     planner = MissionPlanner(base_dir=tmp_path)
+    planner.ai_manager.generate = lambda prompt, options=None: "### Why This Was Flagged\nTest reasoning\n### Exploitability Conditions\nTest conditions\n### Verification Steps\nTest steps\n### Status\nTest status"
     created_hypo = planner._map_classification_to_hypotheses(
         classified_results=classified,
         target="http://server.vulnapp.id/mutillidae/",
@@ -1386,6 +1394,236 @@ def test_enrich_hypothesis_description_fallback_on_ai_failure(tmp_path: Path):
     updated_f = core_findings.get_finding(fid, base_dir=tmp_path)
     assert "AI Enrichment" in updated_f["description"]
     assert "Unavailable" in updated_f["description"]
+
+
+def test_approve_agent_action_resumes_autonomous_loop_and_respects_iteration_budget(tmp_path: Path, monkeypatch):
+    """Test that approving a pending action automatically resumes run_autonomous_loop and respects iteration budget."""
+    from nyx.core import engagement as core_eng
+    from nyx.ai.planner import MissionPlanner
+    from nyx.ai.manager import AIManager
+    from nyx.application.agent_service import AgentService
+
+    monkeypatch.chdir(tmp_path)
+    core_eng.init_engagement("http://test-resume.local/", reset=True, force=True, base_dir=tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        {"url": "http://test-resume.local/api/resource1", "host": "test-resume.local"},
+        {"url": "http://test-resume.local/api/resource2", "host": "test-resume.local"}
+    ]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["Express"]}), encoding="utf-8")
+
+    # Mock AI analysis globally across all planner instances in this test
+    monkeypatch.setattr(AIManager, "analyze", lambda self, ctx, prompt=None, provider_name=None: {
+        "selected_index": 0,
+        "decision": "proceed",
+        "reasoning": "Step selection",
+    })
+
+    # Mock step execution so no live external commands run during unit test
+    def mock_exec_step(self, step, target, active_permitted=False):
+        reason = step.get("reason", "")
+        tool = step.get("tool", "")
+        from nyx.core.engagement import add_memory
+        if reason:
+            add_memory(type_="vector", value=reason.lower(), endpoint=target, result="tested_success", base_dir=self.base_dir)
+        return {
+            "step": step.get("step"),
+            "name": step.get("name"),
+            "tool": tool,
+            "status": "completed",
+            "result": {"status": "success"},
+        }
+
+    monkeypatch.setattr(MissionPlanner, "execute_step", mock_exec_step)
+
+    def mock_select(self, ctx):
+        tested = [str(v.get("vector") or v.get("value") or "").lower() for v in (ctx.get("tested_vectors") or [])]
+        candidates = []
+        if "c1_vector" not in tested:
+            candidates.append({
+                "step": 1,
+                "name": "Destructive Candidate 1",
+                "action": "validate_1",
+                "tool": "nuclei",
+                "reason": "c1_vector",
+                "impact_class": "DESTRUCTIVE",
+                "impact_justification": "Modifies database.",
+                "target": "http://test-resume.local/api/resource1",
+            })
+        if "c2_vector" not in tested:
+            candidates.append({
+                "step": 2,
+                "name": "Non-Destructive Candidate 2",
+                "action": "classify_2",
+                "tool": "nyx-classify",
+                "reason": "c2_vector",
+                "impact_class": "NON_DESTRUCTIVE",
+                "impact_justification": "Passive mapping.",
+                "target": "http://test-resume.local/api/resource1",
+            })
+        if "c3_vector" not in tested:
+            candidates.append({
+                "step": 3,
+                "name": "Destructive Candidate 3",
+                "action": "validate_3",
+                "tool": "sqlmap",
+                "reason": "c3_vector",
+                "impact_class": "DESTRUCTIVE",
+                "impact_justification": "Active parameter fuzzing.",
+                "target": "http://test-resume.local/api/resource2",
+            })
+        return candidates
+
+    monkeypatch.setattr(MissionPlanner, "_select_steps", mock_select)
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 1. Start autonomous mission with max_iterations=5
+    first_res = planner.run_autonomous_loop("http://test-resume.local/", active_permitted=True, max_iterations=5)
+    assert first_res["status"] == "paused_for_approval"
+    assert first_res["current_iteration"] == 1
+    assert first_res["pending_step"]["name"] == "Destructive Candidate 1"
+    act_id_1 = first_res.get("action_id")
+    assert act_id_1 is not None
+
+    # 2. Approve the first destructive step via AgentService
+    svc = AgentService(base_dir=tmp_path)
+    approve_res = svc.approve_action(act_id_1)
+    assert approve_res.is_success is True
+
+    # 3. Confirm the autonomous loop automatically continued to candidate 2 and paused on candidate 3!
+    resumed = approve_res.data.get("resumed_loop")
+    assert resumed is not None
+    assert resumed["status"] == "paused_for_approval"
+    assert resumed["current_iteration"] == 3
+    assert resumed["pending_step"]["name"] == "Destructive Candidate 3"
+    assert resumed["pending_step"]["tool"] == "sqlmap"
+    assert len(resumed["iterations"]) == 2
+
+
+def test_resumed_autonomous_loop_reaches_max_iterations_and_does_not_reset_budget(tmp_path: Path, monkeypatch):
+    """Test that resumed autonomous loop stops strictly when max_iterations is reached without resetting budget."""
+    from nyx.core import engagement as core_eng
+    from nyx.ai.planner import MissionPlanner
+    from nyx.ai.manager import AIManager
+    from nyx.application.agent_service import AgentService
+
+    monkeypatch.chdir(tmp_path)
+    core_eng.init_engagement("http://test-budget.local/", reset=True, force=True, base_dir=tmp_path)
+    eng_dir = tmp_path / ".engagement"
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        {"url": "http://test-budget.local/api/res", "host": "test-budget.local"}
+    ]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["Express"]}), encoding="utf-8")
+
+    monkeypatch.setattr(AIManager, "analyze", lambda self, ctx, prompt=None, provider_name=None: {
+        "selected_index": 0,
+        "decision": "proceed",
+        "reasoning": "Step selection",
+    })
+
+    def mock_exec_step(self, step, target, active_permitted=False):
+        reason = step.get("reason", "")
+        tool = step.get("tool", "")
+        from nyx.core.engagement import add_memory
+        if reason:
+            add_memory(type_="vector", value=reason.lower(), endpoint=target, result="tested_success", base_dir=self.base_dir)
+        return {
+            "step": step.get("step"),
+            "name": step.get("name"),
+            "tool": tool,
+            "status": "completed",
+            "result": {"status": "success"},
+        }
+
+    monkeypatch.setattr(MissionPlanner, "execute_step", mock_exec_step)
+
+    def mock_select_budget(self, ctx):
+        tested = [str(v.get("vector") or v.get("value") or "").lower() for v in (ctx.get("tested_vectors") or [])]
+        candidates = []
+        if "c1_vector" not in tested:
+            candidates.append({
+                "step": 1,
+                "name": "Destructive Candidate 1",
+                "action": "validate_1",
+                "tool": "nuclei",
+                "reason": "c1_vector",
+                "impact_class": "DESTRUCTIVE",
+                "target": "http://test-budget.local/api/res",
+            })
+        if "c2_vector" not in tested:
+            candidates.append({
+                "step": 2,
+                "name": "Non-Destructive Candidate 2",
+                "action": "classify_2",
+                "tool": "nyx-classify",
+                "reason": "c2_vector",
+                "impact_class": "NON_DESTRUCTIVE",
+                "target": "http://test-budget.local/api/res",
+            })
+        return candidates
+
+    monkeypatch.setattr(MissionPlanner, "_select_steps", mock_select_budget)
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # Start loop with strict max_iterations=2
+    first_res = planner.run_autonomous_loop("http://test-budget.local/", active_permitted=True, max_iterations=2)
+    assert first_res["status"] == "paused_for_approval"
+    assert first_res["current_iteration"] == 1
+    act_id = first_res.get("action_id")
+
+    # Approve step 1. Next start iteration is 2. Iteration 2 executes Candidate 2.
+    # Loop finishes at iteration 2 / max_iterations 2 with complete/max_iterations_reached status.
+    svc = AgentService(base_dir=tmp_path)
+    approve_res = svc.approve_action(act_id)
+    assert approve_res.is_success is True
+
+    resumed = approve_res.data.get("resumed_loop")
+    assert resumed is not None
+    assert resumed["status"] in ("complete", "max_iterations_reached")
+    assert len(resumed["iterations"]) == 2
+
+
+def test_approval_system_stale_cleanup_and_timestamp(tmp_path: Path):
+    """Test that ApprovalSystem sets created_at timestamp and cleans up stale/orphaned actions."""
+    from nyx.agent.approval import ApprovalSystem
+    from nyx.core import engagement as core_eng
+
+    core_eng.init_engagement("http://cleanup-test.local", reset=True, force=True, base_dir=tmp_path)
+    app = ApprovalSystem(base_dir=tmp_path)
+
+    # 1. Submit action
+    act1 = app.submit_for_approval({
+        "action_id": "ACT-TEST01",
+        "target": "http://cleanup-test.local/api",
+        "action": "validate",
+        "current_iteration": 3,
+        "max_iterations": 10,
+    })
+    act2 = app.submit_for_approval({
+        "action_id": "ACT-TEST02",
+        "target": "http://other-target.local/api",
+        "action": "validate",
+        "current_iteration": 1,
+        "max_iterations": 10,
+    })
+
+    pending = app.get_pending_approvals()
+    assert len(pending) == 2
+    act1_rec = next(a for a in pending if a["action_id"] == "ACT-TEST01")
+    assert "created_at" in act1_rec
+    assert act1_rec["current_iteration"] == 3
+
+    # 2. Expire stale actions for cleanup-test.local target
+    expired_cnt = app.expire_stale_approvals(target="http://cleanup-test.local", reason="New mission started")
+    assert expired_cnt == 1
+
+    remaining = app.get_pending_approvals()
+    assert len(remaining) == 1
+    assert remaining[0]["action_id"] == "ACT-TEST02"
+
+
 
 
 

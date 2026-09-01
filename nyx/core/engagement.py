@@ -522,6 +522,9 @@ def add_memory(
         return {"status": "success", "type": "note", "value": val}
 
 
+record_memory = add_memory
+
+
 def search_memory(
     query: str, base_dir: Path | None = None
 ) -> dict[str, Any]:

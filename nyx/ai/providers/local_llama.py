@@ -1,6 +1,6 @@
 """
-NYX Local LLaMA / DeepSeek Agent Provider Integration
-Connects to local AI server endpoint (default: http://localhost:8000/chat)
+NYX Local LLaMA / Ollama Agent Provider Integration
+Connects to local AI server endpoint (default: Ollama native API at http://localhost:11434/api/generate)
 with bounded timeouts, strict error classification, and fail-closed safety.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _classify_local_error(ex: Exception) -> Dict[str, Any]:
         return {
             "status": "error",
             "error_type": "connection_refused",
-            "message": f"Local AI server connection refused{code_tag} (is server running at http://localhost:8000?): {err_str}",
+            "message": f"Local AI server connection refused{code_tag} (is server running at http://localhost:11434?): {err_str}",
             "details": err_str,
             "status_code": status_code,
         }
@@ -63,30 +63,35 @@ def _classify_local_error(ex: Exception) -> Dict[str, Any]:
 
 
 class LocalLlamaProvider(AIProvider):
-    """Local LLaMA / DeepSeek HTTP Provider Implementation."""
+    """Local LLaMA / Ollama native HTTP Provider Implementation."""
 
     provider_name: str = "local"
 
     def __init__(
         self,
-        model_name: str = "local-llama",
+        model_name: str = "qwen2.5-coder:7b",
         endpoint_url: Optional[str] = None,
         health_url: Optional[str] = None,
-        timeout_sec: float = 60.0,
+        timeout_sec: float = 120.0,
     ):
-        self.model_name = model_name
+        self.model_name = (
+            model_name
+            if model_name not in ("local-llama", "local")
+            else (os.environ.get("LOCAL_LLM_MODEL") or os.environ.get("NYX_LOCAL_MODEL") or "qwen2.5-coder:7b")
+        )
         self.endpoint_url = (
             endpoint_url
             or os.environ.get("LOCAL_LLM_URL")
             or os.environ.get("NYX_LOCAL_URL")
-            or "http://localhost:8000/chat"
+            or "http://localhost:11434/api/generate"
         )
         self.health_url = (
             health_url
             or os.environ.get("LOCAL_HEALTH_URL")
-            or "http://localhost:8000/health"
+            or "http://localhost:11434/api/tags"
         )
-        self.timeout_sec = timeout_sec
+        env_timeout = os.environ.get("LOCAL_TIMEOUT") or os.environ.get("NYX_LOCAL_TIMEOUT")
+        self.timeout_sec = float(env_timeout) if env_timeout else timeout_sec
 
     def get_info(self) -> Dict[str, Any]:
         """Return provider status and configuration info."""
@@ -167,15 +172,20 @@ class LocalLlamaProvider(AIProvider):
             return err_dict
 
     def generate(self, prompt: str, options: Optional[Dict[str, Any]] = None) -> str:
-        """Send prompt to local server /chat endpoint and return text response."""
+        """Send prompt to local Ollama /api/generate endpoint and return text response."""
         opts = options or {}
         timeout = float(opts.get("timeout") or self.timeout_sec)
+        payload_data = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+        }
 
         try:
             import requests
             resp = requests.post(
                 self.endpoint_url,
-                json={"prompt": prompt},
+                json=payload_data,
                 headers={"Content-Type": "application/json", "User-Agent": "NYX-AI-Local/1.0"},
                 timeout=timeout,
             )
@@ -190,7 +200,7 @@ class LocalLlamaProvider(AIProvider):
             else:
                 raise RuntimeError(f"Local AI Server Error (HTTP {resp.status_code}): {resp.text[:300]}")
         except ImportError:
-            payload = json.dumps({"prompt": prompt}).encode("utf-8")
+            payload = json.dumps(payload_data).encode("utf-8")
             req = urllib.request.Request(
                 self.endpoint_url,
                 data=payload,
@@ -262,8 +272,12 @@ class LocalLlamaProvider(AIProvider):
                 "}"
             )
 
+        # Scale timeout dynamically with candidate count / context size
+        candidate_count = len(context.get("validated_candidates") or context.get("endpoints") or [])
+        scaled_timeout = max(self.timeout_sec, min(300.0, self.timeout_sec + candidate_count * 2.5))
+
         try:
-            generated = self.generate(custom_prompt)
+            generated = self.generate(custom_prompt, options={"timeout": scaled_timeout})
         except Exception as ex:
             err_dict = _classify_local_error(ex)
             return {

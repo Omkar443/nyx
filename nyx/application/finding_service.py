@@ -12,8 +12,9 @@ from nyx.core import findings as core_findings
 class FindingService:
     """Service facade for finding lifecycle and triage management."""
 
-    def __init__(self, base_dir: Optional[Path] = None):
+    def __init__(self, base_dir: Optional[Path] = None, provider_name: Optional[str] = None):
         self.base_dir = base_dir
+        self.provider_name = provider_name
 
     def create(
         self,
@@ -92,8 +93,9 @@ class FindingService:
     triage_finding = triage
 
     def report(
-        self, finding_id: str, platform: str = "h1", out: str | Path | None = None, use_ai: bool = True
+        self, finding_id: str, platform: str = "h1", out: str | Path | None = None, use_ai: bool = True, provider_name: str | None = None
     ) -> dict[str, Any]:
+        prov = provider_name or self.provider_name
         res = core_findings.report_finding(
             finding_id_or_path=finding_id, platform=platform, base_dir=self.base_dir, use_ai=use_ai
         )
@@ -104,13 +106,15 @@ class FindingService:
         return res if isinstance(res, dict) else {"success": True, "report": res}
 
     def review_evidence(
-        self, finding_id: str, tool_name: str, tool_output: Any
+        self, finding_id: str, tool_name: str, tool_output: Any, ai_manager: Any = None, provider_name: str | None = None
     ) -> dict[str, Any]:
         return core_findings.review_finding_evidence(
             finding_id_or_data=finding_id,
             tool_name=tool_name,
             tool_output=tool_output,
             base_dir=self.base_dir,
+            ai_manager=ai_manager,
+            provider_name=provider_name or self.provider_name,
         )
 
     review_finding = review_evidence
@@ -124,11 +128,11 @@ class FindingService:
     def update(self, finding_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         return core_findings.update_finding(finding_id=finding_id, updates=updates, base_dir=self.base_dir)
 
-    def enrich(self, finding_id_or_data: str | dict[str, Any], ai_manager: Any = None) -> dict[str, Any]:
+    def enrich(self, finding_id_or_data: str | dict[str, Any], ai_manager: Any = None, provider_name: str | None = None) -> dict[str, Any]:
         return core_findings.enrich_hypothesis_description(
-            finding_id_or_data=finding_id_or_data, base_dir=self.base_dir, ai_manager=ai_manager
+            finding_id_or_data=finding_id_or_data, base_dir=self.base_dir, ai_manager=ai_manager, provider_name=provider_name or self.provider_name
         )
 
-    def enrich_all(self, ai_manager: Any = None) -> list[dict[str, Any]]:
-        return core_findings.enrich_all_hypotheses(base_dir=self.base_dir, ai_manager=ai_manager)
+    def enrich_all(self, ai_manager: Any = None, provider_name: str | None = None) -> list[dict[str, Any]]:
+        return core_findings.enrich_all_hypotheses(base_dir=self.base_dir, ai_manager=ai_manager, provider_name=provider_name or self.provider_name)
 

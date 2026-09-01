@@ -104,6 +104,22 @@ async def list_ai_providers(service: AIService = Depends(get_ai_service)) -> Dic
     return data
 
 
+@router.get("/ai/active-provider", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def get_active_ai_provider(service: AIService = Depends(get_ai_service)) -> Dict[str, Any]:
+    """Get the currently active or detected default AI provider."""
+    from nyx.ai.manager import detect_default_provider
+    active = service.manager.active_provider_name or detect_default_provider()
+    return {
+        "success": True,
+        "data": {
+            "active_provider": active,
+            "detected_default": detect_default_provider(),
+        },
+        "error": None,
+        "code": "OK",
+    }
+
+
 @router.post("/ai/test", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
 async def test_ai_provider(
     provider: Optional[str] = Query(None, description="Optional AI provider name (e.g. gemini)"),
