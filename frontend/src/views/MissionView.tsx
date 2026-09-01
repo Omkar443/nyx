@@ -9,7 +9,7 @@ import { useNyxEvents } from '../hooks/useNyxEvents';
 import { useApp } from '../context/AppContext';
 
 export function MissionView() {
-  const { target, phase, setCurrentView, refreshGlobalStats } = useApp();
+  const { target, phase, setCurrentView, refreshGlobalStats, selectedProvider, detectedDefaultProvider } = useApp();
   const { lastEvent } = useNyxEvents();
   const [missionState, setMissionState] = useState<string>(phase || 'DISCOVERY');
   const [timeline, setTimeline] = useState<any[]>([]);
@@ -20,10 +20,6 @@ export function MissionView() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [activePermitted, setActivePermitted] = useState<boolean>(false);
   const [maxIterations, setMaxIterations] = useState<number>(15);
-  const [selectedProvider, setSelectedProvider] = useState<string>(() => {
-    return localStorage.getItem('nyx_selected_provider') || '';
-  });
-  const [detectedDefaultProvider, setDetectedDefaultProvider] = useState<string>('local');
   const [missionResult, setMissionResult] = useState<any | null>(null);
   const [missionError, setMissionError] = useState<string | null>(null);
 
@@ -50,23 +46,9 @@ export function MissionView() {
       if (setRes?.data?.scope) {
         setScopeList(setRes.data.scope);
       }
-
-      const provRes = await fetchApi('/api/v1/ai/active-provider');
-      if (provRes?.data) {
-        const active = provRes.data.active_provider || provRes.data.detected_default || 'local';
-        setDetectedDefaultProvider(active);
-        if (!localStorage.getItem('nyx_selected_provider')) {
-          setSelectedProvider(active);
-        }
-      }
     } catch {
       // Fallback
     }
-  }
-
-  function handleProviderChange(val: string) {
-    setSelectedProvider(val);
-    localStorage.setItem('nyx_selected_provider', val);
   }
 
   useEffect(() => {
@@ -192,21 +174,6 @@ export function MissionView() {
             <span className="font-mono text-[#ebb94b] bg-[#ebb94b]/10 border border-[#ebb94b]/20 px-2 py-0.5 rounded text-[11px]">
               Active Provider: <span className="font-bold">{selectedProvider || detectedDefaultProvider}</span>
             </span>
-            <div className="flex items-center gap-1 text-[#888888] font-mono">
-              <span>Provider:</span>
-              <select
-                value={selectedProvider || detectedDefaultProvider}
-                onChange={(e) => handleProviderChange(e.target.value)}
-                className="bg-[#2A2A2A] border border-[#3A3A3A] rounded px-2 py-0.5 text-xs text-[#E8E8E8] focus:outline-none"
-              >
-                <option value="local">local (qwen / ollama)</option>
-                <option value="groq">groq</option>
-                <option value="openai">openai</option>
-                <option value="claude">claude</option>
-                <option value="grok">grok</option>
-                <option value="gemini">gemini</option>
-              </select>
-            </div>
             <label className="flex items-center gap-1.5 text-[#888888] font-mono cursor-pointer">
               <input
                 type="checkbox"

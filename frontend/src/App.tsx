@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Wifi,
-  WifiOff
+  WifiOff,
+  Cpu
 } from 'lucide-react';
 
 // Import logo
@@ -45,7 +46,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 function AppContent() {
   const { 
     currentView, setCurrentView, target, phase, 
-    endpointsCount, findingsCount, approvalsCount, agentsCount, isConnected 
+    endpointsCount, findingsCount, approvalsCount, agentsCount, isConnected,
+    selectedProvider, detectedDefaultProvider, setSelectedProvider
   } = useApp();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -166,7 +168,25 @@ function AppContent() {
             <span className="text-[#ebb94b] font-bold">{phase}</span>
           </div>
 
-          <div className="flex items-center gap-2 font-mono text-[11px]">
+          <div className="flex items-center gap-3 font-mono text-[11px]">
+            {/* Global Provider Switcher */}
+            <div className="flex items-center gap-1.5 bg-[#1F1F1F] border border-[#333333] px-2 py-0.5 rounded text-[11px]">
+              <Cpu className="w-3 h-3 text-[#ebb94b]" />
+              <span className="text-[#888888]">AI:</span>
+              <select
+                value={selectedProvider || detectedDefaultProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+                className="bg-transparent text-[#E8E8E8] font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="local" className="bg-[#242424] text-[#E8E8E8]">local (Ollama)</option>
+                <option value="groq" className="bg-[#242424] text-[#E8E8E8]">groq</option>
+                <option value="openai" className="bg-[#242424] text-[#E8E8E8]">openai</option>
+                <option value="claude" className="bg-[#242424] text-[#E8E8E8]">claude</option>
+                <option value="grok" className="bg-[#242424] text-[#E8E8E8]">grok</option>
+                <option value="gemini" className="bg-[#242424] text-[#E8E8E8]">gemini</option>
+              </select>
+            </div>
+
             {isConnected ? (
               <span className="text-[#4CAF50] bg-[#4CAF50]/10 border border-[#4CAF50]/30 px-2 py-0.5 rounded flex items-center gap-1">
                 <Wifi className="w-3 h-3" />

@@ -1624,6 +1624,48 @@ def test_approval_system_stale_cleanup_and_timestamp(tmp_path: Path):
     assert remaining[0]["action_id"] == "ACT-TEST02"
 
 
+def test_execution_clean_logging_formatting_and_filtering():
+    """Verify tool execution cleans banner noise and summarizes large JSONL output without modifying raw capture."""
+    import logging
+    import sys
+    from nyx.execution.timeout import _format_stdout_line, _route_stderr_line, run_with_timeout
+
+    # 1. Nuclei JSONL finding formatting
+    sample_nuclei_json = (
+        '{"template-id":"CVE-2020-29227","info":{"name":"Mutillidae Arbitrary File Inclusion",'
+        '"severity":"critical"},"matched-at":"http://localhost/show-log.php","request":"GET / HTTP/1.1",'
+        '"response":"HTTP/1.1 200 OK\\r\\n\\r\\n<html>long payload</html>"}'
+    )
+    formatted = _format_stdout_line(sample_nuclei_json)
+    assert formatted == "Finding: CVE-2020-29227 [CRITICAL] (Mutillidae Arbitrary File Inclusion) on http://localhost/show-log.php"
+
+    # 2. ASCII banner filtering
+    assert _format_stdout_line("  ____  __  _______/ /__  (_) ") is None
+    assert _format_stdout_line("/_/ /_/\\__,_/\\___/_/\\___/_/   v3.3.0") is None
+    assert _format_stdout_line("https://projectdiscovery.io") is None
+
+    # 3. Routine stderr lines routed to DEBUG
+    _, lvl = _route_stderr_line("[INF] Current nuclei version: v3.3.0 (latest)")
+    assert lvl == logging.DEBUG
+
+    _, lvl = _route_stderr_line("[INF] Templates loaded for current scan: 14")
+    assert lvl == logging.DEBUG
+
+    # 4. Genuine error lines routed to WARNING
+    _, lvl = _route_stderr_line("Fatal error: connection refused to 127.0.0.1:80")
+    assert lvl == logging.WARNING
+
+    # 5. Verify run_with_timeout preserves full raw content verbatim in return tuple
+    code, stdout, stderr, timed_out = run_with_timeout(
+        [sys.executable, "-c", f"import sys; print('{sample_nuclei_json}'); print('[INF] scanning', file=sys.stderr)"],
+        timeout_sec=5,
+    )
+    assert code == 0
+    assert "<html>long payload</html>" in stdout
+    assert "[INF] scanning" in stderr
+
+
+
 
 
 

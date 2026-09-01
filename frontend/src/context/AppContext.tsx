@@ -13,12 +13,15 @@ export interface AppState {
   evidenceCount: number;
   isConnected: boolean;
   viewParams: Record<string, any>;
+  selectedProvider: string;
+  detectedDefaultProvider: string;
 }
 
 interface AppContextType extends AppState {
   setCurrentView: (view: string, params?: Record<string, any>) => void;
   refreshGlobalStats: () => Promise<void>;
   setTarget: (target: string) => void;
+  setSelectedProvider: (provider: string) => void;
 }
 
 const defaultState: AppState = {
@@ -32,6 +35,8 @@ const defaultState: AppState = {
   evidenceCount: 0,
   isConnected: true,
   viewParams: {},
+  selectedProvider: '',
+  detectedDefaultProvider: 'local',
 };
 
 const AppContext = createContext<AppContextType>({
@@ -39,6 +44,7 @@ const AppContext = createContext<AppContextType>({
   setCurrentView: () => {},
   refreshGlobalStats: async () => {},
   setTarget: () => {},
+  setSelectedProvider: () => {},
 });
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -51,7 +57,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [approvalsCount, setApprovalsCount] = useState<number>(0);
   const [agentsCount, setAgentsCount] = useState<number>(0);
   const [evidenceCount, setEvidenceCount] = useState<number>(0);
+  const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
+    return localStorage.getItem('nyx_selected_provider') || '';
+  });
+  const [detectedDefaultProvider, setDetectedDefaultProvider] = useState<string>('local');
   const { connected, lastEvent } = useNyxEvents();
+
+  const setSelectedProvider = useCallback((provider: string) => {
+    setSelectedProviderState(provider);
+    localStorage.setItem('nyx_selected_provider', provider);
+  }, []);
 
   const refreshGlobalStats = useCallback(async () => {
     try {
@@ -98,6 +113,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (Array.isArray(agList)) {
         setAgentsCount(agList.length);
       }
+
+      // 6. Active Provider
+      const provRes = await fetchApi('/api/v1/ai/active-provider');
+      if (provRes?.data) {
+        const active = provRes.data.active_provider || provRes.data.detected_default || 'local';
+        setDetectedDefaultProvider(active);
+        if (!localStorage.getItem('nyx_selected_provider')) {
+          setSelectedProviderState(active);
+        }
+      }
     } catch {
       // Graceful fallback
     }
@@ -135,9 +160,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         evidenceCount,
         isConnected: connected,
         viewParams,
+        selectedProvider,
+        detectedDefaultProvider,
         setCurrentView,
         refreshGlobalStats,
         setTarget,
+        setSelectedProvider,
       }}
     >
       {children}
