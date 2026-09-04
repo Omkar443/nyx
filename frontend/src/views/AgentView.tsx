@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, CheckCircle, XCircle, AlertTriangle, Clock, RefreshCw, Plus, AlertOctagon, ShieldAlert, ArrowRight } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, AlertTriangle, Clock, RefreshCw, Plus, AlertOctagon, ShieldAlert, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { fetchApi } from '../api/client';
 import { useNyxEvents } from '../hooks/useNyxEvents';
 import { useApp } from '../context/AppContext';
@@ -8,6 +8,9 @@ export function AgentView() {
   const { target, refreshGlobalStats } = useApp();
   const { lastEvent } = useNyxEvents();
   const [approvals, setApprovals] = useState<any[]>([]);
+  const [remainingDestructiveCount, setRemainingDestructiveCount] = useState<number>(0);
+  const [upcomingPipeline, setUpcomingPipeline] = useState<any[]>([]);
+  const [isPipelineOpen, setIsPipelineOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [isProposing, setIsProposing] = useState<boolean>(false);
   const [confirmingApproval, setConfirmingApproval] = useState<any | null>(null);
@@ -24,6 +27,10 @@ export function AgentView() {
       if (Array.isArray(list)) {
         setApprovals(list);
       }
+      const remCount = res?.data?.remaining_destructive_count ?? res?.remaining_destructive_count ?? (list[0]?.remaining_destructive_count || 0);
+      setRemainingDestructiveCount(remCount);
+      const pipeline = res?.data?.upcoming_pipeline || res?.upcoming_pipeline || (list[0]?.upcoming_pipeline || []);
+      setUpcomingPipeline(pipeline);
     } catch {
       // Graceful fallback
     } finally {
@@ -111,7 +118,7 @@ export function AgentView() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-[#ebb94b] bg-[#ebb94b]/10 border border-[#ebb94b]/25 px-2.5 py-1 rounded">
-            {pendingList.length} Pending Review
+            Active Approval: {pendingList.length > 0 ? 1 : 0} | Queued: {remainingDestructiveCount}
           </span>
           <button onClick={() => setIsProposing(true)} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
             <Plus className="w-3.5 h-3.5" />
@@ -135,6 +142,20 @@ export function AgentView() {
           </button>
         </div>
       )}
+
+      {/* ========== SEQUENTIAL HITL INFORMATIONAL CALLOUT ========== */}
+      <div className="p-3 bg-[#1A1A1A] border border-[#3A3A3A] rounded flex items-start gap-2.5 text-xs text-[#AAAAAA]">
+        <Clock className="w-4 h-4 text-[#ebb94b] shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <span className="text-[#E8E8E8] font-medium">Sequential Human-in-the-Loop (HITL) Execution</span>
+          <p className="text-[11px] text-[#888888] leading-relaxed">
+            Destructive actions are evaluated and prompted one at a time. Each step is authorized individually so its execution updates live target context before the next candidate is evaluated.
+            {remainingDestructiveCount > 0 && (
+              <span className="text-[#ebb94b] font-mono"> ({remainingDestructiveCount} more destructive action{remainingDestructiveCount > 1 ? 's' : ''} queued in upcoming pipeline)</span>
+            )}
+          </p>
+        </div>
+      </div>
 
       {/* ========== APPROVAL CARDS ========== */}
       {approvals.length === 0 ? (
@@ -211,6 +232,46 @@ export function AgentView() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ========== UPCOMING PIPELINE PREVIEW ========== */}
+      {upcomingPipeline.length > 0 && (
+        <div className="border border-[#3A3A3A] rounded bg-[#161616] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setIsPipelineOpen(!isPipelineOpen)}
+            className="w-full flex items-center justify-between p-2.5 text-xs text-[#AAAAAA] hover:text-[#E8E8E8] hover:bg-[#1E1E1E] transition-colors"
+          >
+            <span className="flex items-center gap-2 font-mono">
+              <Clock className="w-3.5 h-3.5 text-[#FFA726]" />
+              <span>Upcoming Pipeline Preview ({upcomingPipeline.length} subsequent candidate{upcomingPipeline.length > 1 ? 's' : ''})</span>
+            </span>
+            {isPipelineOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {isPipelineOpen && (
+            <div className="p-2.5 border-t border-[#333333] space-y-2 bg-[#121212]">
+              <div className="text-[11px] text-[#777777] italic">
+                These candidates are scheduled in the pipeline and will be evaluated sequentially after the active approval executes.
+              </div>
+              <div className="space-y-1.5">
+                {upcomingPipeline.map((step: any, sIdx: number) => (
+                  <div key={sIdx} className="bg-[#1E1E1E] p-2 rounded border border-[#2B2B2B] text-xs font-mono flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 truncate">
+                      <span className="text-[#888888] shrink-0">Queued #{sIdx + 1}</span>
+                      <span className="text-[#CCCCCC] truncate font-medium">{step.name || step.action}</span>
+                      <span className="text-[10px] px-1 py-0.2 rounded bg-[#333333] text-[#AAAAAA] shrink-0">
+                        {step.tool || step.tool_name || 'tool'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EF5350]/15 text-[#EF5350] border border-[#EF5350]/30 shrink-0 uppercase font-bold">
+                      {step.impact_class || 'DESTRUCTIVE'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

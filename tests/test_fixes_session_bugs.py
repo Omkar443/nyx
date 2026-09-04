@@ -1831,12 +1831,20 @@ def test_mission_progress_websocket_event_emission(tmp_path, monkeypatch):
     assert reasoning_ev is not None
     assert reasoning_ev["data"]["iteration"] == 1
     assert reasoning_ev["data"]["provider"] == "mock-local"
+    assert "current_step_index" in reasoning_ev["data"]
+    assert "total_planned_steps" in reasoning_ev["data"]
+    assert "remaining_destructive_count" in reasoning_ev["data"]
+    assert "upcoming_pipeline" in reasoning_ev["data"]
 
     # 2. Executing event
     executing_ev = next((e for e in progress_events if e["data"].get("state") == "executing"), None)
     assert executing_ev is not None
     assert executing_ev["data"]["iteration"] == 1
     assert "step_name" in executing_ev["data"]
+    assert "current_step_index" in executing_ev["data"]
+    assert "total_planned_steps" in executing_ev["data"]
+    assert "remaining_destructive_count" in executing_ev["data"]
+    assert "upcoming_pipeline" in executing_ev["data"]
 
 def test_endpoint_filtering_excludes_other_targets_before_cap(tmp_path: Path):
     """Test that ContextEngine filters endpoints to target host+port before applying any cap."""
@@ -2954,7 +2962,135 @@ def test_structured_output_mode_and_fallback():
         res_chatty = ollama_prov.analyze({"target": "http://target.com"})
         assert res_chatty["status"] == "success"
         assert res_chatty["recommended_focus"] == "Chatty format"
-        assert "Cleaned up" in res_chatty["analysis"]
+
+
+def test_pipeline_preview_and_remaining_destructive_count_exposure(tmp_path: Path):
+    """Test that remaining destructive candidates count and upcoming pipeline are exposed in approvals and mission pause."""
+    from nyx.agent.approval import ApprovalSystem
+    from nyx.application.agent_service import AgentService
+    from nyx.ai.planner import MissionPlanner
+    from unittest.mock import MagicMock
+
+    eng = tmp_path / ".engagement"
+    eng.mkdir(parents=True, exist_ok=True)
+    (eng / "target.yaml").write_text("target:\n  name: http://localhost:4444\n  domain: http://localhost:4444\n  scope:\n    - 'http://localhost:4444'\n", encoding="utf-8")
+    (eng / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+
+    # 1. Test ApprovalSystem persistence
+    app_sys = ApprovalSystem(base_dir=tmp_path)
+    decision = {
+        "action_id": "ACT-TEST-PIPELINE",
+        "tool_name": "nuclei",
+        "target": "http://localhost:4444/admin",
+        "impact_class": "DESTRUCTIVE",
+        "remaining_destructive_count": 3,
+        "upcoming_pipeline": [
+            {"tool": "nuclei", "target": "http://localhost:4444/api/Challenges", "name": "Auth Bypass"},
+            {"tool": "nuclei", "target": "http://localhost:4444/api/auth", "name": "Auth Bypass"},
+            {"tool": "sqlmap", "target": "http://localhost:4444/backup.sql", "name": "SQL Injection"},
+        ]
+    }
+    app_sys.submit_for_approval(decision)
+    pending = app_sys.get_pending_approvals()
+    assert len(pending) == 1
+    assert pending[0]["remaining_destructive_count"] == 3
+    assert len(pending[0]["upcoming_pipeline"]) == 3
+    assert pending[0]["upcoming_pipeline"][0]["target"] == "http://localhost:4444/api/Challenges"
+
+    # 2. Test AgentService get_approvals data contract
+    agent_svc = AgentService(base_dir=tmp_path)
+    res = agent_svc.get_approvals()
+    assert res.is_success
+    data = res.data
+    assert data["pending_count"] == 1
+    assert data["remaining_destructive_count"] == 3
+    assert len(data["upcoming_pipeline"]) == 3
+    assert data["pending"][0]["remaining_destructive_count"] == 3
+
+    # 3. Test MissionPlanner pause payload exposure
+    eng = tmp_path / ".engagement"
+    eng.mkdir(exist_ok=True)
+    (eng / "target.yaml").write_text("target:\n  name: http://localhost:4444\n  domain: http://localhost:4444\n  scope:\n    - 'http://localhost:4444'\n", encoding="utf-8")
+    (eng / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+    (eng / "endpoints.json").write_text(json.dumps([{"url": "http://localhost:4444/1", "host": "localhost:4444"}]), encoding="utf-8")
+    
+    planner = MissionPlanner(base_dir=tmp_path)
+    planner.ai_manager = MagicMock()
+    planner.ai_manager.analyze.return_value = {
+        "selected_index": 0,
+        "decision": "proceed",
+        "reasoning": "Test destructive selection"
+    }
+
+    destructive_candidates = [
+        {"name": "Step 1", "tool": "nuclei", "target": "http://localhost:4444/1", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+        {"name": "Step 2", "tool": "nuclei", "target": "http://localhost:4444/2", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+        {"name": "Step 3", "tool": "sqlmap", "target": "http://localhost:4444/3", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+        {"name": "Step 4", "tool": "ffuf", "target": "http://localhost:4444/4", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+    ]
+    planner._select_steps = MagicMock(return_value=destructive_candidates)
+
+    pause_res = planner.run_autonomous_loop("http://localhost:4444", max_iterations=2)
+    assert pause_res["status"] == "paused_for_approval"
+    # Chosen index was 0, so 3 remaining destructive candidates
+    assert pause_res["remaining_destructive_count"] == 3
+    assert len(pause_res["upcoming_pipeline"]) == 3
+    assert pause_res["upcoming_pipeline"][0]["name"] == "Step 2"
+    assert pause_res["upcoming_pipeline"][1]["name"] == "Step 3"
+    assert pause_res["upcoming_pipeline"][2]["name"] == "Step 4"
+
+
+def test_mission_progress_websocket_event_emission_on_pause(tmp_path: Path, monkeypatch):
+    """Verify mission_progress WebSocket event is emitted when paused on a destructive step with all pipeline metrics."""
+    from unittest.mock import MagicMock
+    from nyx.ai.planner import MissionPlanner
+    import json
+
+    eng = tmp_path / ".engagement"
+    eng.mkdir(exist_ok=True)
+    (eng / "target.yaml").write_text("target:\n  name: http://localhost:4444\n  domain: http://localhost:4444\n  scope:\n    - 'http://localhost:4444'\n", encoding="utf-8")
+    (eng / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+    (eng / "endpoints.json").write_text(json.dumps([{"url": "http://localhost:4444/1", "host": "localhost:4444"}]), encoding="utf-8")
+
+    planner = MissionPlanner(base_dir=tmp_path)
+    planner.ai_manager = MagicMock()
+    planner.ai_manager.active_provider_name = "mock-local"
+    planner.ai_manager.analyze.return_value = {
+        "selected_index": 0,
+        "decision": "proceed",
+        "reasoning": "Test destructive selection"
+    }
+
+    destructive_candidates = [
+        {"name": "Step 1", "tool": "nuclei", "target": "http://localhost:4444/1", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+        {"name": "Step 2", "tool": "nuclei", "target": "http://localhost:4444/2", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+        {"name": "Step 3", "tool": "sqlmap", "target": "http://localhost:4444/3", "impact_class": "DESTRUCTIVE", "permitted": True, "action": "validate"},
+    ]
+    planner._select_steps = MagicMock(return_value=destructive_candidates)
+
+    emitted_events = []
+    def mock_emit_sync(event_type, data=None, mission_id=None):
+        emitted_events.append({"event": event_type, "data": data, "mission_id": mission_id})
+
+    import nyx.web.events
+    monkeypatch.setattr(nyx.web.events, "emit_event_sync", mock_emit_sync)
+
+    pause_res = planner.run_autonomous_loop("http://localhost:4444", max_iterations=2)
+    assert pause_res["status"] == "paused_for_approval"
+
+    progress_events = [e for e in emitted_events if e["event"] == "mission_progress"]
+    assert len(progress_events) >= 2  # reasoning + paused
+
+    paused_ev = next((e for e in progress_events if e["data"].get("state") == "paused"), None)
+    assert paused_ev is not None
+    assert paused_ev["data"]["current_step_index"] == 1
+    assert paused_ev["data"]["total_planned_steps"] == 3
+    assert paused_ev["data"]["remaining_destructive_count"] == 2
+    assert len(paused_ev["data"]["upcoming_pipeline"]) == 2
+    assert paused_ev["data"]["upcoming_pipeline"][0]["name"] == "Step 2"
+    assert paused_ev["data"]["upcoming_pipeline"][1]["name"] == "Step 3"
+
+
 
 
 

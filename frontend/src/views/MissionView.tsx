@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Map, CheckCircle, Clock, Shield, Target, Play, 
   ArrowRight, AlertTriangle, RefreshCw, FileText, AlertOctagon,
-  Zap, Check, X, ShieldAlert, Cpu
+  Zap, Check, X, ShieldAlert, Cpu, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { fetchApi } from '../api/client';
 import { useNyxEvents } from '../hooks/useNyxEvents';
@@ -24,6 +24,7 @@ export function MissionView() {
   const [missionError, setMissionError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [progressData, setProgressData] = useState<any | null>(null);
+  const [isPipelineOpen, setIsPipelineOpen] = useState<boolean>(false);
 
   const formatElapsed = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -91,6 +92,18 @@ export function MissionView() {
       setProgressData(lastEvent.data);
       if (lastEvent.data.state === 'completed') {
         setIsRunning(false);
+      } else if (lastEvent.data.state === 'paused') {
+        setIsRunning(false);
+        setMissionResult((prev: any) => ({
+          ...prev,
+          status: 'paused_for_approval',
+          pending_step: lastEvent.data.pending_step || prev?.pending_step,
+          action_id: lastEvent.data.action_id || prev?.action_id,
+          current_step_index: lastEvent.data.current_step_index || prev?.current_step_index,
+          total_planned_steps: lastEvent.data.total_planned_steps || prev?.total_planned_steps,
+          remaining_destructive_count: lastEvent.data.remaining_destructive_count ?? prev?.remaining_destructive_count,
+          upcoming_pipeline: lastEvent.data.upcoming_pipeline || prev?.upcoming_pipeline,
+        }));
       }
     } else if (
       lastEvent.event === 'mission_started' ||
@@ -148,7 +161,7 @@ export function MissionView() {
       });
 
       if (res) {
-        setMissionResult(res);
+        setMissionResult((res?.data && res.data.status) ? res.data : res);
       }
       await loadMission();
       await refreshGlobalStats();
@@ -320,35 +333,87 @@ export function MissionView() {
         {missionResult && (
           <div className="space-y-3">
             {/* PAUSED FOR APPROVAL */}
-            {missionResult.status === 'paused_for_approval' && (
-              <div className="p-4 rounded bg-[#FFA726]/10 border border-[#FFA726]/30 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[#FFA726] font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>MISSION PAUSED — Destructive Action Pending Operator Sign-Off</span>
-                  </div>
-                  <button
-                    onClick={() => setCurrentView('agent')}
-                    className="btn-primary text-xs py-1 px-2.5 flex items-center gap-1"
-                  >
-                    <span>View in Approval Queue</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-                {missionResult.pending_step && (
-                  <div className="bg-[#1E1E1E] p-2.5 rounded border border-[#333333] text-xs font-mono space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#E8E8E8] font-bold">{missionResult.pending_step.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EF5350]/20 text-[#EF5350] border border-[#EF5350]/40 uppercase font-bold">
-                        {missionResult.pending_step.impact_class || 'DESTRUCTIVE'}
-                      </span>
-                      <span className="text-[#888888]">Tool: {missionResult.pending_step.tool}</span>
+            {missionResult.status === 'paused_for_approval' && (() => {
+              const stepIdx = missionResult.current_step_index ?? progressData?.current_step_index ?? 1;
+              const totalSteps = missionResult.total_planned_steps ?? progressData?.total_planned_steps ?? ((missionResult.upcoming_pipeline?.length || 0) + 1);
+              const remainingCount = missionResult.remaining_destructive_count ?? progressData?.remaining_destructive_count ?? (missionResult.upcoming_pipeline?.length || 0);
+              const upcomingPipeline = missionResult.upcoming_pipeline || progressData?.upcoming_pipeline || [];
+
+              return (
+                <div className="p-4 rounded bg-[#FFA726]/10 border border-[#FFA726]/30 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2 text-[#FFA726] font-bold text-xs">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>MISSION PAUSED — Destructive Action Pending Operator Sign-Off</span>
+                      </div>
+                      <div className="text-xs text-[#FFA726]/80 font-mono mt-0.5">
+                        Step {stepIdx} of {totalSteps} &middot; {remainingCount} more queued
+                      </div>
                     </div>
-                    <p className="text-[#CCCCCC]">{missionResult.pending_step.impact_justification || missionResult.pending_step.description}</p>
+                    <button
+                      onClick={() => setCurrentView('agent')}
+                      className="btn-primary text-xs py-1 px-2.5 flex items-center gap-1 self-start sm:self-auto shrink-0"
+                    >
+                      <span>View in Approval Queue</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
+                  {missionResult.pending_step && (
+                    <div className="bg-[#1E1E1E] p-2.5 rounded border border-[#333333] text-xs font-mono space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#E8E8E8] font-bold">{missionResult.pending_step.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EF5350]/20 text-[#EF5350] border border-[#EF5350]/40 uppercase font-bold">
+                          {missionResult.pending_step.impact_class || 'DESTRUCTIVE'}
+                        </span>
+                        <span className="text-[#888888]">Tool: {missionResult.pending_step.tool}</span>
+                      </div>
+                      <p className="text-[#CCCCCC]">{missionResult.pending_step.impact_justification || missionResult.pending_step.description}</p>
+                    </div>
+                  )}
+
+                  {/* Upcoming Pipeline Preview Accordion */}
+                  {upcomingPipeline.length > 0 && (
+                    <div className="border border-[#3A3A3A] rounded bg-[#161616] overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setIsPipelineOpen(!isPipelineOpen)}
+                        className="w-full flex items-center justify-between p-2.5 text-xs text-[#AAAAAA] hover:text-[#E8E8E8] hover:bg-[#1E1E1E] transition-colors"
+                      >
+                        <span className="flex items-center gap-2 font-mono">
+                          <Clock className="w-3.5 h-3.5 text-[#FFA726]" />
+                          <span>Upcoming Pipeline Preview ({upcomingPipeline.length} subsequent candidate{upcomingPipeline.length > 1 ? 's' : ''})</span>
+                        </span>
+                        {isPipelineOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                      {isPipelineOpen && (
+                        <div className="p-2.5 border-t border-[#333333] space-y-2 bg-[#121212]">
+                          <div className="text-[11px] text-[#777777] italic">
+                            Candidates scheduled for sequential evaluation. Each step will be evaluated and prompted individually following execution.
+                          </div>
+                          <div className="space-y-1.5">
+                            {upcomingPipeline.map((step: any, sIdx: number) => (
+                              <div key={sIdx} className="bg-[#1E1E1E] p-2 rounded border border-[#2B2B2B] text-xs font-mono flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0 truncate">
+                                  <span className="text-[#888888] shrink-0">#{stepIdx + sIdx + 1}</span>
+                                  <span className="text-[#CCCCCC] truncate font-medium">{step.name || step.action}</span>
+                                  <span className="text-[10px] px-1 py-0.2 rounded bg-[#333333] text-[#AAAAAA] shrink-0">
+                                    {step.tool || step.tool_name || 'tool'}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EF5350]/15 text-[#EF5350] border border-[#EF5350]/30 shrink-0 uppercase font-bold">
+                                  {step.impact_class || 'DESTRUCTIVE'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ESCALATED */}
             {missionResult.status === 'escalated' && (

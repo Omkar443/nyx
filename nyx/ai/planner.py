@@ -1362,11 +1362,15 @@ class MissionPlanner:
                                 "target": target,
                                 "iteration": 1,
                                 "max_iterations": max_iterations,
+                                "current_step_index": 1,
+                                "total_planned_steps": 1,
                                 "step_name": "Attack Surface Reconnaissance Bootstrap",
                                 "tool": "nyx-recon",
                                 "action": "passive_recon",
                                 "phase": "DISCOVERY",
                                 "message": "Bootstrapping reconnaissance and endpoint discovery",
+                                "remaining_destructive_count": 0,
+                                "upcoming_pipeline": [],
                             },
                             mission_id=target,
                         )
@@ -1505,6 +1509,19 @@ class MissionPlanner:
                 max_iterations,
                 active_p_name,
             )
+            destructive_in_plan = [
+                {
+                    "name": s.get("name"),
+                    "tool": s.get("tool"),
+                    "target": s.get("target") or target,
+                    "reason": s.get("reason"),
+                    "impact_class": s.get("impact_class", "DESTRUCTIVE"),
+                    "impact_justification": s.get("impact_justification", ""),
+                    "evidence": s.get("evidence") or [],
+                }
+                for s in validated
+                if s.get("impact_class") == "DESTRUCTIVE"
+            ]
             try:
                 from nyx.web.events import emit_event_sync
                 emit_event_sync(
@@ -1514,8 +1531,12 @@ class MissionPlanner:
                         "target": target,
                         "iteration": iteration_idx,
                         "max_iterations": max_iterations,
+                        "current_step_index": iteration_idx,
+                        "total_planned_steps": len(validated),
                         "provider": active_p_name,
                         "message": f"Reasoning with {active_p_name} AI...",
+                        "remaining_destructive_count": len(destructive_in_plan),
+                        "upcoming_pipeline": destructive_in_plan[:5],
                     },
                     mission_id=target,
                 )
@@ -1668,6 +1689,21 @@ class MissionPlanner:
             if next_step.get("impact_class") == "DESTRUCTIVE":
                 logger.warning("[PAUSED] Autonomous loop paused for operator approval on DESTRUCTIVE step: '%s' (Tool: %s, Target: %s)", next_step.get("name"), next_step.get("tool"), next_step.get("target") or target)
                 act_id = None
+                remaining_destructive = [
+                    {
+                        "name": s.get("name"),
+                        "tool": s.get("tool"),
+                        "target": s.get("target") or target,
+                        "reason": s.get("reason"),
+                        "impact_class": s.get("impact_class", "DESTRUCTIVE"),
+                        "impact_justification": s.get("impact_justification", ""),
+                        "evidence": s.get("evidence") or [],
+                    }
+                    for idx, s in enumerate(validated)
+                    if idx != chosen_idx and s.get("impact_class") == "DESTRUCTIVE"
+                ]
+                remaining_destructive_count = len(remaining_destructive)
+                upcoming_pipeline = remaining_destructive[:5]
                 try:
                     from nyx.agent.approval import ApprovalSystem
                     import uuid
@@ -1690,7 +1726,34 @@ class MissionPlanner:
                         "current_iteration": iteration_idx,
                         "prior_iterations": iterations,
                         "active_permitted": active_permitted,
+                        "remaining_destructive_count": remaining_destructive_count,
+                        "upcoming_pipeline": upcoming_pipeline,
                     })
+                except Exception:
+                    pass
+                try:
+                    from nyx.web.events import emit_event_sync
+                    emit_event_sync(
+                        event_type="mission_progress",
+                        data={
+                            "state": "paused",
+                            "target": target,
+                            "iteration": iteration_idx,
+                            "max_iterations": max_iterations,
+                            "current_step_index": chosen_idx + 1,
+                            "total_planned_steps": len(validated),
+                            "step_name": next_step.get("name"),
+                            "tool": next_step.get("tool"),
+                            "action": next_step.get("action"),
+                            "phase": next_step.get("phase"),
+                            "message": f"Paused for approval on {next_step.get('name')}",
+                            "remaining_destructive_count": remaining_destructive_count,
+                            "upcoming_pipeline": upcoming_pipeline,
+                            "pending_step": next_step,
+                            "action_id": act_id,
+                        },
+                        mission_id=target,
+                    )
                 except Exception:
                     pass
                 return {
@@ -1704,6 +1767,8 @@ class MissionPlanner:
                     "degradation_reason": degradation_reason,
                     "current_iteration": iteration_idx,
                     "max_iterations": max_iterations,
+                    "remaining_destructive_count": remaining_destructive_count,
+                    "upcoming_pipeline": upcoming_pipeline,
                 }
 
             # 1.g. Stop if policy blocked
@@ -1766,6 +1831,21 @@ class MissionPlanner:
 
             # 1.h. Execute step and record iteration
             logger.info("[MISSION] Executing step '%s' on %s via tool '%s'...", next_step.get("name"), next_step.get("target") or target, next_step.get("tool"))
+            remaining_destructive = [
+                {
+                    "name": s.get("name"),
+                    "tool": s.get("tool"),
+                    "target": s.get("target") or target,
+                    "reason": s.get("reason"),
+                    "impact_class": s.get("impact_class", "DESTRUCTIVE"),
+                    "impact_justification": s.get("impact_justification", ""),
+                    "evidence": s.get("evidence") or [],
+                }
+                for idx, s in enumerate(validated)
+                if idx != chosen_idx and s.get("impact_class") == "DESTRUCTIVE"
+            ]
+            remaining_destructive_count = len(remaining_destructive)
+            upcoming_pipeline = remaining_destructive[:5]
             try:
                 from nyx.web.events import emit_event_sync
                 emit_event_sync(
@@ -1775,11 +1855,15 @@ class MissionPlanner:
                         "target": target,
                         "iteration": iteration_idx,
                         "max_iterations": max_iterations,
+                        "current_step_index": chosen_idx + 1,
+                        "total_planned_steps": len(validated),
                         "step_name": next_step.get("name"),
                         "tool": next_step.get("tool"),
                         "action": next_step.get("action"),
                         "phase": next_step.get("phase"),
                         "message": f"Executing {next_step.get('name')} ({next_step.get('tool')})",
+                        "remaining_destructive_count": remaining_destructive_count,
+                        "upcoming_pipeline": upcoming_pipeline,
                     },
                     mission_id=target,
                 )

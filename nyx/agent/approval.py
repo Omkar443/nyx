@@ -87,6 +87,16 @@ class ApprovalSystem:
             record["impact_justification"] = record.get("impact_justification") or step.get("impact_justification") or step.get("description")
             record["target"] = record.get("target") or step.get("target")
             record["params"] = record.get("params") or step.get("params") or {}
+
+        if "remaining_destructive_count" in decision:
+            record["remaining_destructive_count"] = decision["remaining_destructive_count"]
+        elif "remaining_destructive_count" not in record:
+            record["remaining_destructive_count"] = 0
+
+        if "upcoming_pipeline" in decision:
+            record["upcoming_pipeline"] = decision["upcoming_pipeline"]
+        elif "upcoming_pipeline" not in record:
+            record["upcoming_pipeline"] = []
         
         self._pending_queue[action_id] = record
         self._save_persisted()

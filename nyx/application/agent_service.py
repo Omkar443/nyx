@@ -56,7 +56,22 @@ class AgentService(BaseService):
 
     def get_approvals(self) -> ServiceResult:
         pending = self.agent.approval_system.get_pending_approvals()
-        return self.ok(data={"pending_count": len(pending), "pending": pending}, message=f"Retrieved {len(pending)} pending approvals.")
+        remaining_count = 0
+        upcoming = []
+        for p in pending:
+            if "remaining_destructive_count" in p:
+                remaining_count = max(remaining_count, p.get("remaining_destructive_count", 0))
+            if "upcoming_pipeline" in p and not upcoming:
+                upcoming = p.get("upcoming_pipeline", [])
+        return self.ok(
+            data={
+                "pending_count": len(pending),
+                "pending": pending,
+                "remaining_destructive_count": remaining_count,
+                "upcoming_pipeline": upcoming,
+            },
+            message=f"Retrieved {len(pending)} pending approvals."
+        )
 
     def approve_action(self, action_id: str) -> ServiceResult:
         res = self.agent.approve_action(action_id)
