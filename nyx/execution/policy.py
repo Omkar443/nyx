@@ -11,16 +11,27 @@ from nyx.infrastructure.filesystem import _get_eng_dir
 EXECUTION_CLASSES = ["PASSIVE", "SAFE_ACTIVE", "ACTIVE", "DESTRUCTIVE"]
 
 
+def normalize_target(target: str) -> str:
+    """Normalize a target URL/string by stripping whitespace, URL fragments (#...), and trailing slashes."""
+    if not target:
+        return ""
+    t = str(target).strip()
+    if "#" in t:
+        t = t.split("#", 1)[0]
+    return t.rstrip("/")
+
+
 def extract_hostname(target_str: str) -> str:
     if not target_str:
         return ""
-    if "://" in target_str:
+    clean_target = normalize_target(target_str)
+    if "://" in clean_target:
         try:
-            return urlparse(target_str).hostname or target_str
+            return urlparse(clean_target).hostname or clean_target
         except Exception:
             pass
     # Strip path or query
-    clean = target_str.split("/")[0].split(":")[0].split("?")[0]
+    clean = clean_target.split("/")[0].split(":")[0].split("?")[0]
     return clean.strip().lower()
 
 

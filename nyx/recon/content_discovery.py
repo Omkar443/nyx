@@ -45,7 +45,7 @@ COMMON_CONTENT_WORDLIST = [
 def extract_spa_routes(base_url: str, timeout: int = 4) -> list[dict[str, Any]]:
     """Crawl and extract API endpoints referenced in client-side HTML and JavaScript bundles."""
     discovered: list[dict[str, Any]] = []
-    clean_base = base_url.rstrip("/")
+    clean_base = base_url.split("#")[0].rstrip("/")
     if not is_hostname_in_scope(clean_base):
         return discovered
 
@@ -161,7 +161,7 @@ def extract_spa_routes(base_url: str, timeout: int = 4) -> list[dict[str, Any]]:
 
 def probe_single_path(base_url: str, path: str, timeout: int = 4) -> dict[str, Any] | None:
     """Probe a single URL path to discover unlinked content."""
-    clean_base = base_url.rstrip("/")
+    clean_base = base_url.split("#")[0].rstrip("/")
     clean_path = path.lstrip("/")
     url = f"{clean_base}/{clean_path}"
 
@@ -225,7 +225,7 @@ def run_content_discovery(
     discovered_map: dict[str, dict[str, Any]] = {}
 
     for base in base_urls:
-        clean_base = base.rstrip("/")
+        clean_base = base.split("#")[0].rstrip("/")
 
         # 1. SPA & JS Bundle Endpoint Extraction
         spa_routes = extract_spa_routes(clean_base, timeout=timeout)

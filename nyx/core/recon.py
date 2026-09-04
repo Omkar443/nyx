@@ -743,6 +743,8 @@ def run_recon(
     burp: bool = False,
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
+    from nyx.execution.policy import normalize_target
+    target = normalize_target(target)
     clone_mode = (REPO_ROOT / "skills").is_dir()
     recon_root = (
         Path(out_dir).resolve()

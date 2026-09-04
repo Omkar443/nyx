@@ -5,11 +5,76 @@ Aggregates structured security intelligence context for AI reasoning.
 from __future__ import annotations
 
 import json
+import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from nyx.infrastructure.filesystem import _get_eng_dir
 from nyx.security.authorization import is_hostname_in_scope
+
+
+def _matches_target_endpoint(ep_url: str, target: str) -> bool:
+    """Check if an endpoint belongs to the target host/port and path prefix."""
+    if not ep_url or not target:
+        return False
+    t_has_scheme = "://" in str(target)
+    t_clean = str(target).strip().lower()
+    if not t_has_scheme:
+        t_clean = f"http://{t_clean}"
+    t_p = urllib.parse.urlparse(t_clean)
+    t_host = t_p.hostname or ""
+    t_has_port = ":" in (t_p.netloc or "")
+    t_port = t_p.port or (443 if t_p.scheme == "https" else 80)
+    t_path = t_p.path.rstrip("/")
+
+    e_clean = str(ep_url).strip().lower()
+    if "://" not in e_clean:
+        e_clean = f"http://{e_clean}"
+    e_p = urllib.parse.urlparse(e_clean)
+    e_host = e_p.hostname or ""
+    e_port = e_p.port or (443 if e_p.scheme == "https" else 80)
+    e_path = e_p.path.rstrip("/")
+
+    if t_host != e_host:
+        return False
+    if t_has_port:
+        if t_port != e_port:
+            return False
+    elif t_has_scheme:
+        if t_port != e_port:
+            return False
+    if t_path and not (e_path == t_path or e_path.startswith(t_path + "/")):
+        return False
+    return True
+
+
+def _endpoint_relevance_score(url_str: str) -> int:
+    """Score endpoint relevance for security analysis (higher = more relevant)."""
+    score = 0
+    u_lower = str(url_str).lower()
+    parsed = urllib.parse.urlparse(u_lower if "://" in u_lower else f"http://{u_lower}")
+    path = parsed.path
+    query = parsed.query
+
+    # Query parameters are highest value for injection testing
+    if query and "=" in query:
+        score += 100
+        if any(k in query for k in ["id=", "user=", "query=", "search=", "page=", "cmd=", "file=", "url=", "redirect="]):
+            score += 50
+
+    # API / Auth / Dynamic indicators
+    if any(k in path for k in ["/api/", "/rest/", "/graphql", "/auth", "/login", "/admin", "/user", "/account", "/v1/", "/v2/"]):
+        score += 60
+
+    # Static assets are deprioritized
+    if any(path.endswith(ext) for ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".svg", ".ico", ".woff", ".woff2", ".map", ".txt", ".gif"]):
+        score -= 80
+
+    # Root / blank path
+    if path in ("", "/") and not query:
+        score -= 40
+
+    return score
 
 
 class ContextEngine:
@@ -61,6 +126,15 @@ class ContextEngine:
                 except Exception:
                     pass
 
+        # Target-aware scoping and relevance prioritization
+        target_scoped_endpoints = [ep for ep in endpoints if _matches_target_endpoint(ep, target)]
+        if target_scoped_endpoints:
+            target_scoped_endpoints.sort(key=_endpoint_relevance_score, reverse=True)
+            scoped_endpoints = target_scoped_endpoints[:50]
+        else:
+            endpoints.sort(key=_endpoint_relevance_score, reverse=True)
+            scoped_endpoints = endpoints[:50]
+
         # 4. Relevant Skills
         skills = []
         if d.exists():
@@ -81,7 +155,18 @@ class ContextEngine:
                 ff = d / "database" / "findings.json"
             if ff.exists():
                 try:
-                    findings = json.loads(ff.read_text(encoding="utf-8"))
+                    all_findings = json.loads(ff.read_text(encoding="utf-8"))
+                    if isinstance(all_findings, list):
+                        findings = [
+                            f
+                            for f in all_findings
+                            if isinstance(f, dict)
+                            and (
+                                not target
+                                or _matches_target_endpoint(f.get("endpoint") or "", target)
+                                or _matches_target_endpoint(f.get("target") or "", target)
+                            )
+                        ]
                 except Exception:
                     pass
 
@@ -104,7 +189,18 @@ class ContextEngine:
             vf = d / "tested_vectors.json"
             if vf.exists():
                 try:
-                    tested_vectors = json.loads(vf.read_text(encoding="utf-8"))
+                    all_vectors = json.loads(vf.read_text(encoding="utf-8"))
+                    if isinstance(all_vectors, list):
+                        tested_vectors = [
+                            tv
+                            for tv in all_vectors
+                            if isinstance(tv, dict)
+                            and (
+                                not target
+                                or _matches_target_endpoint(tv.get("endpoint") or "", target)
+                                or _matches_target_endpoint(tv.get("target") or "", target)
+                            )
+                        ]
                 except Exception:
                     pass
 
@@ -114,7 +210,7 @@ class ContextEngine:
             "phase": state_info.get("state", "DISCOVERY"),
             "mode": state_info.get("mode", "research"),
             "technologies": technologies,
-            "endpoints": endpoints[:50],  # Limit cap
+            "endpoints": scoped_endpoints,
             "skills": skills[:20],
             "findings": findings,
             "previous_findings": findings,

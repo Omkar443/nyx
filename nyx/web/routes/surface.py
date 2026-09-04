@@ -99,9 +99,10 @@ async def run_recon_surface(
     service: ReconService = Depends(get_recon_service),
 ) -> Dict[str, Any]:
     """Run passive reconnaissance workflow."""
-    import asyncio
-    await emit_event("recon_started", data={"target": target})
-    res = await asyncio.to_thread(service.run_recon, target=target)
+    from nyx.execution.policy import normalize_target
+    target_clean = normalize_target(target)
+    await emit_event("recon_started", data={"target": target_clean})
+    res = await asyncio.to_thread(service.run_recon, target=target_clean)
     ok, data = _parse_res(res)
     if not ok:
         raise HTTPException(
@@ -109,5 +110,5 @@ async def run_recon_surface(
             detail={"code": data.get("code", "RECON_FAILED"), "message": data.get("error", "Recon failed.")},
         )
 
-    await emit_event("recon_completed", data={"target": target, "results": data.get("data", {})})
+    await emit_event("recon_completed", data={"target": target_clean, "results": data.get("data", {})})
     return data

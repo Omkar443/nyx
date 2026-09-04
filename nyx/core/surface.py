@@ -45,7 +45,29 @@ def build_attack_surface_graph(target: str, endpoints: list[dict | str] | None =
             except Exception:
                 pass
 
-    for item in ep_list[:100]:
+    from nyx.ai.context import _matches_target_endpoint, _endpoint_relevance_score
+
+    def _is_ep_for_target(ep_url: str, tgt: str) -> bool:
+        if not ep_url or not tgt:
+            return False
+        if ep_url.startswith("/") or ep_url.startswith("?"):
+            return True
+        return _matches_target_endpoint(ep_url, tgt)
+
+    target_scoped_endpoints = [
+        item for item in ep_list
+        if _is_ep_for_target(item.get("url") if isinstance(item, dict) else str(item), target)
+    ]
+    if target_scoped_endpoints:
+        target_scoped_endpoints.sort(
+            key=lambda item: _endpoint_relevance_score(item.get("url") if isinstance(item, dict) else str(item)),
+            reverse=True
+        )
+        effective_eps = target_scoped_endpoints[:100]
+    else:
+        effective_eps = []
+
+    for item in effective_eps:
         ep_val = item.get("url") if isinstance(item, dict) else str(item)
         if not ep_val:
             continue
@@ -70,7 +92,18 @@ def build_attack_surface_graph(target: str, endpoints: list[dict | str] | None =
             except Exception:
                 pass
 
+    target_findings = []
     for f in f_list:
+        if not isinstance(f, dict):
+            continue
+        f_ep = f.get("endpoint") or ""
+        f_tgt = f.get("target") or ""
+        if f_ep and _is_ep_for_target(f_ep, target):
+            target_findings.append(f)
+        elif f_tgt and _is_ep_for_target(f_tgt, target):
+            target_findings.append(f)
+
+    for f in target_findings:
         fid = f.get("finding_id", "FH-UNKNOWN")
         ftitle = f.get("title", "Confirmed Finding")
         nodes.append({"type": "confirmed_finding", "value": f"{fid}: {ftitle}"})

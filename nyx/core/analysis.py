@@ -76,9 +76,21 @@ def extract_router_targets(url: str) -> list[str]:
     parsed = urllib.parse.urlparse(clean_url if "://" in clean_url else f"http://{clean_url}")
     if parsed.path:
         targets.append(parsed.path)
+    if parsed.fragment:
+        frag_path = parsed.fragment.split("?")[0].strip()
+        if frag_path:
+            if not frag_path.startswith("/"):
+                frag_path = f"/{frag_path}"
+            if len(frag_path) > 1:
+                targets.append(frag_path)
 
+    qs = {}
     if parsed.query:
-        qs = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        qs.update(urllib.parse.parse_qs(parsed.query, keep_blank_values=True))
+    if parsed.fragment and "?" in parsed.fragment:
+        qs.update(urllib.parse.parse_qs(parsed.fragment.split("?", 1)[1], keep_blank_values=True))
+
+    if qs:
         router_param_names = {
             "page", "action", "view", "module", "p", "tab", "file", "target", "path",
             "include", "component", "route", "sec", "section", "cmd", "func", "function", "do",
@@ -317,10 +329,19 @@ def rank_surface(target: str, manifest: str | Path | None = None) -> dict[str, A
             e_file = d / "endpoints.json"
             if e_file.exists():
                 try:
+                    from nyx.ai.context import _matches_target_endpoint
+
+                    def _is_ep_for_target(ep_url: str, tgt: str) -> bool:
+                        if not ep_url or not tgt:
+                            return False
+                        if ep_url.startswith("/") or ep_url.startswith("?"):
+                            return True
+                        return _matches_target_endpoint(ep_url, tgt)
+
                     e_data = json.loads(e_file.read_text(encoding="utf-8"))
                     for item in e_data:
                         u = item.get("url") if isinstance(item, dict) else str(item)
-                        if u and u not in endpoints:
+                        if u and _is_ep_for_target(u, target) and u not in endpoints:
                             endpoints.append(u)
                 except Exception:
                     pass
@@ -372,13 +393,28 @@ def get_surface(
             d = _get_eng_dir()
             if d.exists() and (d / "endpoints.json").exists():
                 try:
+                    from nyx.ai.context import _matches_target_endpoint
+
+                    def _is_ep_for_target(ep_url: str, tgt: str) -> bool:
+                        if not ep_url or not tgt:
+                            return False
+                        if ep_url.startswith("/") or ep_url.startswith("?"):
+                            return True
+                        return _matches_target_endpoint(ep_url, tgt)
+
                     eps = json.loads((d / "endpoints.json").read_text(encoding="utf-8"))
-                    return {
-                        "status": "success",
-                        "target": target,
-                        "manifest_path": str(d / "endpoints.json"),
-                        "manifest": {"endpoints": [e.get("url") if isinstance(e, dict) else str(e) for e in eps]}
-                    }
+                    target_eps = [
+                        e.get("url") if isinstance(e, dict) else str(e)
+                        for e in eps
+                        if _is_ep_for_target(e.get("url") if isinstance(e, dict) else str(e), target)
+                    ]
+                    if target_eps:
+                        return {
+                            "status": "success",
+                            "target": target,
+                            "manifest_path": str(d / "endpoints.json"),
+                            "manifest": {"endpoints": target_eps}
+                        }
                 except Exception:
                     pass
         return {

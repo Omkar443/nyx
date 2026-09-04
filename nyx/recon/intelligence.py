@@ -86,12 +86,26 @@ def run_recon_intelligence(target: str) -> dict:
             except Exception:
                 technologies = []
 
-    if not endpoints:
-        endpoints = [
+    from nyx.ai.context import _matches_target_endpoint
+
+    def _is_ep_for_target(ep_url: str, tgt: str) -> bool:
+        if not ep_url or not tgt:
+            return False
+        if ep_url.startswith("/") or ep_url.startswith("?"):
+            return True
+        return _matches_target_endpoint(ep_url, tgt)
+
+    target_endpoints = [
+        ep for ep in endpoints
+        if _is_ep_for_target(ep.get("url") if isinstance(ep, dict) else str(ep), target)
+    ]
+    if not target_endpoints:
+        target_endpoints = [
             {"url": f"https://{target}/login.aspx", "priority": "HIGH"},
             {"url": f"https://{target}/graphql", "priority": "HIGH"},
             {"url": f"https://{target}/api/users", "priority": "HIGH"}
         ]
+    endpoints = target_endpoints
 
     scored = []
     for ep in endpoints:

@@ -124,10 +124,27 @@ class ApprovalSystem:
             self._save_persisted()
         return len(expired_keys)
 
-    def get_pending_approvals(self) -> List[Dict[str, Any]]:
-        """Return list of all pending approval requests."""
+    def get_pending_approvals(self, target: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Return list of all pending approval requests, optionally filtered by target."""
         self._load_persisted()
-        return list(self._pending_queue.values())
+        items = list(self._pending_queue.values())
+        if not target:
+            return items
+        from nyx.ai.context import _matches_target_endpoint
+
+        def _is_match(t_val: str, tgt: str) -> bool:
+            if not t_val or not tgt:
+                return False
+            t_clean = t_val.strip("/").lower()
+            tgt_clean = tgt.strip("/").lower()
+            if t_clean in tgt_clean or tgt_clean in t_clean:
+                return True
+            return _matches_target_endpoint(t_val, tgt) or _matches_target_endpoint(tgt, t_val)
+
+        return [
+            rec for rec in items
+            if _is_match(rec.get("mission_target") or rec.get("target") or "", target)
+        ]
 
     def approve_action(self, action_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Approve a pending action ID."""

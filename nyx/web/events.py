@@ -65,3 +65,28 @@ async def emit_event(
 ) -> None:
     """Convenience helper to broadcast WebSocket events asynchronously."""
     await ws_manager.broadcast_event(event_type, data=data, mission_id=mission_id)
+
+
+def emit_event_sync(
+    event_type: str,
+    data: Optional[Dict[str, Any]] = None,
+    mission_id: Optional[str] = None,
+) -> None:
+    """Convenience helper to broadcast WebSocket events from synchronous execution contexts."""
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                ws_manager.broadcast_event(event_type, data=data, mission_id=mission_id),
+                loop,
+            )
+        else:
+            asyncio.run(
+                ws_manager.broadcast_event(event_type, data=data, mission_id=mission_id)
+            )
+    except Exception:
+        pass

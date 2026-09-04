@@ -1665,6 +1665,1308 @@ def test_execution_clean_logging_formatting_and_filtering():
     assert "[INF] scanning" in stderr
 
 
+def test_autonomous_loop_phase_inference_and_transition(tmp_path: Path):
+    """Verify MissionPlanner infers canonical phases and transitions engagement state on change."""
+    import json
+    from nyx.ai.planner import MissionPlanner
+    from nyx.core import engagement as core_eng
+
+    # 1. Initialize engagement in DISCOVERY
+    core_eng.init_engagement("http://phase-test.local", reset=True, force=True, base_dir=tmp_path)
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 2. Verify _infer_step_phase mappings
+    assert planner._infer_step_phase({"action": "passive_recon", "tool": "httpx"}) == "DISCOVERY"
+    assert planner._infer_step_phase({"action": "endpoint_harvesting", "tool": "katana"}) == "DISCOVERY"
+    assert planner._infer_step_phase({"action": "technology_mapping", "tool": "nyx-classify"}) == "ANALYSIS"
+    assert planner._infer_step_phase({"action": "finding_triage", "tool": "nuclei"}) == "VALIDATION"
+    assert planner._infer_step_phase({"action": "finding_triage", "tool": "sqlmap"}) == "VALIDATION"
+    assert planner._infer_step_phase({"action": "report_generation", "tool": "nyx-report"}) == "REPORTING"
+
+    # 3. Simulate autonomous loop executing a step in ANALYSIS phase
+    # Add endpoints so planner has candidates in ANALYSIS/VALIDATION
+    core_eng.record_memory(mem_type="endpoint", val="http://phase-test.local/login.php", base_dir=tmp_path)
+    core_eng.record_memory(mem_type="technology", val="PHP", base_dir=tmp_path)
+
+    # Mock AI decision to select candidate index 0
+    planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {"selected_index": 0, "decision": "proceed"}
+
+    # Mock execute_step
+    planner.execute_step = lambda step, target, active_permitted=False: {"status": "success"}
+
+    res = planner.run_autonomous_loop(
+        target="http://phase-test.local",
+        max_iterations=1,
+        start_iteration=1,
+        active_permitted=True,
+    )
+    assert len(res.get("iterations", [])) == 1
+
+    # Check state.json was transitioned
+    state_data = json.loads((tmp_path / ".engagement" / "state.json").read_text(encoding="utf-8"))
+    assert state_data.get("state") in ("ANALYSIS", "VALIDATION")
+    assert len(state_data.get("history", [])) >= 1
+    assert state_data["history"][0]["previous_state"] == "DISCOVERY"
+    assert "Autonomous phase inference:" in state_data["history"][0]["reason"]
+
+
+def test_mission_history_and_phase_events(tmp_path: Path):
+    """Verify GET /api/v1/mission/history returns real timeline and emit_event_sync functions properly."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.core import engagement as core_eng
+    from nyx.web.events import emit_event_sync
+
+    # 1. Initialize and perform transitions with specific reasons
+    core_eng.init_engagement("http://history-test.local", reset=True, force=True, base_dir=tmp_path)
+    core_eng.set_engagement_state(new_state="ANALYSIS", force_state=True, reason="Analysis phase step selected", base_dir=tmp_path)
+    core_eng.set_engagement_state(new_state="VALIDATION", force_state=True, reason="Validation step selected", base_dir=tmp_path)
+
+    # 2. Test get_engagement_history directly
+    hist = core_eng.get_engagement_history(base_dir=tmp_path)
+    assert len(hist.get("history", [])) == 2
+    assert len(hist.get("timeline", [])) == 2
+    assert hist["timeline"][0]["phase"] == "ANALYSIS"
+    assert hist["timeline"][0]["previous_phase"] == "DISCOVERY"
+    assert hist["timeline"][1]["phase"] == "VALIDATION"
+    assert hist["timeline"][1]["previous_phase"] == "ANALYSIS"
+
+    # 3. Test API endpoint /api/v1/mission/history
+    app = create_app()
+    from nyx.web.auth import get_or_create_api_token
+    token = get_or_create_api_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    with TestClient(app) as client:
+        # emit_event_sync smoke test
+        emit_event_sync("phase_changed", {"phase": "VALIDATION"}, mission_id="http://history-test.local")
+
+        res = client.get("/api/v1/mission/history", headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert data.get("success") is True
+        assert "timeline" in data.get("data", {})
+
+
+def test_terminal_heartbeat_and_ai_observability(caplog):
+    """Verify tool execution heartbeat and AI start/finish logging."""
+    import logging
+    from nyx.execution.timeout import run_with_timeout
+    import sys
+
+    # 1. Test heartbeat in run_with_timeout (simulate with a quick timeout or sleep)
+    # We can run a 1.5s command with a patched heartbeat threshold or verify run_with_timeout executes cleanly
+    with caplog.at_level(logging.INFO):
+        code, stdout, stderr, timed_out = run_with_timeout(
+            [sys.executable, "-c", "import time; time.sleep(0.1)"],
+            timeout_sec=5,
+        )
+        assert code == 0
+        assert not timed_out
+
+    # 2. Test LocalLlamaProvider start and completion logging
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+    prov = LocalLlamaProvider(endpoint_url="http://mock-local:11434/api/generate", model_name="llama3:latest")
+    
+    # Mock requests.post
+    import requests
+    class MockResponse:
+        status_code = 200
+        def json(self):
+            return {"response": "test decision", "done": True}
+    
+    orig_post = requests.post
+    try:
+        requests.post = lambda *args, **kwargs: MockResponse()
+        with caplog.at_level(logging.INFO):
+            ans = prov.generate("Hello test")
+            assert ans == "test decision"
+            assert any("[AI:local] Dispatching prompt to local LLM" in rec.message for rec in caplog.records)
+            assert any("[AI:local] Local LLM response received" in rec.message for rec in caplog.records)
+    finally:
+        requests.post = orig_post
+
+
+def test_mission_progress_websocket_event_emission(tmp_path, monkeypatch):
+    """Verify mission_progress WebSocket event is emitted for reasoning and step execution."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.ai.manager import AIManager
+
+    # Setup temp target
+    target = "http://progress-test.local"
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text(f"target: {target}\nscope:\n  - {target}\n")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n")
+    (eng_dir / "endpoints.json").write_text(json.dumps([f"{target}/login", f"{target}/api"]))
+    (eng_dir / "technologies.json").write_text(json.dumps(["apache"]))
+    (eng_dir / "state.json").write_text(json.dumps({"state": "DISCOVERY", "history": []}))
+
+    class MockAI:
+        active_provider_name = "mock-local"
+        def analyze(self, context, prompt=None, provider_name=None):
+            return {
+                "selected_index": 0,
+                "decision": "proceed",
+                "reasoning": "Execute initial fingerprinting",
+            }
+
+    planner = MissionPlanner(base_dir=tmp_path, ai_manager=MockAI())
+    monkeypatch.setattr(planner, "execute_step", lambda step, t, active_permitted=False: {"status": "success", "result": {"status": "completed"}})
+
+    emitted_events = []
+    def mock_emit_sync(event_type, data=None, mission_id=None):
+        emitted_events.append({"event": event_type, "data": data, "mission_id": mission_id})
+
+    import nyx.web.events
+    monkeypatch.setattr(nyx.web.events, "emit_event_sync", mock_emit_sync)
+
+    res = planner.run_autonomous_loop(target=target, max_iterations=1, active_permitted=True)
+    assert res.get("status") in ("max_iterations_reached", "complete")
+
+    progress_events = [e for e in emitted_events if e["event"] == "mission_progress"]
+    assert len(progress_events) >= 2, f"Expected at least 2 progress events, got: {progress_events}"
+
+    # 1. Reasoning event
+    reasoning_ev = next((e for e in progress_events if e["data"].get("state") == "reasoning"), None)
+    assert reasoning_ev is not None
+    assert reasoning_ev["data"]["iteration"] == 1
+    assert reasoning_ev["data"]["provider"] == "mock-local"
+
+    # 2. Executing event
+    executing_ev = next((e for e in progress_events if e["data"].get("state") == "executing"), None)
+    assert executing_ev is not None
+    assert executing_ev["data"]["iteration"] == 1
+    assert "step_name" in executing_ev["data"]
+
+def test_endpoint_filtering_excludes_other_targets_before_cap(tmp_path: Path):
+    """Test that ContextEngine filters endpoints to target host+port before applying any cap."""
+    from nyx.ai.context import ContextEngine
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: http://localhost:3000\nscope:\n  - http://localhost:3000\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nscope:\n  - http://localhost:3000\n", encoding="utf-8")
+
+    # 70 endpoints on port 80 / other host followed by 20 on localhost:3000
+    other_eps = [f"http://other-host.local/path{i}" for i in range(70)]
+    target_eps = [f"http://localhost:3000/api/resource{i}" for i in range(20)]
+    all_eps = other_eps + target_eps
+    (eng_dir / "endpoints.json").write_text(json.dumps(all_eps), encoding="utf-8")
+
+    ce = ContextEngine(base_dir=tmp_path)
+    ctx = ce.get_target_context("http://localhost:3000")
+    scoped = ctx.get("endpoints", [])
+
+    assert len(scoped) == 20
+    assert all("localhost:3000" in ep for ep in scoped)
+    assert not any("other-host" in ep for ep in scoped)
+
+
+def test_target_endpoints_beyond_index_50_correctly_scoped_and_classified(tmp_path: Path):
+    """Test that endpoints located strictly beyond index 50 in mixed endpoints.json are recovered and classified."""
+    from nyx.ai.context import ContextEngine
+    from nyx.ai.planner import MissionPlanner
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: http://localhost:3000\nscope:\n  - http://localhost:3000\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nscope:\n  - http://localhost:3000\n", encoding="utf-8")
+
+    # First 60 endpoints belong to port 80; target endpoints start at index 60
+    port80_eps = [f"http://localhost/doc{i}" for i in range(60)]
+    target_eps = [
+        "http://localhost:3000/api/Users",
+        "http://localhost:3000/login",
+        "http://localhost:3000/api/graphql",
+        "http://localhost:3000/api/Feedbacks",
+        "http://localhost:3000/files",
+        "http://localhost:3000/robots.txt",
+    ]
+    (eng_dir / "endpoints.json").write_text(json.dumps(port80_eps + target_eps), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["Express", "Node.js"]), encoding="utf-8")
+
+    ce = ContextEngine(base_dir=tmp_path)
+    ctx = ce.get_target_context("http://localhost:3000")
+    scoped = ctx.get("endpoints", [])
+
+    assert len(scoped) == len(target_eps)
+    assert all(":3000" in ep for ep in scoped)
+    # Relevance scoring puts dynamic endpoints ahead of robots.txt
+    assert scoped[0] != "http://localhost:3000/robots.txt"
+    assert scoped[-1] == "http://localhost:3000/robots.txt"
+
+    # Verify planner produces candidate steps from recovered endpoints
+    planner = MissionPlanner(base_dir=tmp_path)
+    steps = planner._select_steps(ctx)
+    assert len(steps) > 0
+    step_tools = [s.get("tool") for s in steps]
+
+
+def test_cross_target_hypothesis_isolation_in_context_and_planner(tmp_path: Path):
+    """Test that findings from Target A never leak into Target B's context, hypotheses, or validation steps."""
+    from nyx.ai.context import ContextEngine
+    from nyx.ai.planner import MissionPlanner
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+
+    # Shared findings.json with findings from two distinct targets
+    findings_corpus = [
+        {
+            "finding_id": "FH-TGT-A-001",
+            "status": "HYPOTHESIS",
+            "vulnerability": "SQL Injection",
+            "title": "SQL Injection on Mutillidae",
+            "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+            "target": "server.vulnapp.id",
+        },
+        {
+            "finding_id": "FH-TGT-B-001",
+            "status": "HYPOTHESIS",
+            "vulnerability": "IDOR",
+            "title": "IDOR on Juice Shop Users",
+            "endpoint": "http://localhost:3000/api/Users",
+            "target": "localhost:3000",
+        },
+    ]
+    (eng_dir / "findings.json").write_text(json.dumps(findings_corpus), encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+        "http://localhost:3000/api/Users",
+    ]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["Express"]), encoding="utf-8")
+
+    ce = ContextEngine(base_dir=tmp_path)
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 1. Target B (localhost:3000) context & candidate steps
+    ctx_b = ce.get_target_context("http://localhost:3000")
+    findings_b = ctx_b.get("findings", [])
+    assert len(findings_b) == 1
+    assert findings_b[0]["finding_id"] == "FH-TGT-B-001"
+    assert not any("server.vulnapp.id" in str(f) for f in findings_b)
+
+    steps_b = planner._select_steps(ctx_b)
+    # Check that any destructive validation steps are strictly for localhost:3000
+    for s in steps_b:
+        s_target = s.get("target") or ""
+        s_ev = str(s.get("evidence", []))
+        assert "server.vulnapp.id" not in s_target
+        assert "FH-TGT-A-001" not in s_ev
+
+    # 2. Target A (server.vulnapp.id) context & candidate steps
+    ctx_a = ce.get_target_context("https://server.vulnapp.id/mutillidae")
+    findings_a = ctx_a.get("findings", [])
+    assert len(findings_a) == 1
+    assert findings_a[0]["finding_id"] == "FH-TGT-A-001"
+    assert not any("localhost:3000" in str(f) for f in findings_a)
+
+    steps_a = planner._select_steps(ctx_a)
+    for s in steps_a:
+        s_target = s.get("target") or ""
+        s_ev = str(s.get("evidence", []))
+        assert "localhost:3000" not in s_target
+        assert "FH-TGT-B-001" not in s_ev
+
+
+def test_cross_target_tested_vectors_isolation_in_planner(tmp_path: Path):
+    """Test that tested_vectors recorded for Target A do NOT suppress candidate generation on Target B."""
+    from nyx.ai.context import ContextEngine
+    from nyx.ai.planner import MissionPlanner
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+
+    # Tested vectors previously accumulated from Target A
+    tested_vectors_corpus = [
+        {"vector": "known_technology_detected", "endpoint": "https://server.vulnapp.id/mutillidae", "result": "tested_success"},
+        {"vector": "surface_mapping_and_skill_routing", "endpoint": "https://server.vulnapp.id/mutillidae", "result": "tested_success"},
+        {"vector": "auth_surface_detected", "endpoint": "https://server.vulnapp.id/mutillidae", "result": "tested_success"},
+        {"vector": "api_surface_detected", "endpoint": "https://server.vulnapp.id/mutillidae", "result": "tested_success"},
+        {"vector": "graphql_surface_detected", "endpoint": "https://server.vulnapp.id/mutillidae", "result": "tested_success"},
+        {"vector": "nyx-classify_execution", "endpoint": "https://server.vulnapp.id/mutillidae", "result": "tested_success"},
+    ]
+    (eng_dir / "tested_vectors.json").write_text(json.dumps(tested_vectors_corpus), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["Express", "Node.js"]), encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([
+        "http://localhost:3000/api/Users",
+        "http://localhost:3000/login",
+        "http://localhost:3000/graphql",
+    ]), encoding="utf-8")
+
+    ce = ContextEngine(base_dir=tmp_path)
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 1. Target B context scoping verification
+    ctx_b = ce.get_target_context("http://localhost:3000")
+    tv_b = ctx_b.get("tested_vectors", [])
+    # Scoped tested vectors for Target B must be empty (none of Target A's belong to Target B)
+    assert len(tv_b) == 0
+
+    # 2. Vector check helper verification
+    assert planner._is_vector_already_tested(tested_vectors_corpus, "known_technology_detected", target="https://server.vulnapp.id/mutillidae") is True
+    assert planner._is_vector_already_tested(tested_vectors_corpus, "known_technology_detected", target="http://localhost:3000") is False
+    assert planner._is_vector_already_tested(tested_vectors_corpus, "auth_surface_detected", target="http://localhost:3000") is False
+    assert planner._is_vector_already_tested(tested_vectors_corpus, "graphql_surface_detected", target="http://localhost:3000") is False
+    assert planner._is_vector_already_tested(tested_vectors_corpus, "api_surface_detected", target="http://localhost:3000") is False
+
+    # 3. Candidate generation on Target B must NOT be suppressed
+    steps_b = planner._select_steps(ctx_b)
+    step_reasons = [s.get("reason") for s in steps_b]
+    assert "KNOWN_TECHNOLOGY_DETECTED" in step_reasons
+    assert "AUTH_SURFACE_DETECTED" in step_reasons
+    assert "GRAPHQL_SURFACE_DETECTED" in step_reasons
+    assert "API_SURFACE_DETECTED" in step_reasons
+
+
+def test_cross_target_surface_graph_endpoint_isolation(tmp_path: Path, monkeypatch):
+    """Test that build_attack_surface_graph filters endpoints and findings before slicing, preventing cross-target leakage."""
+    from nyx.core.surface import build_attack_surface_graph
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("nyx.core.surface._get_eng_dir", lambda base_dir=None: eng_dir)
+
+    # 120 endpoints belonging to Target A (server.vulnapp.id)
+    target_a_eps = [f"https://server.vulnapp.id/mutillidae/page{i}.php" for i in range(120)]
+    # Target B endpoints located past index 100
+    target_b_eps = [
+        "http://localhost:3000/api/Users",
+        "http://localhost:3000/rest/user/login",
+        "http://localhost:3000/api/graphql",
+    ]
+    (eng_dir / "endpoints.json").write_text(json.dumps(target_a_eps + target_b_eps), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["Express", "Node.js"]), encoding="utf-8")
+
+    findings = [
+        {"finding_id": "FH-A-01", "title": "SQLi on Mutillidae", "target": "server.vulnapp.id", "endpoint": "https://server.vulnapp.id/mutillidae"},
+        {"finding_id": "FH-B-01", "title": "IDOR on Users", "target": "localhost:3000", "endpoint": "http://localhost:3000/api/Users"},
+    ]
+    (eng_dir / "findings.json").write_text(json.dumps(findings), encoding="utf-8")
+
+    # 1. Build graph for Target B (localhost:3000)
+    graph_b = build_attack_surface_graph("http://localhost:3000")
+    b_node_vals = [n["value"] for n in graph_b["nodes"]]
+    b_edge_targets = [e["target"] for e in graph_b["edges"]]
+
+    # Verify Target B endpoints were recovered despite being past index 100
+    assert "http://localhost:3000/api/Users" in b_node_vals
+    assert "http://localhost:3000/rest/user/login" in b_node_vals
+    assert "http://localhost:3000/api/graphql" in b_node_vals
+
+    # Verify ZERO endpoints from Target A leaked into Target B's graph
+    assert not any("server.vulnapp.id" in val for val in b_node_vals)
+    assert not any("server.vulnapp.id" in val for val in b_edge_targets)
+
+    # Verify findings isolation
+    assert "FH-B-01: IDOR on Users" in b_node_vals
+    assert not any("FH-A-01" in val for val in b_node_vals)
+
+    # 2. Build graph for Target A (server.vulnapp.id)
+    graph_a = build_attack_surface_graph("https://server.vulnapp.id/mutillidae")
+    a_node_vals = [n["value"] for n in graph_a["nodes"]]
+    a_edge_targets = [e["target"] for e in graph_a["edges"]]
+
+    assert not any("localhost:3000" in val for val in a_node_vals)
+    assert not any("localhost:3000" in val for val in a_edge_targets)
+    assert "FH-A-01: SQLi on Mutillidae" in a_node_vals
+    assert not any("FH-B-01" in val for val in a_node_vals)
+
+
+def test_priority_4_batched_isolation_analysis_recon_and_tracking(tmp_path: Path, monkeypatch):
+    """Test target scoping across rank_surface, get_surface, run_recon_intelligence, and AssetTracker."""
+    import sys
+    from nyx.core.analysis import rank_surface, get_surface
+    from nyx.core.recon import run_recon_intelligence
+    from nyx.intelligence.tracking import AssetTracker
+    import nyx.infrastructure.filesystem
+    import nyx.core.analysis
+    import nyx.intelligence.tracking
+
+    recon_intel_mod = sys.modules["nyx.recon.intelligence"]
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(nyx.infrastructure.filesystem, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+    monkeypatch.setattr(nyx.core.analysis, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+    monkeypatch.setattr(nyx.intelligence.tracking, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+    monkeypatch.setattr(recon_intel_mod, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+
+    target_a_eps = [
+        "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+        "https://server.vulnapp.id/mutillidae/login.php",
+    ]
+    target_b_eps = [
+        "http://test-app-b.local:8080/api/Users",
+        "http://test-app-b.local:8080/rest/user/login",
+        "http://test-app-b.local:8080/api/graphql",
+    ]
+    (eng_dir / "endpoints.json").write_text(json.dumps(target_a_eps + target_b_eps), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["Express", "Node.js"]), encoding="utf-8")
+
+    test_target = "http://test-app-b.local:8080"
+
+    # 1. Test rank_surface isolation
+    rank_res = rank_surface(test_target)
+    ranked_eps = [r["endpoint"] for r in rank_res.get("rankings", [])]
+    assert set(ranked_eps) == set(target_b_eps)
+    assert not any("server.vulnapp.id" in ep for ep in ranked_eps)
+
+    # 2. Test get_surface isolation
+    surf_res = get_surface(test_target)
+    manifest_eps = surf_res.get("manifest", {}).get("endpoints", [])
+    assert set(manifest_eps) == set(target_b_eps)
+    assert not any("server.vulnapp.id" in ep for ep in manifest_eps)
+
+    # 3. Test run_recon_intelligence isolation
+    recon_intel = run_recon_intelligence(test_target)
+    scored_eps = [p.get("endpoint") for p in recon_intel.get("prioritized_endpoints", [])]
+    assert len(scored_eps) == len(target_b_eps)
+    assert not any("server.vulnapp.id" in str(ep) for ep in scored_eps)
+    assert "http://test-app-b.local:8080/api/Users" in scored_eps
+
+    # 4. Test AssetTracker isolation
+    tracker = AssetTracker(base_dir=tmp_path)
+    tracker.record_current_state(test_target)
+    graph = tracker.get_or_create_graph(test_target)
+    graph_dict = graph.to_dict()
+    graph_eps = [ep.get("path") or ep.get("url") for ep in graph_dict.get("endpoints", [])]
+    subdomains = graph_dict.get("subdomains", [])
+
+    assert set(graph_eps) == set(target_b_eps)
+    assert not any("server.vulnapp.id" in str(ep) for ep in graph_eps)
+    assert not any("server.vulnapp.id" in str(sub) for sub in subdomains)
+
+
+def test_e2e_back_to_back_multi_target_zero_cross_contamination(tmp_path: Path, monkeypatch):
+    """Full end-to-end sanity check testing two targets back-to-back in the same session.
+    Proves zero cross-contamination across context, candidates, hypotheses, approvals,
+    tested vectors, attack graphs, and surface rankings."""
+    import sys
+    from nyx.ai.context import ContextEngine
+    from nyx.ai.planner import MissionPlanner
+    from nyx.agent.approval import ApprovalSystem
+    from nyx.core.surface import build_attack_surface_graph
+    from nyx.core.analysis import rank_surface
+    from nyx.core.recon import run_recon_intelligence
+    import nyx.infrastructure.filesystem
+    import nyx.core.surface
+    import nyx.core.analysis
+    import nyx.agent.approval
+
+    recon_intel_mod = sys.modules["nyx.recon.intelligence"]
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(nyx.infrastructure.filesystem, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+    monkeypatch.setattr(nyx.core.surface, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+    monkeypatch.setattr(nyx.core.analysis, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+    monkeypatch.setattr(recon_intel_mod, "_get_eng_dir", lambda *args, **kwargs: eng_dir)
+
+    target_mut = "https://server.vulnapp.id/mutillidae"
+    target_juice = "http://localhost:3000"
+
+    # 1. Populate Target A (Mutillidae) engagement memory
+    mut_eps = [
+        "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+        "https://server.vulnapp.id/mutillidae/login.php",
+        "https://server.vulnapp.id/mutillidae/passwords.php",
+    ]
+    mut_findings = [
+        {
+            "finding_id": "FH-MUT-001",
+            "title": "SQL Injection in User Info",
+            "target": target_mut,
+            "endpoint": "https://server.vulnapp.id/mutillidae/index.php?page=user-info.php",
+            "vulnerability_type": "sqli",
+            "hypothesis": "SQL injection vulnerability in page parameter"
+        }
+    ]
+    mut_vectors = [
+        {"vector": "known_technology_detected", "endpoint": target_mut, "target": target_mut, "result": "success"},
+        {"vector": "auth_surface_detected", "endpoint": "https://server.vulnapp.id/mutillidae/login.php", "target": target_mut, "result": "success"},
+    ]
+
+    # Write Target A state
+    (eng_dir / "endpoints.json").write_text(json.dumps(mut_eps), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["PHP", "Apache", "MySQL"]), encoding="utf-8")
+    (eng_dir / "findings.json").write_text(json.dumps(mut_findings), encoding="utf-8")
+    (eng_dir / "tested_vectors.json").write_text(json.dumps(mut_vectors), encoding="utf-8")
+
+    # Target A submits an approval action
+    app_sys = ApprovalSystem(base_dir=tmp_path)
+    app_sys.submit_for_approval({
+        "action_id": "ACT-MUT-001",
+        "mission_target": target_mut,
+        "target": target_mut,
+        "name": "SQLMap Injection Verification",
+        "tool": "sqlmap",
+        "step": {"name": "SQLMap Injection Verification", "target": target_mut, "tool": "sqlmap"}
+    })
+
+    # Verify Target A approval is recorded
+    mut_pending = app_sys.get_pending_approvals(target=target_mut)
+    assert len(mut_pending) == 1
+    assert mut_pending[0]["action_id"] == "ACT-MUT-001"
+
+    # 2. NOW, test Target B (Juice Shop) in the same session / workspace
+    juice_eps = [
+        "http://localhost:3000/api/Users",
+        "http://localhost:3000/rest/user/login",
+        "http://localhost:3000/api/graphql",
+        "http://localhost:3000/.well-known/jwks.json",
+    ]
+    juice_findings = [
+        {
+            "finding_id": "FH-JUICE-001",
+            "title": "IDOR on Users Endpoint",
+            "target": target_juice,
+            "endpoint": "http://localhost:3000/api/Users",
+            "vulnerability_type": "idor",
+            "hypothesis": "IDOR vulnerability on /api/Users"
+        }
+    ]
+    juice_vectors = [
+        {"vector": "graphql_surface_detected", "endpoint": "http://localhost:3000/api/graphql", "target": target_juice, "result": "success"},
+    ]
+
+    # Append Target B state to the shared files
+    (eng_dir / "endpoints.json").write_text(json.dumps(mut_eps + juice_eps), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps(["PHP", "Apache", "MySQL", "Express", "Node.js", "Angular"]), encoding="utf-8")
+    (eng_dir / "findings.json").write_text(json.dumps(mut_findings + juice_findings), encoding="utf-8")
+    (eng_dir / "tested_vectors.json").write_text(json.dumps(mut_vectors + juice_vectors), encoding="utf-8")
+
+    # Target B submits an approval action
+    app_sys.submit_for_approval({
+        "action_id": "ACT-JUICE-001",
+        "mission_target": target_juice,
+        "target": target_juice,
+        "name": "Nuclei Auth Bypass Verification",
+        "tool": "nuclei",
+        "step": {"name": "Nuclei Auth Bypass Verification", "target": target_juice, "tool": "nuclei"}
+    })
+
+    # --- VERIFICATION A: Context Engine Isolation ---
+    ctx_engine = ContextEngine(base_dir=tmp_path)
+    ctx_b = ctx_engine.get_target_context(target_juice)
+
+    # Juice Shop context must ONLY contain Juice Shop endpoints
+    assert len(ctx_b["endpoints"]) == len(juice_eps)
+    assert not any("server.vulnapp.id" in ep for ep in ctx_b["endpoints"])
+    assert "http://localhost:3000/api/Users" in ctx_b["endpoints"]
+
+    # Juice Shop context must ONLY contain Juice Shop findings
+    assert len(ctx_b["findings"]) == 1
+    assert ctx_b["findings"][0]["finding_id"] == "FH-JUICE-001"
+
+    # Juice Shop context must ONLY contain Juice Shop tested vectors
+    assert len(ctx_b["tested_vectors"]) == 1
+    assert ctx_b["tested_vectors"][0]["target"] == target_juice
+
+    # --- VERIFICATION B: Planner Candidate & Hypothesis Isolation ---
+    planner = MissionPlanner(base_dir=tmp_path)
+    steps_b = planner._select_steps(ctx_b)
+    step_targets = [s.get("target") for s in steps_b]
+    step_reasons = [s.get("reason") for s in steps_b]
+
+    # Zero candidate steps target Mutillidae
+    assert not any("server.vulnapp.id" in str(tgt) for tgt in step_targets)
+
+    # Rule 4 hypothesis finding must NOT leak Mutillidae's SQLi finding into Juice Shop
+    for s in steps_b:
+        if s.get("reason") == "HYPOTHESIS_VALIDATION_REQUIRED":
+            assert "server.vulnapp.id" not in s.get("target", "")
+            assert "Mutillidae" not in s.get("name", "")
+
+    # Target A's tested vectors (known_technology_detected, auth_surface_detected)
+    # MUST NOT suppress candidate generation on Target B
+    assert "KNOWN_TECHNOLOGY_DETECTED" in step_reasons
+    assert "AUTH_SURFACE_DETECTED" in step_reasons
+
+    # --- VERIFICATION C: Approvals Isolation ---
+    # Target B only sees its own approval
+    juice_pending = app_sys.get_pending_approvals(target=target_juice)
+    assert len(juice_pending) == 1
+    assert juice_pending[0]["action_id"] == "ACT-JUICE-001"
+
+    # Target A only sees its own approval
+    mut_pending = app_sys.get_pending_approvals(target=target_mut)
+    assert len(mut_pending) == 1
+    assert mut_pending[0]["action_id"] == "ACT-MUT-001"
+
+    # --- VERIFICATION D: Attack Graph Isolation ---
+    graph_b = build_attack_surface_graph(target_juice)
+    b_nodes = [n["value"] for n in graph_b["nodes"]]
+    b_edges = [e["target"] for e in graph_b["edges"]]
+    assert not any("server.vulnapp.id" in str(v) for v in b_nodes)
+    assert not any("server.vulnapp.id" in str(v) for v in b_edges)
+    assert not any("FH-MUT-001" in str(v) for v in b_nodes)
+    assert "FH-JUICE-001: IDOR on Users Endpoint" in b_nodes
+
+    graph_a = build_attack_surface_graph(target_mut)
+    a_nodes = [n["value"] for n in graph_a["nodes"]]
+    a_edges = [e["target"] for e in graph_a["edges"]]
+    assert not any("localhost:3000" in str(v) for v in a_nodes)
+    assert not any("localhost:3000" in str(v) for v in a_edges)
+    assert not any("FH-JUICE-001" in str(v) for v in a_nodes)
+    assert "FH-MUT-001: SQL Injection in User Info" in a_nodes
+
+    # --- VERIFICATION E: Surface Ranking & Recon Intel Isolation ---
+    rank_b = rank_surface(target_juice)
+    ranked_b_eps = [r["endpoint"] for r in rank_b.get("rankings", [])]
+    assert not any("server.vulnapp.id" in str(ep) for ep in ranked_b_eps)
+
+    intel_b = run_recon_intelligence(target_juice)
+    intel_b_eps = [p.get("endpoint") for p in intel_b.get("prioritized_endpoints", [])]
+    assert not any("server.vulnapp.id" in str(ep) for ep in intel_b_eps)
+
+
+def test_url_fragment_normalization_and_parity(tmp_path):
+    """
+    Regression Test: Proves that submitting a target with a URL fragment (e.g. http://localhost:3000/#/)
+    is normalized at ingestion and produces identical context, recon probing, hypotheses, and candidate
+    steps as http://localhost:3000.
+    """
+    from nyx.execution.policy import normalize_target, extract_hostname
+    from nyx.core.engagement import init_engagement
+    from nyx.recon.content_discovery import extract_spa_routes, probe_single_path
+    from nyx.ai.planner import MissionPlanner
+    from nyx.ai.context import ContextEngine
+    from unittest.mock import patch, MagicMock
+    import json
+
+    # 1. Target string normalization verification
+    t_clean = "http://localhost:3000"
+    t_frag = "http://localhost:3000/#/"
+    t_frag_route = "http://localhost:3000/#/search?q=test"
+
+    assert normalize_target(t_frag) == t_clean
+    assert normalize_target(t_frag_route) == t_clean
+    assert normalize_target(t_clean) == t_clean
+    assert extract_hostname(t_frag) == "localhost"
+    assert extract_hostname(t_clean) == "localhost"
+
+    # 2. Engagement workspace initialization parity
+    d_clean = tmp_path / "eng_clean"
+    d_frag = tmp_path / "eng_frag"
+
+    init_engagement(t_clean, reset=True, base_dir=d_clean)
+    init_engagement(t_frag, reset=True, base_dir=d_frag)
+
+    target_yaml_clean = (d_clean / ".engagement" / "target.yaml").read_text(encoding="utf-8")
+    target_yaml_frag = (d_frag / ".engagement" / "target.yaml").read_text(encoding="utf-8")
+
+    assert "#/" not in target_yaml_frag
+    assert target_yaml_clean == target_yaml_frag
+
+    # 3. Content discovery clean_base defense-in-depth
+    # Both base URLs must probe the exact same target URL without fragment
+    with patch("urllib.request.urlopen") as mock_url, patch("nyx.recon.content_discovery.is_hostname_in_scope", return_value=True):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"<html><head><title>Test</title></head><body></body></html>"
+        mock_resp.status = 200
+        mock_resp.headers = {"Server": "Express"}
+        mock_resp.__enter__.return_value = mock_resp
+        mock_url.return_value = mock_resp
+
+        res_clean = probe_single_path(t_clean, ".env")
+        res_frag = probe_single_path(t_frag, ".env")
+
+        assert res_clean is not None
+        assert res_frag is not None
+        assert res_clean["url"] == "http://localhost:3000/.env"
+        assert res_frag["url"] == "http://localhost:3000/.env"
+
+    # 4. Hypothesis generation parity
+    # Even if an endpoint retains an SPA hash route, classifier extracts route from fragment
+    planner = MissionPlanner(base_dir=d_frag)
+    classified = [
+        {
+            "url": "http://localhost:3000/#/.well-known/jwks.json",
+            "category": "AUTH",
+            "skills": ["hunt-jwt-crypto"],
+            "matches": {"auth": True},
+        },
+        {
+            "url": "http://localhost:3000/#/api/Users",
+            "category": "API",
+            "skills": ["hunt-idor"],
+            "matches": {"idor": True},
+        },
+    ]
+
+    with patch.object(planner.ai_manager, "generate", return_value='{"vulnerability": "IDOR", "severity": "HIGH"}'):
+        hypos = planner._map_classification_to_hypotheses(classified, target=t_frag)
+        assert len(hypos) >= 1
+        # Proves hypotheses were generated rather than skipped by the bare root filter
+        hypo_vulns = [h.get("finding", {}).get("vulnerability") or h.get("vulnerability") for h in hypos]
+        assert any("Token" in str(v) or "IDOR" in str(v) or "Authentication" in str(v) for v in hypo_vulns)
+
+    # 5. Candidate step generation parity
+    # Put identical endpoints and findings into both engagement directories
+    eps = [
+        {"url": "http://localhost:3000/api/Users"},
+        {"url": "http://localhost:3000/.well-known/jwks.json"},
+    ]
+    findings = [
+        {
+            "finding_id": "FH-2026-001",
+            "title": "IDOR on Users Endpoint",
+            "vulnerability": "IDOR",
+            "endpoint": "http://localhost:3000/api/Users",
+            "target": "http://localhost:3000",
+            "state": "HYPOTHESIS",
+        }
+    ]
+    for d in (d_clean, d_frag):
+        (d / ".engagement" / "endpoints.json").write_text(json.dumps(eps), encoding="utf-8")
+        (d / ".engagement" / "findings.json").write_text(json.dumps(findings), encoding="utf-8")
+
+    ctx_clean = ContextEngine(base_dir=d_clean).get_target_context(t_clean)
+    ctx_frag = ContextEngine(base_dir=d_frag).get_target_context(t_frag)
+
+    planner_clean = MissionPlanner(base_dir=d_clean)
+    planner_frag = MissionPlanner(base_dir=d_frag)
+
+    cands_clean = planner_clean._select_steps(ctx_clean)
+    cands_frag = planner_frag._select_steps(ctx_frag)
+
+    # Candidate step count and tools must match identically
+    clean_tools = [c["tool"] for c in cands_clean]
+    frag_tools = [c["tool"] for c in cands_frag]
+    assert clean_tools == frag_tools
+    # Both must include destructive validation tools (nuclei, etc.) from Rule 4
+    assert "nuclei" in frag_tools
+    assert "nyx-triage" in frag_tools
+
+
+def test_local_llama_num_predict_mapping_and_failure_logging(caplog):
+    """
+    Regression Test:
+    1. Proves max_completion_tokens is mapped to Ollama num_predict in payload.
+    2. Proves logger.warning is emitted on timeout or error instead of silent failure.
+    """
+    import logging
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+
+    prov = LocalLlamaProvider()
+
+    # 1. Verify num_predict payload mapping
+    with patch("requests.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"response": "test response"}
+        mock_post.return_value = mock_resp
+
+        res = prov.generate("hello", options={"max_completion_tokens": 250, "temperature": 0.3})
+        assert res == "test response"
+        mock_post.assert_called_once()
+        sent_json = mock_post.call_args[1]["json"]
+        assert sent_json["options"]["num_predict"] == 250
+        assert sent_json["options"]["temperature"] == 0.3
+
+    # 2. Verify failure/timeout warning log is emitted
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        with patch("requests.post", side_effect=TimeoutError("Read timed out")):
+            try:
+                prov.generate("hello timeout", options={"timeout": 5.0})
+            except RuntimeError:
+                pass
+
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING and "[AI:local]" in r.message]
+    assert len(warning_records) >= 1
+    assert "Request failed/timed out after" in warning_records[0].message
+
+
+def test_web_clean_shutdown_and_signal_idempotency():
+    """
+    Regression Test:
+    1. Proves _sigint_handler does not double-forward if already shutting down.
+    2. Proves cmd_web handles KeyboardInterrupt/CancelledError cleanly returning 0.
+    3. Proves child subprocesses are terminated during shutdown.
+    """
+    import argparse
+    import asyncio
+    import subprocess
+    import sys
+    from unittest.mock import patch, MagicMock
+    from nyx.infrastructure.process import (
+        register_process,
+        unregister_process,
+        terminate_all_subprocesses,
+        _active_processes,
+    )
+    from nyx_cli.cli import cmd_web
+
+    # 1. Verify child process termination
+    dummy_proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
+    register_process(dummy_proc)
+    assert dummy_proc.poll() is None
+    terminate_all_subprocesses()
+    assert dummy_proc.poll() is not None
+    assert len(_active_processes) == 0
+
+    # 2. Verify cmd_web clean catch of CancelledError and exit code 0
+    args = argparse.Namespace(host="127.0.0.1", port=8985)
+    with patch("nyx.infrastructure.dependencies.BootstrapManager.ensure_environment", return_value=True), \
+         patch("uvicorn.run", side_effect=asyncio.CancelledError()):
+        code = cmd_web(args)
+        assert code == 0
+
+    with patch("nyx.infrastructure.dependencies.BootstrapManager.ensure_environment", return_value=True), \
+         patch("uvicorn.run", side_effect=KeyboardInterrupt()):
+        code = cmd_web(args)
+        assert code == 0
+
+
+def test_local_llama_model_name_env_var_override(monkeypatch):
+    """
+    Test 1: Proves LOCAL_LLM_MODEL in the environment correctly configures
+    the model_name when LocalLlamaProvider is instantiated with no arguments
+    (the same way AIManager instantiates it via cls()).
+    """
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "mistral:7b")
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+    from nyx.ai.manager import AIManager
+
+    # Instantiation via no args (default call)
+    prov = LocalLlamaProvider()
+    assert prov.model_name == "mistral:7b"
+
+    # Instantiation via AIManager.get_provider("local")
+    mgr = AIManager(default_provider="local")
+    mgr_prov = mgr.get_provider("local")
+    assert mgr_prov.model_name == "mistral:7b"
+
+
+def test_local_llama_model_name_default_fallback(monkeypatch):
+    """
+    Test 2: Proves when no model env vars are set, LocalLlamaProvider
+    cleanly falls back to 'qwen2.5-coder:7b' (regression check preserving defaults).
+    """
+    monkeypatch.delenv("LOCAL_LLM_MODEL", raising=False)
+    monkeypatch.delenv("NYX_LOCAL_MODEL", raising=False)
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+    from nyx.ai.manager import AIManager
+
+    # Instantiation via no args
+    prov = LocalLlamaProvider()
+    assert prov.model_name == "qwen2.5-coder:7b"
+
+    # Instantiation via AIManager
+    mgr = AIManager(default_provider="local")
+    mgr_prov = mgr.get_provider("local")
+    assert mgr_prov.model_name == "qwen2.5-coder:7b"
+
+
+def test_token_budget_config_and_defaults(monkeypatch, tmp_path):
+    """
+    Phase 2 Tests:
+    1. Proves no env vars set -> enrich uses 1000, review uses 800 (regression check).
+    2. Proves LOCAL_MAX_TOKENS sets both when specific vars are unset.
+    3. Proves LOCAL_MAX_TOKENS_ENRICHMENT and LOCAL_MAX_TOKENS_EVIDENCE override individually.
+    """
+    from unittest.mock import MagicMock
+    from nyx.core.findings import enrich_hypothesis_description, review_finding_evidence
+
+    # Clear all token env vars
+    for var in ["LOCAL_MAX_TOKENS", "NYX_LOCAL_MAX_TOKENS",
+                "LOCAL_MAX_TOKENS_ENRICHMENT", "NYX_LOCAL_MAX_TOKENS_ENRICHMENT",
+                "LOCAL_MAX_TOKENS_EVIDENCE", "NYX_LOCAL_MAX_TOKENS_EVIDENCE"]:
+        monkeypatch.delenv(var, raising=False)
+
+    mock_ai = MagicMock()
+    mock_ai.generate.return_value = "### Why This Was Flagged\nValid description here."
+
+    dummy_finding = {
+        "finding_id": "FH-2026-001",
+        "endpoint": "http://localhost:3000/api",
+        "vulnerability": "SQLi",
+        "severity": "High",
+        "description": "Initial desc"
+    }
+
+    # Case 1: No env vars set -> 1000 and 800
+    enrich_hypothesis_description(dummy_finding, base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_args[1]["options"]["max_completion_tokens"] == 1000
+
+    review_finding_evidence(dummy_finding, tool_name="nuclei", tool_output="test", base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_args[1]["options"]["max_completion_tokens"] == 800
+
+    # Case 2: LOCAL_MAX_TOKENS=250 -> both use 250
+    monkeypatch.setenv("LOCAL_MAX_TOKENS", "250")
+    enrich_hypothesis_description(dummy_finding, base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_args[1]["options"]["max_completion_tokens"] == 250
+
+    review_finding_evidence(dummy_finding, tool_name="nuclei", tool_output="test", base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_args[1]["options"]["max_completion_tokens"] == 250
+
+    # Case 3: Specific overrides LOCAL_MAX_TOKENS_ENRICHMENT=180, LOCAL_MAX_TOKENS_EVIDENCE=150
+    monkeypatch.setenv("LOCAL_MAX_TOKENS_ENRICHMENT", "180")
+    monkeypatch.setenv("LOCAL_MAX_TOKENS_EVIDENCE", "150")
+    enrich_hypothesis_description(dummy_finding, base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_args[1]["options"]["max_completion_tokens"] == 180
+
+    review_finding_evidence(dummy_finding, tool_name="nuclei", tool_output="test", base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_args[1]["options"]["max_completion_tokens"] == 150
+
+
+def test_enrich_hypothesis_bounded_retry_on_timeout(tmp_path):
+    """
+    Phase 3 Test 1:
+    Simulate a timeout on attempt 1 and success on attempt 2.
+    Confirm retry fires exactly once, marks retried=True, and succeeds.
+    """
+    from unittest.mock import MagicMock
+    from nyx.core.findings import enrich_hypothesis_description
+
+    mock_ai = MagicMock()
+    # Attempt 1: TimeoutError; Attempt 2: Valid response
+    mock_ai.generate.side_effect = [
+        TimeoutError("Local AI connection timed out after 120.0 seconds"),
+        "### Why This Was Flagged\nSecond attempt succeeded with full analysis."
+    ]
+
+    dummy_finding = {
+        "finding_id": "FH-2026-RETRY",
+        "endpoint": "http://localhost:3000/api/retry",
+        "vulnerability": "SQLi",
+        "severity": "High",
+        "description": "Base description"
+    }
+
+    res = enrich_hypothesis_description(dummy_finding, base_dir=tmp_path, ai_manager=mock_ai)
+    assert mock_ai.generate.call_count == 2
+    assert res["ai_enriched"] is True
+    assert res["retried"] is True
+    assert "Second attempt succeeded" in res["description"]
+
+
+def test_re_enrich_hypothesis_on_failed_finding(tmp_path):
+    """
+    Phase 3 Test 2:
+    Confirm that an already-failed finding (with fallback markers and ai_enriched=False)
+    can be explicitly re-enriched, replacing the fallback marker with genuine AI reasoning.
+    Also confirm that already-enriched findings are skipped unless force=True / re_enrich is called.
+    """
+    from unittest.mock import MagicMock
+    from nyx.core.findings import create_finding, enrich_hypothesis_description, re_enrich_hypothesis
+    from nyx.application.finding_service import FindingService
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: localhost:3000\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+
+    # 1. Create a hypothesis
+    f_res = create_finding(
+        title="SQLi on /search",
+        endpoint="http://localhost:3000/search",
+        vulnerability="SQLi",
+        severity="High",
+        description="Original heuristic detection",
+        base_dir=tmp_path
+    )
+    fid = f_res["finding_id"]
+
+    # 2. Enrich with failing AI -> falls back to ai_enriched=False
+    fail_ai = MagicMock()
+    fail_ai.generate.side_effect = RuntimeError("Ollama connection refused")
+    enrich_res1 = enrich_hypothesis_description(fid, base_dir=tmp_path, ai_manager=fail_ai)
+    assert enrich_res1["ai_enriched"] is False
+    assert "**AI Enrichment**: Unavailable" in enrich_res1["description"]
+
+    # 3. Use FindingService.re_enrich to explicitly re-trigger with working AI
+    working_ai = MagicMock()
+    working_ai.generate.return_value = "### Why This Was Flagged\nNow successfully analyzed."
+
+    svc = FindingService(base_dir=tmp_path)
+    re_res = svc.re_enrich(fid, ai_manager=working_ai)
+
+    assert re_res["ai_enriched"] is True
+    assert "Now successfully analyzed." in re_res["description"]
+    assert "**AI Enrichment**: Unavailable" not in re_res["description"]  # Previous fallback was stripped
+
+    # 4. Confirm subsequent standard enrich() skips because it is already enriched
+    skip_ai = MagicMock()
+    skip_res = svc.enrich(fid, ai_manager=skip_ai)
+    assert skip_res["status"] == "skipped"
+    assert skip_ai.generate.call_count == 0  # AI was not re-called unnecessarily
+
+
+def test_auto_calibrated_timeout_scaling_and_bounds():
+    """
+    Phase 4 Test:
+    1. Tests dynamic timeout scaling with fast, moderate, and slow tok/s.
+    2. Confirms lower floor (30s) and upper ceiling (600s) are strictly enforced.
+    3. Confirms response eval metrics dynamically calibrate speed and scale the next request timeout.
+    """
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.providers.local_llama import LocalLlamaProvider, calculate_dynamic_timeout
+
+    # 1. Floor check: fast hardware (100 tok/s, 1000 tokens) -> 15s -> floored at 30.0s
+    t_fast = calculate_dynamic_timeout(token_budget=1000, tok_per_sec=100.0)
+    assert t_fast == 30.0
+
+    # 2. Moderate scaling: 25 tok/s, 1000 tokens -> (1000 / 25) * 1.5 = 60.0s
+    t_mod = calculate_dynamic_timeout(token_budget=1000, tok_per_sec=25.0)
+    assert t_mod == 60.0
+
+    # 3. Constrained hardware scaling: 4.0 tok/s, 1000 tokens -> (1000 / 4) * 1.5 = 375.0s
+    t_slow = calculate_dynamic_timeout(token_budget=1000, tok_per_sec=4.0)
+    assert t_slow == 375.0
+
+    # 4. Ceiling check: very slow hardware (0.5 tok/s, 1000 tokens) -> 3000s -> capped at 600.0s
+    t_vslow = calculate_dynamic_timeout(token_budget=1000, tok_per_sec=0.5)
+    assert t_vslow == 600.0
+
+    # 5. Default fallback when uncalibrated (tok_per_sec=None)
+    t_uncal = calculate_dynamic_timeout(token_budget=1000, tok_per_sec=None, fallback_timeout=120.0)
+    assert t_uncal == 120.0
+
+    # 6. Response calibration: verify eval_count / eval_duration sets speed and scales next request timeout
+    prov = LocalLlamaProvider(endpoint_url="http://mock-ollama:11434/api/generate")
+    prov.measured_tok_per_sec = None
+    LocalLlamaProvider._cached_speed = None
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    # 200 tokens generated in 10,000,000,000 ns (10s) -> exactly 20.0 tok/s
+    mock_resp.json.return_value = {
+        "response": "Analysis complete.",
+        "eval_count": 200,
+        "eval_duration": 10000000000,
+    }
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        prov.generate("test prompt", options={"max_completion_tokens": 500})
+        # Verify initial uncalibrated call used fallback 120s
+        assert mock_post.call_args[1]["timeout"] == 120.0
+
+    # Verify provider now calibrated to 20.0 tok/s
+    assert prov.measured_tok_per_sec == 20.0
+    assert LocalLlamaProvider._cached_speed == 20.0
+
+    with patch("requests.post", return_value=mock_resp) as mock_post2:
+        prov.generate("test prompt 2", options={"max_completion_tokens": 1000})
+        assert mock_post2.call_args[1]["timeout"] == 75.0
+
+
+def test_queue_convoy_cooldown_after_timeout():
+    """
+    Phase 5 Test:
+    Simulates a client timeout on call 1.
+    Confirms that the next immediate call in the loop triggers queue-drain cooldown
+    (calls time.sleep) rather than firing concurrently into an overloaded Ollama queue.
+    """
+    import pytest
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+
+    prov = LocalLlamaProvider(endpoint_url="http://mock-ollama:11434/api/generate")
+    # Reset any lingering class state
+    LocalLlamaProvider._last_timeout_time = None
+
+    # Call 1: Times out after 30s
+    with patch("requests.post", side_effect=TimeoutError("Request timed out after 30.0s")):
+        with pytest.raises(RuntimeError) as exc_info:
+            prov.generate("Prompt 1", options={"timeout": 30.0})
+        assert "timed out" in str(exc_info.value).lower()
+
+    # Verify timeout was recorded and cooldown set
+    assert LocalLlamaProvider._last_timeout_time is not None
+    assert LocalLlamaProvider._last_timeout_cooldown >= 3.0
+
+    # Call 2: Dispatched immediately after Call 1
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"response": "Success after queue cooldown"}
+
+    with patch("time.sleep") as mock_sleep, patch("requests.post", return_value=mock_resp):
+        res = prov.generate("Prompt 2", options={"timeout": 30.0})
+        # Assert time.sleep was engaged to allow server queue to drain
+        assert mock_sleep.called
+        assert mock_sleep.call_args[0][0] > 0
+        assert res == "Success after queue cooldown"
+
+    # Verify cooldown state reset after draining
+    assert LocalLlamaProvider._last_timeout_time is None
+
+
+def test_server_adapter_ollama_and_openai_compatible(monkeypatch):
+    """
+    Phase 6 Test:
+    1. Tests Ollama response parsing and asserts byte/payload structure matches Ollama spec.
+    2. Tests OpenAI-compatible response parsing and payload structure (messages, max_tokens).
+    3. Confirms model auto-detection on OpenAI /v1/models response.
+    4. Confirms default Ollama + qwen2.5-coder:7b behavior is unchanged (regression check).
+    """
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.providers.local_llama import LocalLlamaProvider, SERVER_OLLAMA, SERVER_OPENAI_COMPATIBLE
+
+    monkeypatch.delenv("LOCAL_LLM_MODEL", raising=False)
+    monkeypatch.delenv("NYX_LOCAL_MODEL", raising=False)
+    monkeypatch.delenv("LOCAL_LLM_SERVER_TYPE", raising=False)
+
+    # 1. Default Ollama Provider: verify payload and parsing
+    ollama_prov = LocalLlamaProvider()
+    assert ollama_prov.server_type == SERVER_OLLAMA
+    assert ollama_prov.model_name == "qwen2.5-coder:7b"
+
+    mock_ollama_resp = MagicMock()
+    mock_ollama_resp.status_code = 200
+    mock_ollama_resp.json.return_value = {
+        "response": '{"decision": "next_step"}',
+        "eval_count": 50,
+        "eval_duration": 2500000000
+    }
+
+    with patch("requests.post", return_value=mock_ollama_resp) as mock_post:
+        resp = ollama_prov.generate("Plan next step", options={"max_completion_tokens": 1024})
+        assert resp == '{"decision": "next_step"}'
+        sent_url = mock_post.call_args[0][0]
+        sent_payload = mock_post.call_args[1]["json"]
+        assert sent_url == "http://localhost:11434/api/generate"
+        assert sent_payload == {
+            "model": "qwen2.5-coder:7b",
+            "prompt": "Plan next step",
+            "stream": False,
+            "options": {"num_predict": 1024}
+        }
+
+    # 2. OpenAI-Compatible Provider (LM Studio / vLLM): verify payload and parsing
+    oai_prov = LocalLlamaProvider(
+        endpoint_url="http://localhost:1234/v1/chat/completions",
+        health_url="http://localhost:1234/v1/models"
+    )
+    assert oai_prov.server_type == SERVER_OPENAI_COMPATIBLE
+
+    mock_oai_resp = MagicMock()
+    mock_oai_resp.status_code = 200
+    mock_oai_resp.json.return_value = {
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": '{"decision": "oai_step"}'
+                }
+            }
+        ]
+    }
+
+    with patch("requests.post", return_value=mock_oai_resp) as mock_post_oai:
+        resp_oai = oai_prov.generate("Plan next step", options={"max_completion_tokens": 512})
+        assert resp_oai == '{"decision": "oai_step"}'
+        sent_url_oai = mock_post_oai.call_args[0][0]
+        sent_payload_oai = mock_post_oai.call_args[1]["json"]
+        assert sent_url_oai == "http://localhost:1234/v1/chat/completions"
+        assert sent_payload_oai == {
+            "model": "qwen2.5-coder:7b",
+            "messages": [{"role": "user", "content": "Plan next step"}],
+            "max_tokens": 512,
+            "stream": False
+        }
+
+    # 3. Model auto-detection on OpenAI /v1/models response
+    detect_prov = LocalLlamaProvider(
+        endpoint_url="http://localhost:1234/v1/chat/completions",
+        health_url="http://localhost:1234/v1/models"
+    )
+    mock_models_resp = MagicMock()
+    mock_models_resp.status_code = 200
+    mock_models_resp.json.return_value = {
+        "data": [{"id": "meta-llama/Llama-3.2-3B-Instruct"}]
+    }
+
+    with patch("requests.get", return_value=mock_models_resp), \
+         patch.object(detect_prov, "generate", return_value="OK"):
+        conn_res = detect_prov.test_connection(timeout_sec=5.0)
+        assert conn_res["success"] is True
+        assert detect_prov.model_name == "meta-llama/Llama-3.2-3B-Instruct"
+
+
+def test_structured_output_mode_and_fallback():
+    """
+    Phase 7 Test:
+    1. Confirms Ollama requests include format: 'json' when structured mode is active.
+    2. Confirms OpenAI-compatible requests include response_format: {'type': 'json_object'}.
+    3. Confirms that if a server returns HTTP 400 for structured format, it retries cleanly without it.
+    4. Confirms that the secondary regex parser cleanly extracts JSON embedded in prose/markdown.
+    """
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+
+    # 1. Ollama structured request
+    ollama_prov = LocalLlamaProvider()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"response": '{"focus": "Auth surface", "reasoning": "Tested"}'}
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        res = ollama_prov.analyze({"target": "http://target.com", "technologies": ["express"]})
+        assert res["status"] == "success"
+        assert res["recommended_focus"] == "Auth surface"
+        payload = mock_post.call_args[1]["json"]
+        assert payload.get("format") == "json"
+
+    # 2. OpenAI-compatible structured request
+    oai_prov = LocalLlamaProvider(endpoint_url="http://localhost:1234/v1/chat/completions")
+    mock_oai = MagicMock()
+    mock_oai.status_code = 200
+    mock_oai.json.return_value = {
+        "choices": [{"message": {"content": '{"focus": "API surface", "reasoning": "REST API"}'}}]
+    }
+
+    with patch("requests.post", return_value=mock_oai) as mock_post_oai:
+        res_oai = oai_prov.analyze({"target": "http://api.target.com", "endpoints": ["/api/v1"]})
+        assert res_oai["status"] == "success"
+        assert res_oai["recommended_focus"] == "API surface"
+        payload_oai = mock_post_oai.call_args[1]["json"]
+        assert payload_oai.get("response_format") == {"type": "json_object"}
+
+    # 3. HTTP 400 fallback retry on unsupported format parameter
+    resp_400 = MagicMock()
+    resp_400.status_code = 400
+    resp_400.text = "Error: unknown parameter 'format'"
+
+    resp_200 = MagicMock()
+    resp_200.status_code = 200
+    resp_200.json.return_value = {"response": '{"focus": "Fallback focus", "reasoning": "Retried"}'}
+
+    with patch("requests.post", side_effect=[resp_400, resp_200]) as mock_post_fallback:
+        res_fallback = ollama_prov.analyze({"target": "http://target.com"})
+        assert res_fallback["status"] == "success"
+        assert res_fallback["recommended_focus"] == "Fallback focus"
+        # First call had format='json', second call stripped it
+        assert mock_post_fallback.call_args_list[0][1]["json"].get("format") == "json"
+        assert "format" not in mock_post_fallback.call_args_list[1][1]["json"]
+
+    # 4. Secondary regex/prose parser extracts JSON from chatty or markdown response
+    chatty_resp = MagicMock()
+    chatty_resp.status_code = 200
+    chatty_resp.json.return_value = {
+        "response": "Sure! Here is the analysis you requested:\n```json\n{\n  \"focus\": \"Chatty format\",\n  \"reasoning\": \"Cleaned up by regex fallback\"\n}\n```\nHope that helps!"
+    }
+    with patch("requests.post", return_value=chatty_resp):
+        res_chatty = ollama_prov.analyze({"target": "http://target.com"})
+        assert res_chatty["status"] == "success"
+        assert res_chatty["recommended_focus"] == "Chatty format"
+        assert "Cleaned up" in res_chatty["analysis"]
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

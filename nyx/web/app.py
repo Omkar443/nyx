@@ -25,11 +25,10 @@ from nyx.web.schemas import HealthResponse, ErrorResponse, ErrorDetail
 async def lifespan(app: FastAPI):
     """Modern FastAPI lifespan context manager replacing deprecated on_event handlers."""
     from nyx.infrastructure.logging import setup_logging, get_logger
-    from nyx.infrastructure.process import terminate_all_subprocesses, setup_signal_handlers
+    from nyx.infrastructure.process import terminate_all_subprocesses
     from nyx.worker.daemon import WorkerDaemon
 
     setup_logging()
-    setup_signal_handlers()
     logger = get_logger("nyx.web")
     logger.info("NYX Web Platform & API Server starting up...")
 

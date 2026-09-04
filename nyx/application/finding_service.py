@@ -128,9 +128,32 @@ class FindingService:
     def update(self, finding_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         return core_findings.update_finding(finding_id=finding_id, updates=updates, base_dir=self.base_dir)
 
-    def enrich(self, finding_id_or_data: str | dict[str, Any], ai_manager: Any = None, provider_name: str | None = None) -> dict[str, Any]:
+    def enrich(
+        self,
+        finding_id_or_data: str | dict[str, Any],
+        ai_manager: Any = None,
+        provider_name: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
         return core_findings.enrich_hypothesis_description(
-            finding_id_or_data=finding_id_or_data, base_dir=self.base_dir, ai_manager=ai_manager, provider_name=provider_name or self.provider_name
+            finding_id_or_data=finding_id_or_data,
+            base_dir=self.base_dir,
+            ai_manager=ai_manager,
+            provider_name=provider_name or self.provider_name,
+            force=force,
+        )
+
+    def re_enrich(
+        self,
+        finding_id_or_data: str | dict[str, Any],
+        ai_manager: Any = None,
+        provider_name: str | None = None,
+    ) -> dict[str, Any]:
+        return core_findings.re_enrich_hypothesis(
+            finding_id_or_data=finding_id_or_data,
+            base_dir=self.base_dir,
+            ai_manager=ai_manager,
+            provider_name=provider_name or self.provider_name,
         )
 
     def enrich_all(self, ai_manager: Any = None, provider_name: str | None = None) -> list[dict[str, Any]]:

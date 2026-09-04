@@ -25,10 +25,13 @@ Canonical business logic for finding CRUD, timeline tracking, state machine tran
 import builtins
 import datetime
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("nyx.core.findings")
 
 from nyx.infrastructure.filesystem import REPO_ROOT, _get_eng_dir
 from nyx.infrastructure.urls import normalize_url
@@ -975,7 +978,17 @@ REASONING: <concise technical justification explaining why this verdict was reac
             ai_mgr = AIProviderManager(default_provider=provider_name)
         else:
             ai_mgr = ai_manager
-        resp_text = ai_mgr.generate(prompt, options={"max_completion_tokens": 800})
+        try:
+            max_tokens_evidence = int(
+                os.environ.get("LOCAL_MAX_TOKENS_EVIDENCE")
+                or os.environ.get("NYX_LOCAL_MAX_TOKENS_EVIDENCE")
+                or os.environ.get("LOCAL_MAX_TOKENS")
+                or os.environ.get("NYX_LOCAL_MAX_TOKENS")
+                or 800
+            )
+        except (ValueError, TypeError):
+            max_tokens_evidence = 800
+        resp_text = ai_mgr.generate(prompt, options={"max_completion_tokens": max_tokens_evidence})
         if resp_text:
             v_match = re.search(r"VERDICT:\s*\[?(CONFIRMED|LIKELY_FALSE_POSITIVE|NEEDS_MORE_EVIDENCE)\]?", resp_text, re.IGNORECASE)
             r_match = re.search(r"REASONING:\s*(.*)", resp_text, re.DOTALL | re.IGNORECASE)
@@ -1090,6 +1103,8 @@ def enrich_hypothesis_description(
     ai_manager: Any = None,
     timeout: float = 120.0,
     provider_name: str | None = None,
+    force: bool = False,
+    max_retries: int = 1,
 ) -> dict[str, Any]:
     """
     Enrich a hypothesis finding description with concrete, AI-generated technical reasoning
@@ -1134,35 +1149,51 @@ def enrich_hypothesis_description(
     param = fdata.get("parameter") or ""
     current_desc = fdata.get("description") or ""
 
+    # If already enriched and not forced, return early
+    if not force and fdata.get("ai_enriched") is True:
+        return {
+            "status": "skipped",
+            "finding_id": fid,
+            "ai_enriched": True,
+            "description": current_desc,
+            "message": "Finding is already AI-enriched. Pass force=True or call re_enrich to re-run.",
+        }
+
+    # If re-enriching, strip any previously appended failure fallback block
+    clean_base_desc = current_desc.split("\n\n### Finding Details & Status")[0].strip()
+
     # Retrieve detected technologies if available
     tech_stack = []
     if d.exists():
         tech_file = d / "technologies.json"
         if tech_file.exists():
             try:
-                t_data = json.loads(tech_file.read_text(encoding="utf-8"))
-                tech_stack = t_data if isinstance(t_data, list) else t_data.get("technologies", [])
+                tdata = json.loads(tech_file.read_text(encoding="utf-8"))
+                if isinstance(tdata, list):
+                    tech_stack = tdata
+                elif isinstance(tdata, dict):
+                    tech_stack = tdata.get("technologies", [])
             except Exception:
                 pass
 
+    tech_str = ", ".join(str(t) for t in tech_stack[:10]) if tech_stack else "Unknown/Generic web stack"
+
     prompt = f"""You are a senior security researcher analyzing a detected web attack surface hypothesis for NYX.
 Context:
-- Target: {target}
-- Endpoint URL: {endpoint}
-- Parameter / Route: {param or 'extracted from endpoint query/path'}
-- Vulnerability Class: {vuln}
-- Severity: {severity}
-- Detected Technologies: {tech_stack[:10]}
+- Target Host/Root: {target}
+- Endpoint: {endpoint}
+- Potential Vulnerability: {vuln}
+- Parameter (if applicable): {param or 'N/A (endpoint-level observation)'}
+- Severity Hypothesis: {severity}
+- Detected Technologies: {tech_str}
 
-Generate a concise, highly specific 4-section technical finding description.
-Ground your reasoning specifically in this endpoint and its parameters. Do not use generic boilerplate. Do not generate weaponized exploit code.
+Produce a rigorous, hypothesis-stage description following EXACTLY this structure with markdown headers:
 
-Required Sections:
 ### Why This Was Flagged
-Explain the specific structural or parameter pattern matched on this endpoint.
+Explain the heuristic, pattern, or route structure that indicated potential exposure.
 
 ### Exploitability Conditions
-Explain what architectural or input-handling conditions must be true for this to be exploitable.
+List concrete preconditions required for this to be exploitable (e.g. auth bypass, input reflection without encoding, lack of authorization check, ORM misconfiguration).
 
 ### Verification Steps
 Provide concrete, specific verification steps for a researcher (referencing standard tools like nuclei, sqlmap, ffuf, or manual inspection).
@@ -1177,28 +1208,60 @@ State explicitly: "Unconfirmed hypothesis based on automated pattern matching. R
     enriched_desc = ""
     ai_success = False
     error_reason = ""
+    retried = False
 
     try:
         if ai_manager is None:
             from nyx.ai.manager import AIManager
             ai_manager = AIManager(default_provider=provider_name)
 
-        generated = ai_manager.generate(prompt, options={"timeout": timeout, "max_completion_tokens": 1000})
-        clean_text = (generated or "").strip()
-        if clean_text and ("Why This Was Flagged" in clean_text or "###" in clean_text):
-            enriched_desc = clean_text
-            ai_success = True
-        elif clean_text and len(clean_text) > 40:
-            enriched_desc = clean_text
-            ai_success = True
-        else:
-            error_reason = "Empty or unparseable AI response"
+        try:
+            max_tokens_enrichment = int(
+                os.environ.get("LOCAL_MAX_TOKENS_ENRICHMENT")
+                or os.environ.get("NYX_LOCAL_MAX_TOKENS_ENRICHMENT")
+                or os.environ.get("LOCAL_MAX_TOKENS")
+                or os.environ.get("NYX_LOCAL_MAX_TOKENS")
+                or 1000
+            )
+        except (ValueError, TypeError):
+            max_tokens_enrichment = 1000
+
+        for attempt in range(max_retries + 1):
+            try:
+                generated = ai_manager.generate(
+                    prompt,
+                    options={"timeout": timeout, "max_completion_tokens": max_tokens_enrichment},
+                )
+                clean_text = (generated or "").strip()
+                if clean_text and ("Why This Was Flagged" in clean_text or "###" in clean_text):
+                    enriched_desc = clean_text
+                    ai_success = True
+                    break
+                elif clean_text and len(clean_text) > 40:
+                    enriched_desc = clean_text
+                    ai_success = True
+                    break
+                else:
+                    error_reason = "Empty or unparseable AI response"
+            except Exception as ex:
+                error_reason = str(ex)
+
+            if attempt < max_retries:
+                retried = True
+                import logging
+                logging.getLogger("nyx.core.findings").info(
+                    "[AI:enrich] Attempt %d failed for %s (%s); retrying once...",
+                    attempt + 1,
+                    fid or endpoint,
+                    error_reason,
+                )
     except Exception as ex:
         error_reason = str(ex)
 
     if not ai_success:
+        base_to_use = clean_base_desc or current_desc
         enriched_desc = (
-            f"{current_desc}\n\n"
+            f"{base_to_use}\n\n"
             "### Finding Details & Status\n"
             f"- **Observation**: Automated pattern match identified potential {vuln} input surface on {endpoint}.\n"
             f"- **AI Enrichment**: Unavailable ({error_reason or 'Provider did not return content'}).\n"
@@ -1227,7 +1290,29 @@ State explicitly: "Unconfirmed hypothesis based on automated pattern matching. R
         "ai_enriched": ai_success,
         "description": enriched_desc,
         "error": error_reason if not ai_success else None,
+        "retried": retried,
     }
+
+
+def re_enrich_hypothesis(
+    finding_id_or_data: str | dict[str, Any],
+    base_dir: Path | None = None,
+    ai_manager: Any = None,
+    timeout: float = 120.0,
+    provider_name: str | None = None,
+) -> dict[str, Any]:
+    """
+    Explicitly re-trigger AI description enrichment for a specific finding,
+    bypassing the 'already enriched' guard and cleaning any prior fallback marker.
+    """
+    return enrich_hypothesis_description(
+        finding_id_or_data=finding_id_or_data,
+        base_dir=base_dir,
+        ai_manager=ai_manager,
+        timeout=timeout,
+        provider_name=provider_name,
+        force=True,
+    )
 
 
 def enrich_all_hypotheses(
@@ -1271,3 +1356,4 @@ delete = delete_finding
 update = update_finding
 enrich = enrich_hypothesis_description
 enrich_all = enrich_all_hypotheses
+re_enrich = re_enrich_hypothesis

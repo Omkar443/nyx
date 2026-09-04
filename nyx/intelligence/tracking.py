@@ -32,20 +32,31 @@ class AssetTracker:
         ep_file = d / "endpoints.json"
         if ep_file.exists():
             try:
+                from nyx.ai.context import _matches_target_endpoint
+
+                def _is_ep_for_target(ep_url: str, tgt: str) -> bool:
+                    if not ep_url or not tgt:
+                        return False
+                    if ep_url.startswith("/") or ep_url.startswith("?"):
+                        return True
+                    return _matches_target_endpoint(ep_url, tgt)
+
                 raw_eps = json.loads(ep_file.read_text(encoding="utf-8"))
                 eps_list = raw_eps if isinstance(raw_eps, list) else raw_eps.get("endpoints", []) if isinstance(raw_eps, dict) else []
                 for ep in eps_list:
                     if isinstance(ep, dict):
                         url = ep.get("url") or ep.get("path") or ""
+                        if not url or not _is_ep_for_target(url, target):
+                            continue
                         method = ep.get("method", "GET")
                         params = ep.get("params", [])
-                        if url:
-                            graph.add_endpoint(url, method=method, params=params)
-                            host = ep.get("host")
-                            if host and host != target:
-                                graph.add_subdomain(host)
+                        graph.add_endpoint(url, method=method, params=params)
+                        host = ep.get("host")
+                        if host and host != target and (host.endswith(f".{target}") or f".{host}" in target):
+                            graph.add_subdomain(host)
                     elif isinstance(ep, str):
-                        graph.add_endpoint(ep)
+                        if ep and _is_ep_for_target(ep, target):
+                            graph.add_endpoint(ep)
             except Exception:
                 pass
 

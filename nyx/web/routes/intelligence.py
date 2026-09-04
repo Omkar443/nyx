@@ -180,9 +180,11 @@ async def run_ai_autonomous_loop(
             detail={"code": "TARGET_REQUIRED", "message": "Target parameter is required in request body."},
         )
 
+    from nyx.execution.policy import normalize_target
+    target_clean = normalize_target(req.target)
     res = await asyncio.to_thread(
         service.planner.run_autonomous_loop,
-        target=req.target,
+        target=target_clean,
         provider_name=req.provider_name,
         active_permitted=req.active_permitted,
         max_iterations=req.max_iterations,

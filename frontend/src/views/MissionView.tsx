@@ -22,6 +22,28 @@ export function MissionView() {
   const [maxIterations, setMaxIterations] = useState<number>(15);
   const [missionResult, setMissionResult] = useState<any | null>(null);
   const [missionError, setMissionError] = useState<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [progressData, setProgressData] = useState<any | null>(null);
+
+  const formatElapsed = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const remSec = sec % 60;
+    return `${mins.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    let timer: any = null;
+    if (isRunning) {
+      timer = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isRunning]);
 
   const phases = [
     { name: 'DISCOVERY', desc: 'Passive OSINT, HTTP probing, endpoint & asset harvesting' },
@@ -40,6 +62,8 @@ export function MissionView() {
       const histRes = await fetchApi('/api/v1/mission/history');
       if (histRes?.data?.timeline) {
         setTimeline(histRes.data.timeline);
+      } else if (Array.isArray(histRes?.data?.history)) {
+        setTimeline(histRes.data.history);
       }
 
       const setRes = await fetchApi('/api/v1/settings');
@@ -56,7 +80,31 @@ export function MissionView() {
   }, [target]);
 
   useEffect(() => {
-    if (lastEvent?.event === 'mission_started' || lastEvent?.event === 'mission_completed') {
+    if (phase) {
+      setMissionState(phase);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.event === 'mission_progress' && lastEvent.data) {
+      setProgressData(lastEvent.data);
+      if (lastEvent.data.state === 'completed') {
+        setIsRunning(false);
+      }
+    } else if (
+      lastEvent.event === 'mission_started' ||
+      lastEvent.event === 'mission_completed' ||
+      lastEvent.event === 'phase_changed' ||
+      lastEvent.event === 'mission_step'
+    ) {
+      if (lastEvent.event === 'phase_changed' && lastEvent.data?.phase) {
+        setMissionState(lastEvent.data.phase);
+      }
+      if (lastEvent.event === 'mission_completed') {
+        setIsRunning(false);
+        setProgressData(null);
+      }
       loadMission();
       refreshGlobalStats();
     }
@@ -202,7 +250,15 @@ export function MissionView() {
               className="btn-primary text-xs py-1.5 px-3.5 flex items-center gap-1.5"
             >
               {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-              <span>{isRunning ? 'Running Mission...' : 'Start Autonomous Mission'}</span>
+              <span>
+                {isRunning ? (
+                  progressData?.state === 'reasoning'
+                    ? `Reasoning (${progressData.provider || selectedProvider || 'AI'})...`
+                    : progressData?.state === 'executing'
+                    ? `Executing ${progressData.tool || 'step'}...`
+                    : 'Running Mission...'
+                ) : 'Start Autonomous Mission'}
+              </span>
             </button>
           </div>
         </div>
@@ -217,12 +273,46 @@ export function MissionView() {
 
         {/* Running Status */}
         {isRunning && (
-          <div className="p-4 rounded bg-[#2A2A2A] border border-[#3A3A3A] flex items-center justify-between text-xs font-mono">
-            <div className="flex items-center gap-2 text-[#ebb94b]">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>Autonomous loop running across candidates for {target}...</span>
+          <div className="p-4 rounded bg-[#2A2A2A] border border-[#ebb94b]/40 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3 text-[#E8E8E8]">
+              <RefreshCw className="w-4 h-4 animate-spin text-[#ebb94b] shrink-0" />
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#ebb94b] font-bold">
+                    Iteration {progressData?.iteration || 1}/{progressData?.max_iterations || maxIterations}
+                  </span>
+                  <span className="text-[#555555]">|</span>
+                  <span className="text-[#E8E8E8] font-semibold">
+                    {progressData?.state === 'reasoning' ? (
+                      <span className="flex items-center gap-1.5 text-[#64B5F6]">
+                        <Cpu className="w-3.5 h-3.5 text-[#64B5F6]" />
+                        <span>Reasoning with {progressData.provider || selectedProvider || 'local'} AI...</span>
+                      </span>
+                    ) : progressData?.state === 'executing' ? (
+                      <span className="flex items-center gap-1.5 text-[#81C784]">
+                        <Zap className="w-3.5 h-3.5 text-[#81C784]" />
+                        <span>Executing: {progressData.step_name || 'Candidate Step'} ({progressData.tool || 'tool'})</span>
+                      </span>
+                    ) : (
+                      <span>Autonomous loop active across candidates for {target}...</span>
+                    )}
+                  </span>
+                </div>
+                {progressData?.message && (
+                  <div className="text-[11px] text-[#888888]">
+                    {progressData.message}
+                  </div>
+                )}
+              </div>
             </div>
-            <span className="text-[#888888]">Non-blocking background reasoning</span>
+
+            <div className="flex items-center gap-3 text-xs shrink-0 self-end md:self-auto">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#1E1E1E] border border-[#3A3A3A] text-[#ebb94b]">
+                <Clock className="w-3.5 h-3.5" />
+                <span className="font-mono">{formatElapsed(elapsedSeconds)}</span>
+              </div>
+              <span className="text-[#888888] hidden lg:inline">Non-blocking background reasoning</span>
+            </div>
           </div>
         )}
 
@@ -399,9 +489,20 @@ export function MissionView() {
               <p className="text-xs font-mono text-[#707070] italic">Engagement initialized in {missionState} phase.</p>
             ) : (
               timeline.map((t, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs font-mono p-2 rounded bg-[#242424] border border-[#333333]">
-                  <span className="text-[#E8E8E8]">{t.phase || t.state}</span>
-                  <span className="text-[#707070] text-[11px]">{t.timestamp?.slice(11, 19) || 'Recorded'}</span>
+                <div key={idx} className="flex flex-col gap-0.5 text-xs font-mono p-2 rounded bg-[#242424] border border-[#333333]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#E8E8E8] font-bold">
+                      {t.previous_phase && t.previous_phase !== (t.phase || t.state)
+                        ? `${t.previous_phase} → ${t.phase || t.state}`
+                        : (t.phase || t.state || 'DISCOVERY')}
+                    </span>
+                    <span className="text-[#707070] text-[11px]">{t.timestamp?.slice(11, 19) || 'Recorded'}</span>
+                  </div>
+                  {t.reason && (
+                    <span className="text-[10px] text-[#888888] truncate" title={t.reason}>
+                      {t.reason}
+                    </span>
+                  )}
                 </div>
               ))
             )}

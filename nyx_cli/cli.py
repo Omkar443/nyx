@@ -2505,8 +2505,12 @@ def cmd_web(args: argparse.Namespace) -> int:
     from nyx.infrastructure.logging import setup_logging
     setup_logging()
 
+    import asyncio
     import uvicorn
-    uvicorn.run("nyx.web.app:app", host=host, port=port, reload=False)
+    try:
+        uvicorn.run("nyx.web.app:app", host=host, port=port, reload=False)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
     return 0
 
 

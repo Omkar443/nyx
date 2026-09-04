@@ -182,11 +182,21 @@ def run_with_timeout(
     timed_out = False
     try:
         start_t = time.time()
+        last_heartbeat_t = start_t
+        tool_name = cmd_list[0] if cmd_list else "command"
+        if tool_name == "wsl" and len(cmd_list) > 1:
+            tool_name = cmd_list[1]
+
         while proc.poll() is None:
-            if time.time() - start_t > timeout_sec:
+            now = time.time()
+            if now - start_t > timeout_sec:
                 timed_out = True
                 proc.kill()
                 break
+            if now - last_heartbeat_t >= 10.0:
+                elapsed_sec = int(now - start_t)
+                logger.info("[EXEC] Still running '%s'... (elapsed: %ds / timeout: %ds)", tool_name, elapsed_sec, int(timeout_sec))
+                last_heartbeat_t = now
             time.sleep(0.05)
 
         t_out.join(timeout=2.0)

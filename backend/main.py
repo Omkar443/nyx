@@ -32,7 +32,11 @@ def main():
     print(f" API Token:     {token[:8]}...{token[-4:]}")
     print("=" * 60)
 
-    uvicorn.run("nyx.web.app:app", host=host, port=port, reload=False)
+    import asyncio
+    try:
+        uvicorn.run("nyx.web.app:app", host=host, port=port, reload=False)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
 
 
 if __name__ == "__main__":

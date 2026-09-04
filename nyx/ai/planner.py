@@ -7,10 +7,11 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import re
+import time
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
-from nyx.ai.context import ContextEngine
+from nyx.ai.context import ContextEngine, _matches_target_endpoint
 from nyx.ai.manager import AIManager
 from nyx.ai.memory import AIMemory
 from nyx.security.ai_policy import AIPolicyEngine
@@ -30,18 +31,47 @@ class MissionPlanner:
         self.memory = AIMemory(base_dir=base_dir)
 
     @staticmethod
-    def _is_vector_already_tested(tested_vectors: List[Any], vector_name: str, endpoint: Optional[str] = None) -> bool:
+    def _is_vector_already_tested(
+        tested_vectors: List[Any],
+        vector_name: str,
+        endpoint: Optional[str] = None,
+        target: Optional[str] = None,
+    ) -> bool:
         """Check if a security vector has already been tested on the target/endpoint with conclusive results."""
+        effective_target = target or (endpoint if endpoint and "://" in endpoint else None)
         for tv in tested_vectors:
             if not isinstance(tv, dict):
                 continue
             v = str(tv.get("vector") or tv.get("name") or tv.get("value") or "")
             res = str(tv.get("result") or tv.get("status") or "")
             ep = tv.get("endpoint")
+            tv_tgt = tv.get("target")
+
             if v.lower() == vector_name.lower():
+                # Enforce target identity: if target is provided, vector entry must match target
+                if target:
+                    tv_ref = ep or tv_tgt
+                    if tv_ref and not _matches_target_endpoint(tv_ref, target):
+                        continue
+                    if not tv_ref:
+                        continue
+                elif effective_target and ep and not _matches_target_endpoint(ep, effective_target):
+                    continue
+
                 if endpoint and ep and endpoint != ep:
                     continue
-                if res.lower() in ("tested_negative", "tested_success", "blocked_by_policy", "manual_action_required", "tested_skipped", "denied_by_operator", "operator_denied", "denied", "blocked"):
+
+                if res.lower() in (
+                    "tested_negative",
+                    "tested_success",
+                    "blocked_by_policy",
+                    "manual_action_required",
+                    "tested_skipped",
+                    "denied_by_operator",
+                    "operator_denied",
+                    "denied",
+                    "blocked",
+                ):
                     return True
         return False
 
@@ -59,6 +89,17 @@ class MissionPlanner:
         parsed = urllib.parse.urlparse(clean_url if "://" in clean_url else f"http://{clean_url}")
         path = parsed.path
         query = parsed.query
+        fragment = parsed.fragment
+
+        # Extract effective path & query from SPA hash routes (e.g. #/api/Users/1, #/rest/user/1)
+        if path in ("", "/") and fragment:
+            frag_clean = fragment.split("?")[0].strip()
+            if frag_clean and not frag_clean.startswith("/"):
+                frag_clean = f"/{frag_clean}"
+            if len(frag_clean) > 1:
+                path = frag_clean
+        if not query and fragment and "?" in fragment:
+            query = fragment.split("?", 1)[1]
 
         # Exclude static/metadata files and bare root
         if path in ("", "/", "/robots.txt", "/security.txt", "/favicon.ico", "/server-status", "/health"):
@@ -109,6 +150,17 @@ class MissionPlanner:
             parsed = urllib.parse.urlparse(clean_url if "://" in clean_url else f"http://{clean_url}")
             path = parsed.path
             query = parsed.query
+            fragment = parsed.fragment
+
+            # Extract effective path & query from SPA hash routes (e.g. #/score-board, #/api/Users, #/search?q=apple)
+            if path in ("", "/") and fragment:
+                frag_clean = fragment.split("?")[0].strip()
+                if frag_clean and not frag_clean.startswith("/"):
+                    frag_clean = f"/{frag_clean}"
+                if len(frag_clean) > 1:
+                    path = frag_clean
+            if not query and fragment and "?" in fragment:
+                query = fragment.split("?", 1)[1]
 
             # Skip bare roots and static assets from all hypothesis generation
             if path in ("", "/", "/robots.txt", "/security.txt", "/favicon.ico", "/server-status", "/health") and not query:
@@ -287,6 +339,23 @@ class MissionPlanner:
 
         return created
 
+    def _infer_step_phase(self, step: Dict[str, Any]) -> str:
+        """Infer canonical workflow phase (DISCOVERY, ANALYSIS, VALIDATION, REPORTING) for a given step."""
+        action = str(step.get("action") or "").lower()
+        tool = str(step.get("tool") or "").lower()
+        reason = str(step.get("reason") or "").lower()
+
+        if any(k in action for k in ("recon", "harvest", "crawl", "discovery", "bootstrap")) or any(k in tool for k in ("httpx", "katana", "subfinder", "nyx-recon")):
+            return "DISCOVERY"
+        elif any(k in action for k in ("mapping", "classify", "analysis", "technology")) or any(k in tool for k in ("nyx-classify",)):
+            return "ANALYSIS"
+        elif any(k in action for k in ("triage", "validate", "active_scan", "finding_triage")) or any(k in tool for k in ("nuclei", "sqlmap", "ffuf", "nyx-triage", "nyx-validate")):
+            return "VALIDATION"
+        elif any(k in action for k in ("report", "export", "remediation")) or any(k in tool for k in ("nyx-report",)):
+            return "REPORTING"
+
+        return "ANALYSIS"
+
     def _select_steps(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Select and renumber mission plan steps based on target intelligence context, tested vectors, and knowledge."""
         target_name = context.get("target") or context.get("domain") or "target"
@@ -301,7 +370,13 @@ class MissionPlanner:
         hypothesis_findings_raw = [
             f
             for f in findings
-            if isinstance(f, dict) and (f.get("state") or f.get("status") or "").upper() == "HYPOTHESIS"
+            if isinstance(f, dict)
+            and (f.get("state") or f.get("status") or "").upper() == "HYPOTHESIS"
+            and (
+                not target_name
+                or _matches_target_endpoint(f.get("endpoint") or "", target_name)
+                or _matches_target_endpoint(f.get("target") or "", target_name)
+            )
         ]
         hypothesis_ids = [
             f.get("finding_id", "hyp-001")
@@ -313,7 +388,7 @@ class MissionPlanner:
 
         if not endpoints:
             # Rule 1: No Endpoints (Full Discovery Phase Pipeline)
-            if not self._is_vector_already_tested(tested_vectors, "httpx_execution"):
+            if not self._is_vector_already_tested(tested_vectors, "httpx_execution", target=target_name):
                 selected.append({
                     "name": "Technology Fingerprinting",
                     "action": "passive_recon",
@@ -326,7 +401,7 @@ class MissionPlanner:
                     "impact_justification": "Read-only HTTP header and status probe; idempotent baseline check.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if not self._is_vector_already_tested(tested_vectors, "katana_execution"):
+            if not self._is_vector_already_tested(tested_vectors, "katana_execution", target=target_name):
                 selected.append({
                     "name": "Endpoint & Parameter Harvesting",
                     "action": "endpoint_harvesting",
@@ -339,7 +414,7 @@ class MissionPlanner:
                     "impact_justification": "Read-only GET requests crawling public routes and client-side bundles.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if not self._is_vector_already_tested(tested_vectors, "surface_mapping_and_skill_routing") and not self._is_vector_already_tested(tested_vectors, "nyx-classify_execution"):
+            if not self._is_vector_already_tested(tested_vectors, "surface_mapping_and_skill_routing", target=target_name) and not self._is_vector_already_tested(tested_vectors, "nyx-classify_execution", target=target_name):
                 selected.append({
                     "name": "Attack Surface Mapping & Skill Matching",
                     "action": "technology_mapping",
@@ -352,7 +427,7 @@ class MissionPlanner:
                     "impact_justification": "Passive rule-based classification and skill routing in local intelligence memory.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if not self._is_vector_already_tested(tested_vectors, "hypothesis_validation_required"):
+            if not self._is_vector_already_tested(tested_vectors, "hypothesis_validation_required", target=target_name):
                 selected.append({
                     "name": "Controlled Vulnerability Triage",
                     "action": "finding_triage",
@@ -383,7 +458,7 @@ class MissionPlanner:
             ]
 
             classified_any = False
-            if fintech_eps and not self._is_vector_already_tested(tested_vectors, "financial_graphql_mutation_detected") and not self._is_vector_already_tested(tested_vectors, "fintech_graphql_mutation_analysis"):
+            if fintech_eps and not self._is_vector_already_tested(tested_vectors, "financial_graphql_mutation_detected", target=target_name) and not self._is_vector_already_tested(tested_vectors, "fintech_graphql_mutation_analysis", target=target_name):
                 classified_any = True
                 selected.append({
                     "name": "Financial GraphQL Mutation Analysis",
@@ -397,7 +472,7 @@ class MissionPlanner:
                     "impact_justification": "Passive classification and skill mapping against detected financial operations.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if graphql_eps and not self._is_vector_already_tested(tested_vectors, "graphql_surface_detected") and not self._is_vector_already_tested(tested_vectors, "graphql_surface_mapping"):
+            if graphql_eps and not self._is_vector_already_tested(tested_vectors, "graphql_surface_detected", target=target_name) and not self._is_vector_already_tested(tested_vectors, "graphql_surface_mapping", target=target_name):
                 classified_any = True
                 selected.append({
                     "name": "GraphQL Surface Inspection & Query Mapping",
@@ -411,7 +486,7 @@ class MissionPlanner:
                     "impact_justification": "Passive classification and skill mapping against detected GraphQL surface.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if auth_eps and not self._is_vector_already_tested(tested_vectors, "auth_surface_detected") and not self._is_vector_already_tested(tested_vectors, "auth_surface_analysis"):
+            if auth_eps and not self._is_vector_already_tested(tested_vectors, "auth_surface_detected", target=target_name) and not self._is_vector_already_tested(tested_vectors, "auth_surface_analysis", target=target_name):
                 classified_any = True
                 selected.append({
                     "name": "Authentication & Session Surface Mapping",
@@ -425,7 +500,7 @@ class MissionPlanner:
                     "impact_justification": "Passive classification and skill mapping against detected authentication surface.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if api_eps and not self._is_vector_already_tested(tested_vectors, "api_surface_detected") and not self._is_vector_already_tested(tested_vectors, "api_surface_analysis"):
+            if api_eps and not self._is_vector_already_tested(tested_vectors, "api_surface_detected", target=target_name) and not self._is_vector_already_tested(tested_vectors, "api_surface_analysis", target=target_name):
                 classified_any = True
                 selected.append({
                     "name": "REST API & Parameter Surface Analysis",
@@ -439,7 +514,7 @@ class MissionPlanner:
                     "impact_justification": "Passive classification and skill mapping against detected API surface.",
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
-            if technologies and not self._is_vector_already_tested(tested_vectors, "known_technology_detected") and not self._is_vector_already_tested(tested_vectors, "technology_surface_mapping"):
+            if technologies and not self._is_vector_already_tested(tested_vectors, "known_technology_detected", target=target_name) and not self._is_vector_already_tested(tested_vectors, "technology_surface_mapping", target=target_name):
                 classified_any = True
                 selected.append({
                     "name": "Technology-Specific Attack Surface Mapping",
@@ -454,7 +529,7 @@ class MissionPlanner:
                     "policy_status": "PENDING_POLICY_VALIDATION",
                 })
 
-            if not classified_any and not self._is_vector_already_tested(tested_vectors, "surface_mapping_and_skill_routing") and not self._is_vector_already_tested(tested_vectors, "nyx-classify_execution"):
+            if not classified_any and not self._is_vector_already_tested(tested_vectors, "surface_mapping_and_skill_routing", target=target_name) and not self._is_vector_already_tested(tested_vectors, "nyx-classify_execution", target=target_name):
                 selected.append({
                     "name": "Attack Surface Mapping & Skill Matching",
                     "action": "technology_mapping",
@@ -524,6 +599,8 @@ class MissionPlanner:
                 h_fid = hf.get("finding_id")
                 h_vuln = hf.get("vulnerability") or hf.get("title")
                 h_ep = hf.get("endpoint") or target_name
+                if h_ep and target_name and not _matches_target_endpoint(h_ep, target_name):
+                    continue
                 if h_vuln and not any(vt[0] == h_vuln and vt[2] == h_ep for vt in vuln_targets_to_validate):
                     vuln_targets_to_validate.append((str(h_vuln), h_fid, h_ep))
 
@@ -741,11 +818,11 @@ class MissionPlanner:
             s_target = str(s.get("target") or target_name)
             
             if (
-                self._is_vector_already_tested(tested_vectors, f"{s_tool}_execution", s_target) or
-                self._is_vector_already_tested(tested_vectors, s_name.lower(), s_target) or
-                self._is_vector_already_tested(tested_vectors, s_reason.lower(), s_target) or
-                self._is_vector_already_tested(tested_vectors, f"{s_action}_execution", s_target) or
-                self._is_vector_already_tested(tested_vectors, s_action.lower(), s_target)
+                self._is_vector_already_tested(tested_vectors, f"{s_tool}_execution", endpoint=s_target, target=target_name) or
+                self._is_vector_already_tested(tested_vectors, s_name.lower(), endpoint=s_target, target=target_name) or
+                self._is_vector_already_tested(tested_vectors, s_reason.lower(), endpoint=s_target, target=target_name) or
+                self._is_vector_already_tested(tested_vectors, f"{s_action}_execution", endpoint=s_target, target=target_name) or
+                self._is_vector_already_tested(tested_vectors, s_action.lower(), endpoint=s_target, target=target_name)
             ):
                 continue
             candidate_steps.append(s)
@@ -755,6 +832,8 @@ class MissionPlanner:
         for idx, step_dict in enumerate(candidate_steps, start=1):
             s = dict(step_dict)
             s["step"] = idx
+            if "phase" not in s:
+                s["phase"] = self._infer_step_phase(s)
             if "impact_class" not in s:
                 s["impact_class"] = "NON_DESTRUCTIVE"
             if "impact_justification" not in s:
@@ -1218,6 +1297,8 @@ class MissionPlanner:
         prior_iterations: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Execute autonomous mission loop with AI-guided candidate selection, policy gates, and pause-on-destructive safety."""
+        from nyx.execution.policy import normalize_target
+        target = normalize_target(target)
         import re
         if provider_name:
             import os
@@ -1272,6 +1353,25 @@ class MissionPlanner:
             if validated_recon and validated_recon[0].get("permitted", False):
                 try:
                     logger.info("[MISSION] Zero endpoints mapped — auto-bootstrapping reconnaissance for %s...", target)
+                    try:
+                        from nyx.web.events import emit_event_sync
+                        emit_event_sync(
+                            event_type="mission_progress",
+                            data={
+                                "state": "executing",
+                                "target": target,
+                                "iteration": 1,
+                                "max_iterations": max_iterations,
+                                "step_name": "Attack Surface Reconnaissance Bootstrap",
+                                "tool": "nyx-recon",
+                                "action": "passive_recon",
+                                "phase": "DISCOVERY",
+                                "message": "Bootstrapping reconnaissance and endpoint discovery",
+                            },
+                            mission_id=target,
+                        )
+                    except Exception:
+                        pass
                     from nyx.application.recon_service import ReconService
                     recon_svc = ReconService(base_dir=self.base_dir)
                     recon_svc.run_recon(target=target)
@@ -1398,10 +1498,40 @@ class MissionPlanner:
                 "playbook_references": playbook_reference_block,
             }
 
+            active_p_name = provider_name or getattr(self.ai_manager, "active_provider_name", "unknown")
+            logger.info(
+                "[MISSION] Iteration %d/%d — Requesting strategic plan decision from AI (provider: %s)...",
+                iteration_idx,
+                max_iterations,
+                active_p_name,
+            )
+            try:
+                from nyx.web.events import emit_event_sync
+                emit_event_sync(
+                    event_type="mission_progress",
+                    data={
+                        "state": "reasoning",
+                        "target": target,
+                        "iteration": iteration_idx,
+                        "max_iterations": max_iterations,
+                        "provider": active_p_name,
+                        "message": f"Reasoning with {active_p_name} AI...",
+                    },
+                    mission_id=target,
+                )
+            except Exception:
+                pass
+            t_ai_start = time.time()
             ai_reasoning = self.ai_manager.analyze(
                 augmented_context,
                 prompt=decision_prompt,
                 provider_name=provider_name,
+            )
+            t_ai_elapsed = time.time() - t_ai_start
+            logger.info(
+                "[MISSION] AI strategic decision received (elapsed: %.1fs, provider: %s)",
+                t_ai_elapsed,
+                active_p_name,
             )
 
             # SAFETY REQUIREMENT: Parse chosen candidate index; fail-closed if AI is unavailable / error / 429 / unparseable
@@ -1487,6 +1617,38 @@ class MissionPlanner:
             next_step = validated[chosen_idx]
             next_step["ai_degraded"] = False
             next_step["degradation_reason"] = None
+
+            # Infer step phase and advance engagement state if changed
+            step_phase = self._infer_step_phase(next_step)
+            next_step["phase"] = step_phase
+            current_eng_phase = context.get("phase") or context.get("state") or "DISCOVERY"
+            if step_phase != current_eng_phase:
+                try:
+                    from nyx.core.engagement import set_engagement_state
+                    set_engagement_state(
+                        new_state=step_phase,
+                        force_state=True,
+                        reason=f"Autonomous phase inference: {step_phase} step selected ('{next_step.get('name')}')",
+                        base_dir=self.base_dir,
+                    )
+                    logger.info("[PHASE] Autonomous loop transitioned workflow phase: %s -> %s (step: '%s')", current_eng_phase, step_phase, next_step.get("name"))
+                    try:
+                        from nyx.web.events import emit_event_sync
+                        emit_event_sync(
+                            event_type="phase_changed",
+                            data={
+                                "phase": step_phase,
+                                "previous_phase": current_eng_phase,
+                                "target": target,
+                                "step_name": next_step.get("name"),
+                                "iteration": iteration_idx,
+                            },
+                            mission_id=target,
+                        )
+                    except Exception:
+                        pass
+                except Exception as ex:
+                    logger.warning("[PHASE] Failed to transition engagement phase: %s", ex)
 
             # Tier 2 Skill Body Injection (selected candidate only, <= 1500 tokens)
             k_refs = next_step.get("knowledge_refs") or []
@@ -1604,6 +1766,25 @@ class MissionPlanner:
 
             # 1.h. Execute step and record iteration
             logger.info("[MISSION] Executing step '%s' on %s via tool '%s'...", next_step.get("name"), next_step.get("target") or target, next_step.get("tool"))
+            try:
+                from nyx.web.events import emit_event_sync
+                emit_event_sync(
+                    event_type="mission_progress",
+                    data={
+                        "state": "executing",
+                        "target": target,
+                        "iteration": iteration_idx,
+                        "max_iterations": max_iterations,
+                        "step_name": next_step.get("name"),
+                        "tool": next_step.get("tool"),
+                        "action": next_step.get("action"),
+                        "phase": next_step.get("phase"),
+                        "message": f"Executing {next_step.get('name')} ({next_step.get('tool')})",
+                    },
+                    mission_id=target,
+                )
+            except Exception:
+                pass
             result = self.execute_step(next_step, target, active_permitted=active_permitted)
             step_status = result.get("result", {}).get("status") if isinstance(result, dict) else "completed"
             logger.info("[DONE] Step '%s' complete — status: %s", next_step.get("name"), step_status)

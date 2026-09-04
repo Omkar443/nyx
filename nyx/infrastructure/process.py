@@ -59,6 +59,10 @@ def terminate_all_subprocesses() -> None:
             pass
 
 
+_is_shutting_down = False
+_shutdown_lock = threading.Lock()
+
+
 def setup_signal_handlers() -> None:
     """Install signal handlers for clean SIGINT / SIGTERM child process termination."""
     try:
@@ -67,14 +71,26 @@ def setup_signal_handlers() -> None:
             orig_sigterm = signal.getsignal(signal.SIGTERM)
 
             def _sigint_handler(sig, frame):
+                global _is_shutting_down
                 terminate_all_subprocesses()
+                with _shutdown_lock:
+                    if _is_shutting_down:
+                        return
+                    _is_shutting_down = True
+
                 if callable(orig_sigint) and orig_sigint not in (signal.SIG_IGN, signal.SIG_DFL, _sigint_handler):
                     orig_sigint(sig, frame)
                 else:
                     raise KeyboardInterrupt
 
             def _sigterm_handler(sig, frame):
+                global _is_shutting_down
                 terminate_all_subprocesses()
+                with _shutdown_lock:
+                    if _is_shutting_down:
+                        return
+                    _is_shutting_down = True
+
                 if callable(orig_sigterm) and orig_sigterm not in (signal.SIG_IGN, signal.SIG_DFL, _sigterm_handler):
                     orig_sigterm(sig, frame)
                 else:

@@ -31,7 +31,9 @@ def init_engagement(
     force: bool = False,
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
-    target_name = target or "example.com"
+    from nyx.execution.policy import normalize_target
+    target_clean = normalize_target(target)
+    target_name = target_clean or "example.com"
     d = _get_eng_dir(create=True, base_dir=base_dir)
     target_yaml = d / "target.yaml"
 
@@ -284,6 +286,40 @@ def get_engagement_status(base_dir: Path | None = None) -> dict[str, Any]:
     }
 
 
+def get_engagement_history(base_dir: Path | None = None) -> dict[str, Any]:
+    """Retrieve engagement timeline state transition history from state.json."""
+    d = _get_eng_dir(create=False, base_dir=base_dir)
+    if not d.exists():
+        return {
+            "status": "success",
+            "history": [],
+            "timeline": [],
+        }
+
+    state_file = d / "state.json"
+    state_data = (
+        json.loads(state_file.read_text(encoding="utf-8"))
+        if state_file.exists()
+        else {}
+    )
+    raw_history = state_data.get("history", [])
+    timeline = []
+    for entry in raw_history:
+        timeline.append({
+            "phase": entry.get("new_state") or entry.get("phase") or entry.get("state"),
+            "previous_phase": entry.get("previous_state"),
+            "timestamp": entry.get("timestamp"),
+            "reason": entry.get("reason"),
+        })
+
+    return {
+        "status": "success",
+        "history": raw_history,
+        "timeline": timeline,
+        "current_state": state_data.get("state", "DISCOVERY"),
+    }
+
+
 def export_engagement(
     base_dir: Path | None = None, out_path: Path | None = None
 ) -> dict[str, Any]:
@@ -325,6 +361,7 @@ def set_engagement_state(
     new_state: str | None = None,
     mode: str | None = None,
     force_state: bool = False,
+    reason: str | None = None,
     base_dir: Path | None = None,
 ) -> dict[str, Any]:
     d = _get_eng_dir(create=False, base_dir=base_dir)
@@ -413,9 +450,12 @@ def set_engagement_state(
             "previous_state": curr_state,
             "new_state": ns,
             "timestamp": datetime.datetime.now().isoformat(),
-            "reason": "Administrative override"
-            if force_state
-            else f"Workflow state change ({curr_mode} mode)",
+            "reason": reason
+            or (
+                "Administrative override"
+                if force_state
+                else f"Workflow state change ({curr_mode} mode)"
+            ),
         }
     )
 

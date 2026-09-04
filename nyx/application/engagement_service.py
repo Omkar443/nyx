@@ -77,11 +77,14 @@ exclusions:
             "message": "Settings updated and workspace scoped to target successfully."
         }
 
-    def set_state(self, new_state: str | None = None, mode: str | None = None, force: bool = False) -> dict[str, Any]:
-        return core_engagement.set_engagement_state(new_state=new_state, mode=mode, force_state=force)
+    def set_state(self, new_state: str | None = None, mode: str | None = None, force: bool = False, reason: str | None = None) -> dict[str, Any]:
+        return core_engagement.set_engagement_state(new_state=new_state, mode=mode, force_state=force, reason=reason)
 
     def export_engagement(self) -> dict[str, Any]:
         return core_engagement.export_engagement()
+
+    def get_history(self) -> dict[str, Any]:
+        return core_engagement.get_engagement_history()
 
     def add_memory(self, type_: str, value: str, source: str = "manual", priority: str = "P2", category: str = "frameworks") -> dict[str, Any]:
         return core_engagement.add_memory(type_=type_, value=value, priority=priority, category=category)
