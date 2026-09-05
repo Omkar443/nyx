@@ -262,6 +262,8 @@ def create_finding(
             "tag": tag,
             "description": san_desc,
             "evidence_ids": evidence_ids or [],
+            "ai_enriched": False,
+            "enrichment_status": "pending",
             "created_at": now_str,
             "updated_at": now_str,
         }
@@ -396,13 +398,16 @@ def list_findings(
             for f in findings
             if f.get("severity", "").lower() == severity_filter.lower()
         ]
-    if target_filter:
-        clean_t = target_filter.lower().replace("http://", "").replace("https://", "").split(":")[0]
+    from nyx.core.engagement import get_engagement_target
+
+    effective_target = target_filter if target_filter is not None else get_engagement_target(base_dir=base_dir)
+    if effective_target and effective_target not in ("*", "all"):
+        from nyx.ai.context import _matches_target_endpoint
         findings = [
             f
             for f in findings
-            if clean_t in (f.get("target", "") or "").lower()
-            or clean_t in (f.get("endpoint", "") or "").lower()
+            if _matches_target_endpoint(f.get("endpoint") or "", effective_target)
+            or _matches_target_endpoint(f.get("target") or "", effective_target)
         ]
 
     return FindingDictList({"status": "success", "findings": findings}, findings)
@@ -1278,6 +1283,7 @@ State explicitly: "Unconfirmed hypothesis based on automated pattern matching. R
                     f_cur = json.loads(f_json.read_text(encoding="utf-8"))
                     f_cur["description"] = enriched_desc
                     f_cur["ai_enriched"] = ai_success
+                    f_cur["enrichment_status"] = "enriched" if ai_success else "fallback"
                     f_cur["updated_at"] = datetime.datetime.now().isoformat()
                     f_json.write_text(json.dumps(f_cur, indent=2), encoding="utf-8")
                 except Exception:
@@ -1288,6 +1294,7 @@ State explicitly: "Unconfirmed hypothesis based on automated pattern matching. R
         "status": "success" if ai_success else "fallback",
         "finding_id": fid,
         "ai_enriched": ai_success,
+        "enrichment_status": "enriched" if ai_success else "fallback",
         "description": enriched_desc,
         "error": error_reason if not ai_success else None,
         "retried": retried,

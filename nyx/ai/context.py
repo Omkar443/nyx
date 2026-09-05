@@ -35,7 +35,12 @@ def _matches_target_endpoint(ep_url: str, target: str) -> bool:
     e_port = e_p.port or (443 if e_p.scheme == "https" else 80)
     e_path = e_p.path.rstrip("/")
 
-    if t_host != e_host:
+    host_match = (t_host == e_host)
+    if not host_match and "." in t_host and not t_host.replace(".", "").isdigit():
+        if t_host not in ("localhost", "127.0.0.1", "::1") and e_host.endswith("." + t_host):
+            host_match = True
+
+    if not host_match:
         return False
     if t_has_port:
         if t_port != e_port:

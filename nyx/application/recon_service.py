@@ -50,6 +50,9 @@ class ReconService:
 
     def get_endpoints(self, target: str | None = None) -> dict[str, Any]:
         """Retrieve harvested endpoints from engagement memory, optionally filtered by target."""
+        from nyx.core.engagement import get_engagement_target
+        from nyx.ai.context import _matches_target_endpoint
+
         d = _get_eng_dir(base_dir=self.base_dir)
         ep_file = d / "endpoints.json"
         endpoints = []
@@ -59,17 +62,17 @@ class ReconService:
             except Exception:
                 endpoints = []
 
-        if target and endpoints:
-            clean_t = target.lower().replace("http://", "").replace("https://", "").split(":")[0]
+        effective_target = target if target is not None else get_engagement_target(base_dir=self.base_dir)
+        if effective_target and effective_target not in ("*", "all") and endpoints:
             endpoints = [
                 ep for ep in endpoints
-                if clean_t in (ep.get("host", "") if isinstance(ep, dict) else str(ep)).lower()
-                or clean_t in (ep.get("url", "") if isinstance(ep, dict) else str(ep)).lower()
+                if _matches_target_endpoint(ep.get("url", "") if isinstance(ep, dict) else str(ep), effective_target)
+                or (isinstance(ep, dict) and ep.get("target") and _matches_target_endpoint(ep.get("target"), effective_target))
             ]
 
         return {"success": True, "endpoints": endpoints, "count": len(endpoints)}
 
-    def get_technologies(self) -> dict[str, Any]:
+    def get_technologies(self, target: str | None = None) -> dict[str, Any]:
         """Retrieve detected technologies from engagement memory."""
         d = _get_eng_dir(base_dir=self.base_dir)
         tech_file = d / "technologies.json"

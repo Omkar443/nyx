@@ -147,6 +147,8 @@ class AIService(BaseService):
                 )
             return self.ok(data=res, message=f"Autonomous loop finished for '{target}' with status '{res.get('status')}'.")
         except Exception as ex:
+            from nyx.ai.tracker import active_mission_tracker
+            active_mission_tracker.fail(str(ex))
             return self.fail(message=f"Error executing autonomous loop: {ex}", error_code="PLANNER_ERROR")
 
     def get_status(self) -> ServiceResult:

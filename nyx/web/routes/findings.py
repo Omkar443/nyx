@@ -40,7 +40,9 @@ async def list_findings(
     service: FindingService = Depends(get_finding_service),
 ) -> Dict[str, Any]:
     """List all findings recorded in active engagement workspace."""
-    _, data = _parse_res(service.list_findings(target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.list_findings(target=active_target))
     return data
 
 

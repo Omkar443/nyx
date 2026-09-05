@@ -181,18 +181,59 @@ async def run_ai_autonomous_loop(
         )
 
     from nyx.execution.policy import normalize_target
+    from nyx.ai.tracker import active_mission_tracker
+
+    if active_mission_tracker.is_running:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "MISSION_ALREADY_RUNNING",
+                "message": f"An autonomous mission is already running for target '{active_mission_tracker.target}'. Wait for completion or stop it before starting a new run.",
+                "target": active_mission_tracker.target,
+            },
+        )
+
     target_clean = normalize_target(req.target)
-    res = await asyncio.to_thread(
-        service.planner.run_autonomous_loop,
-        target=target_clean,
-        provider_name=req.provider_name,
-        active_permitted=req.active_permitted,
-        max_iterations=req.max_iterations,
-        auto_approve=req.auto_approve,
-    )
+    try:
+        res = await asyncio.to_thread(
+            service.planner.run_autonomous_loop,
+            target=target_clean,
+            provider_name=req.provider_name,
+            active_permitted=req.active_permitted,
+            max_iterations=req.max_iterations,
+            auto_approve=req.auto_approve,
+        )
+    except asyncio.CancelledError:
+        from nyx.infrastructure.process import request_shutdown
+        request_shutdown()
+        active_mission_tracker.abort(
+            reason="cancelled",
+            details={"message": "Mission execution cancelled due to server shutdown or connection closure."},
+        )
+        return {
+            "status": "aborted",
+            "reason": "cancelled",
+            "target": target_clean,
+            "message": "Autonomous mission cancelled due to server shutdown.",
+        }
+
     if res.get("status") == "error":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "SCOPE_ERROR" if res.get("error") == "out of scope" else "LOOP_FAILED", "message": res.get("error", "Autonomous loop failed."), "details": res},
         )
     return res
+
+
+@router.get("/ai/autonomous-status", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def get_autonomous_mission_status() -> Dict[str, Any]:
+    """Retrieve authoritative real-time execution status of autonomous security missions."""
+    from nyx.ai.tracker import active_mission_tracker
+    status_data = active_mission_tracker.get_status()
+    return {
+        "success": True,
+        "data": status_data,
+        "error": None,
+        "code": "OK",
+    }
+

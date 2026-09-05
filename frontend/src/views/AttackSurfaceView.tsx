@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Radar, Search, Filter, ChevronDown, ChevronRight,
   Server, Lock, Code, RefreshCw, AlertTriangle, Play, Plus, Brain, ExternalLink, Globe
@@ -33,11 +33,43 @@ export function AttackSurfaceView() {
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanProgress, setScanProgress] = useState<any>(null);
+  const [scanElapsed, setScanElapsed] = useState<number>(0);
   const [scanNotice, setScanNotice] = useState<string | null>(null);
+
+  const isScanningRef = useRef<boolean>(false);
+  useEffect(() => {
+    isScanningRef.current = isScanning;
+  }, [isScanning]);
+
+  async function syncReconStatus() {
+    try {
+      const targetQuery = target && target !== 'No active target' ? `?target=${encodeURIComponent(target)}` : '';
+      const res = await fetchApi(`/api/v1/surface/recon-status${targetQuery}`);
+      if (res?.data) {
+        const d = res.data;
+        if (d.is_running) {
+          setIsScanning(true);
+          setScanProgress(d);
+          if (typeof d.elapsed_seconds === 'number') {
+            setScanElapsed(d.elapsed_seconds);
+          }
+        } else if (isScanningRef.current) {
+          setIsScanning(false);
+          setScanProgress(null);
+          loadSurface();
+          refreshGlobalStats();
+        }
+      }
+    } catch {
+      // Graceful fallback
+    }
+  }
 
   async function loadSurface() {
     try {
-      const epsRes = await fetchApi('/api/v1/endpoints');
+      const targetQuery = target && target !== 'No active target' ? `?target=${encodeURIComponent(target)}` : '';
+      const epsRes = await fetchApi(`/api/v1/endpoints${targetQuery}`);
       const rawEps = epsRes?.endpoints || epsRes?.data?.endpoints || [];
       
       const formatted: EndpointItem[] = rawEps.map((ep: any) => {
@@ -68,7 +100,7 @@ export function AttackSurfaceView() {
 
       setEndpoints(formatted);
 
-      const techRes = await fetchApi('/api/v1/technologies');
+      const techRes = await fetchApi(`/api/v1/technologies${targetQuery}`);
       const techList = techRes?.technologies || techRes?.data?.technologies || [];
       if (Array.isArray(techList)) setTechnologies(techList);
     } catch {
@@ -80,10 +112,38 @@ export function AttackSurfaceView() {
 
   useEffect(() => {
     loadSurface();
+    syncReconStatus();
+
+    let pollCount = 0;
+    const MAX_POLLS = 30; // 30 * 2s = 60s
+    const pollTimer = setInterval(() => {
+      pollCount++;
+      syncReconStatus();
+      if (pollCount >= MAX_POLLS && !isScanningRef.current) {
+        clearInterval(pollTimer);
+      }
+    }, 2000);
+
+    return () => clearInterval(pollTimer);
   }, [target]);
 
+  // Live timer tick when scanning
   useEffect(() => {
-    if (lastEvent?.event === 'recon_completed') {
+    if (!isScanning) return;
+    const timer = setInterval(() => {
+      setScanElapsed(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isScanning]);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.event === 'recon_started') {
+      setIsScanning(true);
+      syncReconStatus();
+    } else if (lastEvent.event === 'recon_completed') {
+      setIsScanning(false);
+      setScanProgress(null);
       loadSurface();
       refreshGlobalStats();
     }
@@ -96,6 +156,7 @@ export function AttackSurfaceView() {
     }
     setScanNotice(null);
     setIsScanning(true);
+    setScanElapsed(0);
     try {
       const res = await fetchApi(`/api/v1/surface/recon?target=${encodeURIComponent(target)}`, { method: 'POST' });
       if (!res?.success && res?.error) {
@@ -107,6 +168,7 @@ export function AttackSurfaceView() {
       setScanNotice(err?.message || 'Recon request failed');
     } finally {
       setIsScanning(false);
+      setScanProgress(null);
     }
   }
 
@@ -151,10 +213,30 @@ export function AttackSurfaceView() {
             className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-            <span>{isScanning ? 'Harvesting Target...' : 'Run Reconnaissance'}</span>
+            <span>
+              {isScanning 
+                ? (scanProgress?.phase_message ? `${scanProgress.phase_message} (${scanElapsed}s)` : `Harvesting Target... (${scanElapsed}s)`)
+                : 'Run Reconnaissance'}
+            </span>
           </button>
         </div>
       </div>
+
+      {/* Live Recon Progress Banner */}
+      {isScanning && (
+        <div className="bg-[#111111] border border-[#f59e0b]/40 rounded-lg p-3 flex items-center justify-between text-xs text-[#E8E8E8] shadow-sm animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 text-[#f59e0b] animate-spin" />
+            <div>
+              <span className="font-semibold text-[#f59e0b] uppercase tracking-wider text-[10px] mr-2">Recon Active</span>
+              <span>{scanProgress?.phase_message || 'Enumerating target attack surface in background...'}</span>
+            </div>
+          </div>
+          <div className="font-mono text-[#888888]">
+            {scanElapsed}s elapsed
+          </div>
+        </div>
+      )}
 
       {/* Target Notice / Error Alert */}
       {scanNotice && (

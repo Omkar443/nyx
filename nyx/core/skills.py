@@ -88,7 +88,13 @@ def parse_skill_metadata(skill_path: Path | str) -> dict:
     }
 
 
+_SKILLS_CACHE: dict[str, dict] | None = None
+
+
 def load_skills() -> dict[str, dict]:
+    global _SKILLS_CACHE
+    if _SKILLS_CACHE is not None:
+        return _SKILLS_CACHE
     skills_map = {}
     for s_dir in get_skills_dirs():
         for s_folder in s_dir.iterdir():
@@ -97,6 +103,7 @@ def load_skills() -> dict[str, dict]:
             meta = parse_skill_metadata(s_folder)
             if meta:
                 skills_map[meta["name"]] = meta
+    _SKILLS_CACHE = skills_map
     return skills_map
 
 

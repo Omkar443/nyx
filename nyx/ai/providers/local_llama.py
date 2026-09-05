@@ -18,6 +18,29 @@ from nyx.ai.base import AIProvider
 
 logger = logging.getLogger(__name__)
 
+try:
+    import requests
+    _ORIGINAL_REQUESTS_POST = requests.post
+    _ORIGINAL_REQUESTS_GET = requests.get
+except ImportError:
+    _ORIGINAL_REQUESTS_POST = None
+    _ORIGINAL_REQUESTS_GET = None
+
+
+def _is_requests_post_mocked() -> bool:
+    """Check if requests.post has been patched/mocked by unittest.mock or pytest monkeypatch."""
+    try:
+        import requests
+        import unittest.mock
+        curr = requests.post
+        if _ORIGINAL_REQUESTS_POST is not None and curr is not _ORIGINAL_REQUESTS_POST:
+            return True
+        if isinstance(curr, unittest.mock.Base):
+            return True
+    except Exception:
+        pass
+    return False
+
 
 def _classify_local_error(ex: Exception) -> Dict[str, Any]:
     """Classify and normalize local AI server exceptions into clean error structures."""
@@ -256,6 +279,26 @@ class LocalLlamaProvider(AIProvider):
 
     def test_connection(self, timeout_sec: float = 45.0) -> Dict[str, Any]:
         """Test reachability of health and chat endpoints with auto-detection for Ollama and OpenAI servers."""
+        if os.environ.get("NYX_MOCK_LLM") == "1" and not _is_requests_post_mocked():
+            is_get_mocked = False
+            try:
+                import requests
+                import unittest.mock
+                if _ORIGINAL_REQUESTS_GET is not None and requests.get is not _ORIGINAL_REQUESTS_GET:
+                    is_get_mocked = True
+                elif isinstance(requests.get, unittest.mock.Base):
+                    is_get_mocked = True
+            except Exception:
+                pass
+            if not is_get_mocked:
+                return {
+                    "provider": self.provider_name,
+                    "model": self.model_name,
+                    "success": True,
+                    "status": "ready",
+                    "message": f"Local AI server (mock) connected successfully ({self.endpoint_url})",
+                }
+
         logger.info(f"Testing local AI server connection at {self.endpoint_url}...")
 
         # 1. Health check probe and auto-detection
@@ -361,9 +404,136 @@ class LocalLlamaProvider(AIProvider):
             err_dict["success"] = False
             return err_dict
 
+    def _generate_deterministic_mock(self, prompt: str) -> str:
+        """
+        Generate realistic, deterministic structured responses when NYX_MOCK_LLM=1.
+        Varies response based on prompt context to exercise parsing and branching logic.
+        """
+        p_lower = (prompt or "").lower()
+
+        # 1. Health check / ping probe
+        if "say ok if you can read this" in p_lower:
+            return "OK. Connection verified."
+
+        # 2. Autonomous candidate selection decision prompt (run_autonomous_loop)
+        if (
+            "policy-validated candidate steps" in p_lower
+            or "selected_index" in p_lower
+            or "select the most strategic candidate step" in p_lower
+        ):
+            if "sql" in p_lower:
+                reasoning = "Prioritizing SQL injection verification step against detected database endpoints per methodology."
+            elif "lfi" in p_lower or "traversal" in p_lower:
+                reasoning = "Prioritizing path traversal and local file inclusion verification step against file endpoints."
+            elif "recon" in p_lower or "discovery" in p_lower:
+                reasoning = "Executing initial discovery and endpoint reconnaissance to expand target attack surface."
+            else:
+                reasoning = "Selected candidate step #0 based on security playbook methodology and risk prioritization."
+
+            return json.dumps({
+                "selected_index": 0,
+                "decision": "proceed",
+                "reasoning": reasoning,
+            })
+
+        # 3. Decision between multiple options (decide method)
+        if "select the best security action index from the following options" in p_lower:
+            return json.dumps({
+                "selected_index": 0,
+                "decision": "proceed",
+                "reasoning": "Selected highest-priority security action index based on playbook rules.",
+            })
+
+        # 4. Finding hypothesis description enrichment (enrich_hypothesis_description)
+        if "### why this was flagged" in p_lower or "analyzing a detected web attack surface hypothesis" in p_lower:
+            return (
+                "### Why This Was Flagged\n"
+                "Automated pattern matching and heuristic analysis identified potential vulnerability exposure on the targeted endpoint parameter.\n\n"
+                "### Exploitability Conditions\n"
+                "Requires lack of input validation, unescaped syntax reflection, or insufficient authorization enforcement on the backend handler.\n\n"
+                "### Verification Steps\n"
+                "1. Perform non-invasive baseline probe to confirm parameter behavior.\n"
+                "2. Verify response differential or timing variations.\n"
+                "3. Note: Only proceed with data extraction after confirming vulnerability existence and with explicit client/engagement authorization for data access.\n\n"
+                "### Status\n"
+                "Unconfirmed hypothesis based on automated pattern matching. Requires empirical validation before confirming impact."
+            )
+
+        # 5. Finding triage JSON generation (triage_finding)
+        if "vrt_category" in p_lower or "severity_justification" in p_lower:
+            vuln_type = (
+                "SQL Injection"
+                if "sql" in p_lower
+                else ("Cross-Site Scripting" if "xss" in p_lower else "API Security Misconfiguration")
+            )
+            return json.dumps({
+                "vrt_category": f"Server-Side Injection > {vuln_type}",
+                "severity_justification": "Direct parameter manipulation indicates high security risk with potential unauthorized data access.",
+                "summary": f"The target endpoint exhibits potential {vuln_type} vulnerabilities due to insufficient input validation.",
+                "steps_to_reproduce": "1. Send a crafted verification probe to the target endpoint.\n2. Observe abnormal response status or error syntax reflecting vulnerability.",
+                "impact": "An attacker could leverage this vulnerability to gain unauthorized access to backend data or system functionality.",
+                "remediation": "Implement parameterized queries, strict input validation, and context-aware output encoding.",
+            })
+
+        # 6. Finding evidence review / verification
+        if "evidence review" in p_lower or "verdict:" in p_lower or "review the evidence collected" in p_lower:
+            return (
+                "VERDICT: CONFIRMED\n"
+                "REASONING: Empirical request/response evidence demonstrates observable behavioral differences confirming vulnerability existence."
+            )
+
+        # 7. Mission planning or context analysis prompt (create_plan, analyze)
+        if (
+            "tailored" in p_lower
+            or "hypothesis" in p_lower
+            or "vulnerability research focus" in p_lower
+            or "detected technologies:" in p_lower
+            or "vulnerability_type" in p_lower
+            or "focus particularly on analyzing attack vectors" in p_lower
+        ):
+            if "sql" in p_lower:
+                focus = "SQL Injection & Parameterized Data Exposure"
+                reasoning = "Target endpoints and parameters exhibit dynamic query patterns. Prioritizing structured SQL syntax validation."
+            elif "lfi" in p_lower or "traversal" in p_lower:
+                focus = "Local File Inclusion & Path Traversal"
+                reasoning = "Endpoint routing indicates potential file retrieval parameters without canonical path normalization."
+            elif "xss" in p_lower:
+                focus = "Cross-Site Scripting & Client Sink Reflection"
+                reasoning = "Client-side reflection sinks detected in harvested endpoints. Prioritizing context-aware payload verification."
+            elif "recon" in p_lower or "discovery" in p_lower:
+                focus = "Target Asset Discovery & Surface Enumeration"
+                reasoning = "Initial engagement phase prioritizing endpoint harvesting and technology fingerprinting."
+            else:
+                focus = "API & Authentication Boundary Verification"
+                reasoning = "Target endpoints and detected stack indicate public service surface requiring credential and authorization boundary verification."
+
+            return json.dumps({
+                "focus": focus,
+                "recommended_focus": focus,
+                "reasoning": reasoning,
+                "analysis": reasoning,
+            })
+
+        # 8. Generic JSON fallback
+        return json.dumps({
+            "focus": "Security Surface Analysis",
+            "recommended_focus": "Security Surface Analysis",
+            "reasoning": "Deterministic mock reasoning from NYX AI test harness.",
+            "analysis": "Deterministic mock reasoning from NYX AI test harness.",
+            "selected_index": 0,
+            "decision": "proceed",
+            "status": "success",
+        })
+
     def generate(self, prompt: str, options: Optional[Dict[str, Any]] = None) -> str:
         """Send prompt to local Ollama /api/generate endpoint and return text response."""
         opts = options or {}
+
+        # Fast path: deterministic structured mock for regression test suites
+        if os.environ.get("NYX_MOCK_LLM") == "1" and not _is_requests_post_mocked():
+            logger.debug("[AI:local] NYX_MOCK_LLM active: returning deterministic structured mock response")
+            return self._generate_deterministic_mock(prompt)
+
         explicit_timeout = float(opts["timeout"]) if "timeout" in opts and opts["timeout"] is not None else None
 
         max_tokens = (

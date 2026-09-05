@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Server, Cpu, Target, Shield, Terminal, 
   ChevronRight, Activity, Zap, RefreshCw, CheckCircle, AlertTriangle, Play, Sparkles
@@ -18,23 +18,56 @@ export function DashboardView() {
   const [recentExecutions, setRecentExecutions] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isReconRunning, setIsReconRunning] = useState<boolean>(false);
+  const [reconProgress, setReconProgress] = useState<any>(null);
+  const [reconElapsed, setReconElapsed] = useState<number>(0);
   const [reconNotice, setReconNotice] = useState<string | null>(null);
+
+  const isReconRunningRef = useRef<boolean>(false);
+  useEffect(() => {
+    isReconRunningRef.current = isReconRunning;
+  }, [isReconRunning]);
+
+  async function syncReconStatus() {
+    try {
+      const targetQuery = target && target !== 'No active target' ? `?target=${encodeURIComponent(target)}` : '';
+      const res = await fetchApi(`/api/v1/surface/recon-status${targetQuery}`);
+      if (res?.data) {
+        const d = res.data;
+        if (d.is_running) {
+          setIsReconRunning(true);
+          setReconProgress(d);
+          if (typeof d.elapsed_seconds === 'number') {
+            setReconElapsed(d.elapsed_seconds);
+          }
+        } else if (isReconRunningRef.current) {
+          setIsReconRunning(false);
+          setReconProgress(null);
+          loadDashboard();
+          refreshGlobalStats();
+        }
+      }
+    } catch {
+      // Graceful fallback
+    }
+  }
 
   async function loadDashboard() {
     try {
+      const targetQuery = target && target !== 'No active target' ? `?target=${encodeURIComponent(target)}` : '';
+
       // 1. Technologies
-      const techRes = await fetchApi('/api/v1/technologies');
+      const techRes = await fetchApi(`/api/v1/technologies${targetQuery}`);
       const tList = techRes?.data?.technologies || techRes?.technologies || [];
       if (Array.isArray(tList)) setTechnologies(tList);
 
       // 2. Recent Findings
-      const findingsRes = await fetchApi('/api/v1/findings');
+      const findingsRes = await fetchApi(`/api/v1/findings${targetQuery}`);
       const fList = findingsRes?.data?.findings || findingsRes?.findings || [];
       if (Array.isArray(fList)) setRecentFindings(fList.slice(0, 5));
 
       // 3. Recent Executions scoped to target
-      const targetQuery = target && target !== 'No active target' ? `&target=${encodeURIComponent(target)}` : '';
-      const execRes = await fetchApi(`/api/v1/execution/history?limit=5${targetQuery}`);
+      const execQuery = target && target !== 'No active target' ? `&target=${encodeURIComponent(target)}` : '';
+      const execRes = await fetchApi(`/api/v1/execution/history?limit=5${execQuery}`);
       const eList = execRes?.data?.history || execRes?.history || [];
       if (Array.isArray(eList)) setRecentExecutions(eList.slice(0, 5));
     } catch {
@@ -44,12 +77,45 @@ export function DashboardView() {
     }
   }
 
+  // Target change or initial mount re-hydration & self-limiting fallback poll
   useEffect(() => {
     loadDashboard();
+    syncReconStatus();
+
+    let pollCount = 0;
+    const MAX_POLLS = 30; // 30 * 2s = 60s
+    const pollTimer = setInterval(() => {
+      pollCount++;
+      syncReconStatus();
+      if (pollCount >= MAX_POLLS && !isReconRunningRef.current) {
+        clearInterval(pollTimer);
+      }
+    }, 2000);
+
+    return () => clearInterval(pollTimer);
   }, [target]);
 
+  // Live timer tick when recon is actively running
   useEffect(() => {
-    if (lastEvent) {
+    if (!isReconRunning) return;
+    const timer = setInterval(() => {
+      setReconElapsed(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isReconRunning]);
+
+  // WebSocket live event listeners
+  useEffect(() => {
+    if (!lastEvent) return;
+    if (lastEvent.event === 'recon_started') {
+      setIsReconRunning(true);
+      syncReconStatus();
+    } else if (lastEvent.event === 'recon_completed') {
+      setIsReconRunning(false);
+      setReconProgress(null);
+      loadDashboard();
+      refreshGlobalStats();
+    } else {
       loadDashboard();
       refreshGlobalStats();
     }
@@ -62,6 +128,7 @@ export function DashboardView() {
     }
     setReconNotice(null);
     setIsReconRunning(true);
+    setReconElapsed(0);
     try {
       const res = await fetchApi(`/api/v1/surface/recon?target=${encodeURIComponent(target)}`, { method: 'POST' });
       if (!res?.success && res?.error) {
@@ -73,6 +140,7 @@ export function DashboardView() {
       setReconNotice(err?.message || 'Recon request failed');
     } finally {
       setIsReconRunning(false);
+      setReconProgress(null);
     }
   }
 
@@ -99,7 +167,11 @@ export function DashboardView() {
             className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isReconRunning ? 'animate-spin' : ''}`} />
-            <span>{isReconRunning ? 'Harvesting Surface...' : 'Run Reconnaissance'}</span>
+            <span>
+              {isReconRunning 
+                ? (reconProgress?.phase_message ? `${reconProgress.phase_message} (${reconElapsed}s)` : `Harvesting Surface... (${reconElapsed}s)`)
+                : 'Run Reconnaissance'}
+            </span>
           </button>
           <button 
             onClick={() => setCurrentView('mission')}
@@ -110,6 +182,22 @@ export function DashboardView() {
           </button>
         </div>
       </div>
+
+      {/* Live Recon Progress Banner */}
+      {isReconRunning && (
+        <div className="bg-[#111111] border border-[#f59e0b]/40 rounded-lg p-3 flex items-center justify-between text-xs text-[#E8E8E8] shadow-sm animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 text-[#f59e0b] animate-spin" />
+            <div>
+              <span className="font-semibold text-[#f59e0b] uppercase tracking-wider text-[10px] mr-2">Recon Active</span>
+              <span>{reconProgress?.phase_message || 'Enumerating attack surface in background...'}</span>
+            </div>
+          </div>
+          <div className="font-mono text-[#888888]">
+            {reconElapsed}s elapsed
+          </div>
+        </div>
+      )}
 
       {/* Target Notice / Error Alert */}
       {reconNotice && (

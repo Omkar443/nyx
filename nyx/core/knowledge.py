@@ -68,18 +68,30 @@ def load_knowledge(knowledge_dir: Path | str | None = None) -> dict:
     return data
 
 
+_TECH_CACHE: dict[tuple[str, str], dict | None] = {}
+
+
 def load_technology(tech_name: str, knowledge_dir: Path | str | None = None) -> dict | None:
     k_dir = Path(knowledge_dir) if knowledge_dir else get_default_knowledge_dir()
+    cache_key = (tech_name.lower().strip(), str(k_dir))
+    if cache_key in _TECH_CACHE:
+        return _TECH_CACHE[cache_key]
+
     tech_clean = tech_name.lower().replace(" ", "").replace(".", "")
     tech_dir = k_dir / "technologies"
 
-    for p in tech_dir.glob("*.yaml"):
-        if p.stem.lower().replace(" ", "").replace(".", "") == tech_clean:
-            try:
-                return yaml.safe_load(p.read_text(encoding="utf-8"))
-            except Exception:
-                return None
-    return None
+    res = None
+    if tech_dir.exists():
+        for p in tech_dir.glob("*.yaml"):
+            if p.stem.lower().replace(" ", "").replace(".", "") == tech_clean:
+                try:
+                    res = yaml.safe_load(p.read_text(encoding="utf-8"))
+                    break
+                except Exception:
+                    res = None
+                    break
+    _TECH_CACHE[cache_key] = res
+    return res
 
 
 def load_vulnerability(vuln_name: str, knowledge_dir: Path | str | None = None) -> dict | None:

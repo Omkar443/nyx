@@ -92,30 +92,63 @@ def http_get(
         return 0, {}, str(e)
 
 
-def recon_subdomains_via_crtsh(target: str) -> set[str]:
+def recon_subdomains_via_crtsh(target: str, timeout: int | None = None, retries: int = 1) -> set[str]:
+    env_timeout = os.environ.get("NYX_CRTSH_TIMEOUT")
+    actual_timeout = timeout or (int(env_timeout) if env_timeout and env_timeout.isdigit() else 30)
     url = f"https://crt.sh/?q=%25.{target}&output=json"
-    status, _, body = http_get(url, timeout=20)
-    if status != 200 or not body:
-        return set()
-    try:
-        rows = json.loads(body)
-    except Exception:
-        return set()
-    subs = set()
-    for r in rows:
-        nv = (r.get("name_value") or "").lower()
-        for line in nv.split("\n"):
-            line = line.strip()
-            if line and "*" not in line:
-                subs.add(line)
-    return subs
+    for attempt in range(retries + 1):
+        status, _, body = http_get(url, timeout=actual_timeout)
+        if status == 200 and body:
+            try:
+                rows = json.loads(body)
+                subs = set()
+                for r in rows:
+                    nv = (r.get("name_value") or "").lower()
+                    for line in nv.split("\n"):
+                        line = line.strip()
+                        if line and "*" not in line:
+                            subs.add(line)
+                if subs:
+                    return subs
+            except Exception:
+                pass
+        if attempt < retries:
+            import time
+            time.sleep(1.0)
+    return set()
 
 
-def recon_subdomains_via_subfinder(target: str) -> set[str]:
+def recon_subdomains_via_subfinder(target: str, timeout: int | None = None) -> set[str]:
     if not has_cmd("subfinder"):
         return set()
-    _, out, _ = run_cmd(["subfinder", "-d", target, "-silent"], timeout=60)
-    return {line.strip().lower() for line in out.splitlines() if line.strip()}
+    env_timeout = os.environ.get("NYX_SUBFINDER_TIMEOUT")
+    actual_timeout = timeout or (int(env_timeout) if env_timeout and env_timeout.isdigit() else 180)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(prefix="nyx_subfinder_", suffix=".txt", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+
+    subs = set()
+    try:
+        cmd = ["subfinder", "-d", target, "-silent", "-o", str(tmp_path)]
+        ret, out, _ = run_cmd(cmd, timeout=actual_timeout)
+        if tmp_path.exists():
+            for line in tmp_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                l = line.strip().lower()
+                if l and not l.startswith("*"):
+                    subs.add(l)
+        if out:
+            for line in out.splitlines():
+                l = line.strip().lower()
+                if l and not l.startswith("*"):
+                    subs.add(l)
+        return subs
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
 
 
 def recon_resolve(host: str) -> list[str]:
@@ -388,6 +421,18 @@ def sync_recon_to_engagement(
     if not d.exists():
         return 0, 0, 0
 
+    from nyx.core.engagement import get_engagement_target
+    active_target = get_engagement_target(base_dir=base_dir)
+    if active_target:
+        from nyx.ai.context import _matches_target_endpoint
+        from nyx.security.authorization import parse_target_tuple, is_authorized_target
+        _, t_host, _ = parse_target_tuple(target)
+        _, a_host, _ = parse_target_tuple(active_target)
+        matches_active = (t_host and a_host == t_host) or _matches_target_endpoint(target, active_target) or _matches_target_endpoint(active_target, target)
+        if not matches_active and not is_authorized_target(target, base_dir=base_dir):
+            # Active target has switched and background recon target is no longer authorized/active: discard to prevent pollution
+            return 0, 0, 0
+
     ep_file = d / "endpoints.json"
     try:
         endpoints = (
@@ -430,6 +475,7 @@ def sync_recon_to_engagement(
             new_cnt += 1
             new_obj = {
                 "url": url,
+                "target": target,
                 "host": rec.get("host"),
                 "status": rec.get("code"),
                 "server": rec.get("server", ""),
@@ -449,6 +495,7 @@ def sync_recon_to_engagement(
             new_cnt += 1
             new_obj = {
                 "url": url,
+                "target": target,
                 "host": host,
                 "ips": ips,
                 "status": None,
@@ -487,6 +534,7 @@ def sync_recon_to_engagement(
             prio = "P1" if any(k in url.lower() for k in ("admin", "api", "auth", "secret", "env", "graphql", "ftp", "doc", "sigma")) else "P2"
             new_obj = {
                 "url": url,
+                "target": target,
                 "host": host,
                 "status": cd.get("status"),
                 "server": cd.get("server", ""),
@@ -765,6 +813,9 @@ def run_recon(
     target_dir = resolved_path
     target_dir.mkdir(parents=True, exist_ok=True)
 
+    from nyx.recon.tracker import active_recon_tracker
+    active_recon_tracker.start(target=target, initial_phase="subdomain_enum", message=f"Starting reconnaissance for {target}...")
+
     logger.info("[RECON] Starting reconnaissance for target: %s", target)
 
     if proxy or burp:
@@ -772,6 +823,7 @@ def run_recon(
         configure_http_proxy(proxy_url, insecure=True)
 
     logger.info("[RECON] Subdomain enumeration started for host: %s", target_host)
+    active_recon_tracker.update_phase("subdomain_enum", f"Enumerating subdomains for {target_host}...")
     subs = set()
     subs |= recon_subdomains_via_crtsh(target_host)
     sf = recon_subdomains_via_subfinder(target_host)
@@ -788,6 +840,7 @@ def run_recon(
     )
 
     logger.info("[RECON] DNS resolution started for %d subdomains", len(subs))
+    active_recon_tracker.update_phase("dns_resolution", f"Resolving DNS for {len(subs)} subdomains...", subdomains_count=len(subs))
     resolved = {}
     for s in sorted(subs):
         ips = recon_resolve(s)
@@ -808,6 +861,7 @@ def run_recon(
         hosts_to_probe.add(target)
 
     logger.info("[RECON] HTTP probing started for %d endpoints", len(hosts_to_probe))
+    active_recon_tracker.update_phase("http_probing", f"Probing HTTP services across {len(hosts_to_probe)} endpoints...", resolved_count=len(resolved))
     live = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         futures = {ex.submit(recon_http_probe, h): h for h in hosts_to_probe}
@@ -838,7 +892,30 @@ def run_recon(
         live_urls = [target_full_url]
 
     logger.info("[RECON] Content & route discovery started on %d live endpoints", len(live_urls))
-    content_discovered = run_content_discovery(live_urls)
+    active_recon_tracker.update_phase("content_discovery", f"Discovering routes & parameters across {len(live_urls)} live endpoints...", live_count=len(live))
+
+    meta_map = {}
+    for r in live:
+        if isinstance(r, dict) and r.get("url"):
+            meta_map[r["url"].split("#")[0].rstrip("/")] = r
+
+    def _on_cd_progress(idx: int, total: int, base_url: str, found_cnt: int, status_note: str = ""):
+        parsed_host = urllib.parse.urlparse(base_url).hostname or base_url
+        note = f" [{status_note}]" if status_note else ""
+        active_recon_tracker.update_phase(
+            "content_discovery",
+            f"[{idx + 1}/{total}] Content discovery on {parsed_host}{note} ({found_cnt} paths found)...",
+            content_discovery_current=idx + 1,
+            content_discovery_total=total,
+            content_discovered_count=found_cnt,
+            live_count=len(live),
+        )
+
+    content_discovered = run_content_discovery(
+        live_urls,
+        endpoint_metadata=meta_map,
+        progress_callback=_on_cd_progress,
+    )
     logger.info("[RECON] Content discovery mapped %d paths/parameters", len(content_discovered))
 
     (target_dir / "content-discovery.json").write_text(
@@ -852,6 +929,7 @@ def run_recon(
     manifest_path = target_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
+    active_recon_tracker.update_phase("syncing", f"Syncing {len(live) + len(resolved) + len(content_discovered)} assets into engagement memory...", content_discovery_count=len(content_discovered))
     tot_disc, new_cnt, known_cnt = sync_recon_to_engagement(
         target, subs, resolved, live, content_discovered=content_discovered, base_dir=base_dir
     )
@@ -889,7 +967,7 @@ def run_recon(
     except Exception:
         pass
 
-    return {
+    final_res = {
         "status": "success",
         "target": target,
         "execution_id": exec_id,
@@ -905,6 +983,8 @@ def run_recon(
         "sync_new": new_cnt,
         "sync_known": known_cnt,
     }
+    active_recon_tracker.complete(final_res)
+    return final_res
 
 
 # Function aliases for backward compatibility and test suites

@@ -8,7 +8,7 @@
   <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-331%20Passed-brightgreen.svg" alt="331 Tests Passing"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-341%20Passed-brightgreen.svg" alt="341 Tests Passing"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-83%20Validated-blueviolet.svg" alt="83 Security Skills"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Knowledge%20Assets-33%20Databases-blue.svg" alt="33 Knowledge Databases"></a>
   <a href="docs/benchmarks/"><img src="https://img.shields.io/badge/Benchmarks-68.8%25%20%7C%2081.0%25-informational.svg" alt="Empirical Benchmarks"></a>
@@ -390,6 +390,18 @@ When a destructive action (such as `nuclei`, `sqlmap`, or `ffuf`) is selected:
 3. **Upcoming Pipeline Preview**: An interactive accordion in the dashboard displays the preview of upcoming planned steps, their tools, targets, and justifications, giving the operator complete situational awareness before authorizing.
 4. **Execution & Next Evaluation**: Once approved, the tool executes, findings and evidence are harvested, and the planner dynamically recalculates remaining steps.
 
+### Auto-Approve Mode (Optional Per-Mission Automation)
+For high-velocity authorized testing or unattended CI/CD runs, NYX provides an optional **Auto-Approve Mode**:
+- **Per-Mission Toggle (Default OFF)**: Configurable directly on the Autonomous Mission Runner UI. Manual human approval remains the strict, permanent default.
+- **Mandatory Confirmation Modal**: Enabling Auto-Approve requires confirming a safety dialog explaining that destructive actions (`nuclei`, `sqlmap`, `ffuf`) will execute automatically without human pause.
+- **Immutable Audit Trail**: Auto-approved actions are recorded in `.engagement/approval_history.json` and in telemetry with `approved_by: "auto"`, preserving a complete audit ledger identical to human operator approvals.
+- **Live Visual Safeguards**: While active, the UI renders a dedicated amber warning header with an `AUTO-APPROVE ACTIVE` badge and real-time execution controls.
+
+### Real-Time Mission Tracking & Tab-Switch Re-hydration
+NYX features an authoritative **Active Mission Tracker** singleton backed by `GET /api/v1/ai/autonomous-status`:
+- **Authoritative Backend State**: Tracks `is_running`, `last_progress`, `elapsed_seconds`, `auto_approve`, `active_permitted`, and pending approvals across the full mission lifecycle.
+- **Zero-Loss Tab Switching**: When an operator navigates away from the Mission Plan tab or refreshes the page, the frontend automatically queries `/api/v1/ai/autonomous-status` upon remount and re-hydrates live execution state, elapsed timers, and console logs, eliminating false "idle" UI states while background missions continue executing.
+
 ### Phase Auto-Tracking & Live Telemetry
 As the mission progresses, NYX automatically advances the engagement state through the standard lifecycle:
 `DISCOVERY` ──► `ANALYSIS` ──► `VALIDATION` ──► `REPORTING`
@@ -520,6 +532,16 @@ NYX is backed by an automated regression test suite covering all security domain
 ```bash
 python3 -m pytest
 ```
+
+### Fast Test Execution via `NYX_MOCK_LLM` (Developer / Testing Tier)
+To ensure fast, reliable local development and CI runs without requiring real GPU/CPU local LLM inference or commercial API keys, the test suite defaults to deterministic mock AI reasoning via `NYX_MOCK_LLM=1` in `conftest.py`:
+- **Blazing Fast**: Runs all 341 tests in ~3.5 minutes (down from 31+ minutes when contending on real local model inference).
+- **Zero Overhead**: Completely eliminates live network requests to `http://localhost:11434` during routine unit/regression testing.
+- **Live LLM Opt-In**: To run the test suite against a real local Ollama server, pass the `--live-llm` flag:
+  ```bash
+  pytest --live-llm
+  ```
+- **Test-Only Isolation**: `NYX_MOCK_LLM` is strictly a test-time environment gate configured via `conftest.py`. It is never enabled in `.env`, production configs, CLI commands, or web server runtime paths.
 
 ---
 

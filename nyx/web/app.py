@@ -42,6 +42,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         logger.info("NYX Web Platform shutting down — terminating child processes and background tasks...")
+        from nyx.infrastructure.process import request_shutdown
+        request_shutdown()
         daemon.stop()
         daemon_task.cancel()
         try:
@@ -154,7 +156,7 @@ def create_app() -> FastAPI:
                 # Optional ping/pong
                 if data == "ping":
                     await websocket.send_text("pong")
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, asyncio.CancelledError):
             ws_manager.disconnect(websocket)
         except Exception:
             ws_manager.disconnect(websocket)

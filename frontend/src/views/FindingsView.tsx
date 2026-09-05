@@ -54,7 +54,8 @@ export function FindingsView() {
 
   async function loadFindings() {
     try {
-      const res = await fetchApi('/api/v1/findings');
+      const targetQuery = target && target !== 'No active target' ? `?target=${encodeURIComponent(target)}` : '';
+      const res = await fetchApi(`/api/v1/findings${targetQuery}`);
       const list = res?.data?.findings || res?.findings || [];
       if (Array.isArray(list)) {
         setFindings(list);
@@ -78,7 +79,7 @@ export function FindingsView() {
       setNewEndpoint(viewParams.prefillEndpoint);
       setIsCreating(true);
     }
-  }, [viewParams]);
+  }, [target, viewParams]);
 
   useEffect(() => {
     if (lastEvent?.event === 'finding_created' || lastEvent?.event === 'finding_updated' || lastEvent?.event === 'validation_completed') {

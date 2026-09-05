@@ -31,8 +31,9 @@ async def get_execution_history(
     target: str | None = Query(None, description="Optional target domain to filter executions"),
     service: ExecutionService = Depends(get_execution_service),
 ) -> Dict[str, Any]:
-    """Retrieve tool execution history entries, optionally filtered by target."""
-    _, data = _parse_res(service.get_history(limit=limit, target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.get_history(limit=limit, target=active_target))
     return data
 
 

@@ -315,38 +315,66 @@ def http_get(url: str, timeout: int = 5, headers: dict | None = None) -> tuple[i
 # ============================================================
 # recon — passive subdomain enum + DNS + HTTP probe
 # ============================================================
-def recon_subdomains_via_crtsh(target: str) -> set[str]:
+def recon_subdomains_via_crtsh(target: str, timeout: int | None = None, retries: int = 1) -> set[str]:
     """crt.sh certificate transparency — passive, no API key needed."""
+    env_timeout = os.environ.get("NYX_CRTSH_TIMEOUT")
+    actual_timeout = timeout or (int(env_timeout) if env_timeout and env_timeout.isdigit() else 30)
     url = f"https://crt.sh/?q=%25.{target}&output=json"
-    status, _, body = http_get(url, timeout=20)
-    if status != 200 or not body:
-        # An outage / rate-limit (crt.sh often 503s) must NOT be mistaken for
-        # "no subdomains exist" — warn loudly so a failed lookup isn't read as empty.
-        why = f"HTTP {status}" if status else "unreachable / network error"
-        print(f"[warning] crt.sh lookup failed ({why}) — subdomain results may be INCOMPLETE, "
-              f"not necessarily empty.", file=sys.stderr, flush=True)
-        return set()
-    try:
-        rows = json.loads(body)
-    except Exception:
-        print("[warning] crt.sh returned unparseable JSON — subdomain results may be INCOMPLETE.",
-              file=sys.stderr, flush=True)
-        return set()
-    subs = set()
-    for r in rows:
-        nv = (r.get("name_value") or "").lower()
-        for line in nv.split("\n"):
-            line = line.strip()
-            if line and "*" not in line:
-                subs.add(line)
-    return subs
+    for attempt in range(retries + 1):
+        status, _, body = http_get(url, timeout=actual_timeout)
+        if status == 200 and body:
+            try:
+                rows = json.loads(body)
+                subs = set()
+                for r in rows:
+                    nv = (r.get("name_value") or "").lower()
+                    for line in nv.split("\n"):
+                        line = line.strip()
+                        if line and "*" not in line:
+                            subs.add(line)
+                if subs:
+                    return subs
+            except Exception:
+                pass
+        if attempt < retries:
+            import time
+            time.sleep(1.0)
+    why = f"HTTP {status}" if status else "unreachable / network error"
+    print(f"[warning] crt.sh lookup failed ({why}) — subdomain results may be INCOMPLETE.", file=sys.stderr, flush=True)
+    return set()
 
 
-def recon_subdomains_via_subfinder(target: str) -> set[str]:
+def recon_subdomains_via_subfinder(target: str, timeout: int | None = None) -> set[str]:
     if not has_cmd("subfinder"):
         return set()
-    _, out, _ = run_cmd(["subfinder", "-d", target, "-silent"], timeout=60)
-    return {line.strip().lower() for line in out.splitlines() if line.strip()}
+    env_timeout = os.environ.get("NYX_SUBFINDER_TIMEOUT")
+    actual_timeout = timeout or (int(env_timeout) if env_timeout and env_timeout.isdigit() else 180)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(prefix="nyx_subfinder_", suffix=".txt", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+
+    subs = set()
+    try:
+        cmd = ["subfinder", "-d", target, "-silent", "-o", str(tmp_path)]
+        ret, out, _ = run_cmd(cmd, timeout=actual_timeout)
+        if tmp_path.exists():
+            for line in tmp_path.read_text(encoding="utf-8", errors="replace").splitlines():
+                l = line.strip().lower()
+                if l and not l.startswith("*"):
+                    subs.add(l)
+        if out:
+            for line in out.splitlines():
+                l = line.strip().lower()
+                if l and not l.startswith("*"):
+                    subs.add(l)
+        return subs
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except Exception:
+            pass
 
 
 def recon_resolve(host: str) -> list[str]:

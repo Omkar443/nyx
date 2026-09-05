@@ -109,9 +109,14 @@ async def propose_agent_action(
 
 
 @router.get("/approvals", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
-async def get_pending_approvals(service: AgentService = Depends(get_agent_service)) -> Dict[str, Any]:
+async def get_pending_approvals(
+    target: Optional[str] = Query(None, description="Optional target filter"),
+    service: AgentService = Depends(get_agent_service),
+) -> Dict[str, Any]:
     """Get list of pending action approval requests."""
-    _, data = _parse_res(await asyncio.to_thread(service.get_approvals))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(await asyncio.to_thread(service.get_approvals, target=active_target))
     return data
 
 

@@ -119,6 +119,8 @@ class ExecutionService(BaseService):
 
     def get_history(self, limit: int = 50, target: str | None = None) -> ServiceResult:
         """Retrieve execution history log entries, optionally filtered by target domain / host."""
+        from nyx.core.engagement import get_engagement_target
+        effective_target = target if target is not None else get_engagement_target(base_dir=self.base_dir)
         try:
             d = _get_eng_dir(create=False, base_dir=self.base_dir)
             db_file = d / "database" / "executions.json"
@@ -127,14 +129,15 @@ class ExecutionService(BaseService):
 
             history = json.loads(db_file.read_text(encoding="utf-8"))
             if isinstance(history, list):
-                if target:
+                if effective_target and effective_target not in ("*", "all"):
                     from nyx.security.authorization import parse_target_tuple
-                    _, t_host, _ = parse_target_tuple(target)
+                    from nyx.ai.context import _matches_target_endpoint
+                    _, t_host, _ = parse_target_tuple(effective_target)
                     filtered = []
                     for h in history:
                         h_target = h.get("target", "")
                         _, h_host, _ = parse_target_tuple(h_target)
-                        if (t_host and h_host == t_host) or (target.lower() in h_target.lower()) or (h_target.lower() in target.lower()):
+                        if (t_host and h_host == t_host) or _matches_target_endpoint(h_target, effective_target):
                             filtered.append(h)
                     history = filtered
                 sliced = history[-limit:] if limit > 0 else history

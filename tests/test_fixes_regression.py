@@ -1273,3 +1273,1097 @@ def test_surface_recon_endpoint_executes_without_name_error(tmp_path: Path):
         assert data.get("success") is True or data.get("status") == "success"
 
 
+def test_active_mission_tracker_lifecycle():
+    """Verify ActiveMissionTracker tracks each lifecycle stage (start, update_progress, pause, complete)."""
+    from nyx.ai.tracker import active_mission_tracker
+    active_mission_tracker.reset()
+
+    # 1. Idle state
+    idle = active_mission_tracker.get_status()
+    assert idle["is_running"] is False
+    assert idle["status"] == "idle"
+    assert idle["target"] is None
+
+    # 2. Start running
+    active_mission_tracker.start(
+        target="target.test",
+        provider_name="local",
+        active_permitted=True,
+        max_iterations=5,
+        start_iteration=1,
+        auto_approve=False,
+    )
+    running = active_mission_tracker.get_status()
+    assert running["is_running"] is True
+    assert running["status"] == "running"
+    assert running["target"] == "target.test"
+    assert running["provider_name"] == "local"
+    assert running["max_iterations"] == 5
+    assert running["current_iteration"] == 1
+    assert running["elapsed_seconds"] >= 0
+    assert running["last_progress"] is not None
+    assert running["last_progress"]["state"] == "initializing"
+    assert running["last_progress"]["message"] == "Initializing mission context..."
+
+    # 3. Update progress (reasoning)
+    active_mission_tracker.update_progress({
+        "state": "reasoning",
+        "target": "target.test",
+        "iteration": 2,
+        "max_iterations": 5,
+        "provider": "local",
+        "message": "Reasoning with local AI...",
+    })
+    prog = active_mission_tracker.get_status()
+    assert prog["is_running"] is True
+    assert prog["current_iteration"] == 2
+    assert prog["last_progress"]["state"] == "reasoning"
+
+    # 4. Paused for approval
+    active_mission_tracker.pause({
+        "status": "paused_for_approval",
+        "pending_step": {"name": "SQLMap Scan", "tool": "sqlmap"},
+        "action_id": "ACT-123",
+    })
+    paused = active_mission_tracker.get_status()
+    assert paused["is_running"] is False
+    assert paused["status"] == "paused_for_approval"
+    assert paused["pending_approval"]["action_id"] == "ACT-123"
+
+    # 5. Completed
+    active_mission_tracker.complete({
+        "status": "complete",
+        "reason": "no_remaining_candidates",
+    })
+    completed = active_mission_tracker.get_status()
+    assert completed["is_running"] is False
+    assert completed["status"] == "completed"
+    assert completed["result"]["status"] == "complete"
+
+    # Cleanup
+    active_mission_tracker.reset()
+
+
+def test_autonomous_status_endpoint_returns_real_time_state():
+    """Verify GET /api/v1/ai/autonomous-status exposes authoritative tracker state."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.ai.tracker import active_mission_tracker
+
+    active_mission_tracker.reset()
+    app = create_app()
+    token = get_or_create_api_token()
+    client = TestClient(app)
+
+    # 1. Idle state
+    resp = client.get("/api/v1/ai/autonomous-status", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["is_running"] is False
+    assert data["status"] == "idle"
+
+    # 2. Running state
+    active_mission_tracker.start(
+        target="example.com",
+        provider_name="ollama/qwen2.5-coder:7b",
+        active_permitted=True,
+        max_iterations=10,
+        start_iteration=2,
+        auto_approve=True,
+    )
+    resp_init = client.get("/api/v1/ai/autonomous-status", headers={"Authorization": f"Bearer {token}"})
+    assert resp_init.status_code == 200
+    init_data = resp_init.json()["data"]
+    assert init_data["is_running"] is True
+    assert init_data["last_progress"] is not None
+    assert init_data["last_progress"]["state"] == "initializing"
+    assert init_data["last_progress"]["message"] == "Initializing mission context..."
+
+    active_mission_tracker.update_progress({
+        "state": "executing",
+        "target": "example.com",
+        "iteration": 2,
+        "max_iterations": 10,
+        "tool": "nuclei",
+        "message": "Executing nuclei scan",
+        "auto_approved": True,
+    })
+    resp = client.get("/api/v1/ai/autonomous-status", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["is_running"] is True
+    assert data["status"] == "running"
+    assert data["target"] == "example.com"
+    assert data["auto_approve"] is True
+    assert data["last_progress"]["tool"] == "nuclei"
+
+    # 3. Paused state
+    active_mission_tracker.pause({
+        "status": "paused_for_approval",
+        "action_id": "ACT-999",
+        "pending_step": {"name": "Run sqlmap", "tool": "sqlmap"},
+    })
+    resp = client.get("/api/v1/ai/autonomous-status", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["is_running"] is False
+    assert data["status"] == "paused_for_approval"
+    assert data["pending_approval"]["action_id"] == "ACT-999"
+
+    # Reset tracker after test
+    active_mission_tracker.reset()
+
+
+def test_autonomous_loop_updates_tracker_on_pause(tmp_path: Path):
+    """Verify planner.run_autonomous_loop properly populates active_mission_tracker when pausing for approval."""
+    from unittest.mock import patch
+    import json
+    from nyx.ai.planner import MissionPlanner
+    from nyx.ai.tracker import active_mission_tracker
+
+    active_mission_tracker.reset()
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: example.com\nscope:\n  - example.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nmode: testing\nscope:\n  - example.com\n", encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([{"url": "https://example.com/login", "host": "example.com"}]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["express"]}), encoding="utf-8")
+
+    destructive_step = {
+        "step": 1,
+        "name": "SQLMap Active Injection Scan",
+        "tool": "sqlmap",
+        "action": "active_validation",
+        "target": "https://example.com/api/user?id=1",
+        "impact_class": "DESTRUCTIVE",
+        "impact_justification": "Active SQL injection fuzzing modifies database state.",
+        "reason": "SQL_INJECTION",
+    }
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    with patch.object(planner, "_select_steps", return_value=[destructive_step]), \
+         patch.object(planner.ai_manager, "analyze", return_value={"selected_index": 0, "decision": "proceed", "reasoning": "Execute active validation"}):
+
+        res = planner.run_autonomous_loop(
+            target="example.com",
+            active_permitted=True,
+            max_iterations=1,
+        )
+
+        assert res.get("status") == "paused_for_approval"
+        
+        # Verify tracker was updated
+        tracker_status = active_mission_tracker.get_status()
+        assert tracker_status["is_running"] is False
+        assert tracker_status["status"] == "paused_for_approval"
+        assert tracker_status["target"] == "example.com"
+        assert tracker_status["pending_approval"] is not None
+        assert tracker_status["pending_approval"]["action_id"] == res.get("action_id")
+
+    active_mission_tracker.reset()
+
+
+def test_tab_switch_rehydration_scenario():
+    """Simulate the reported tab switch scenario:
+    1. Mission is executing in the background.
+    2. Component unmounts (local state destroyed to idle).
+    3. Component remounts and queries GET /api/v1/ai/autonomous-status.
+    4. Proves state is fully restored: isRunning=True, progressData preserved, elapsedSeconds > 0, autoApprove=True.
+    """
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.ai.tracker import active_mission_tracker
+
+    active_mission_tracker.reset()
+    app = create_app()
+    token = get_or_create_api_token()
+    client = TestClient(app)
+
+    # 1. Mission starts and executes step
+    active_mission_tracker.start(
+        target="staging.corp",
+        provider_name="ollama/qwen2.5-coder:7b",
+        active_permitted=True,
+        max_iterations=10,
+        start_iteration=2,
+        auto_approve=True,
+    )
+    active_mission_tracker.update_progress({
+        "state": "executing",
+        "target": "staging.corp",
+        "iteration": 2,
+        "max_iterations": 10,
+        "current_step_index": 2,
+        "total_planned_steps": 5,
+        "step_name": "Nuclei Vulnerability Scan",
+        "tool": "nuclei",
+        "action": "active_validation",
+        "phase": "VALIDATION",
+        "message": "Executing Nuclei Vulnerability Scan (nuclei)",
+        "remaining_destructive_count": 3,
+        "upcoming_pipeline": [
+            {"name": "SQLMap Scan", "tool": "sqlmap", "impact_class": "DESTRUCTIVE"}
+        ],
+        "auto_approved": True,
+    })
+
+    # 2. Operator switches away from tab (component unmounts, local state destroyed)
+    ui_local_state = {
+        "isRunning": False,
+        "progressData": None,
+        "elapsedSeconds": 0,
+        "autoApprove": False,
+    }
+    assert ui_local_state["isRunning"] is False
+    assert ui_local_state["progressData"] is None
+
+    # 3. Operator switches back to tab (component remounts, calls loadMission -> GET /api/v1/ai/autonomous-status)
+    resp = client.get("/api/v1/ai/autonomous-status", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    backend_status = resp.json()["data"]
+
+    # 4. Frontend re-hydration logic
+    if backend_status["is_running"]:
+        ui_local_state["isRunning"] = True
+        ui_local_state["progressData"] = backend_status["last_progress"]
+        ui_local_state["elapsedSeconds"] = backend_status["elapsed_seconds"]
+        ui_local_state["autoApprove"] = backend_status["auto_approve"]
+
+    # 5. Verify UI state is authoritatively restored
+    assert ui_local_state["isRunning"] is True
+    assert ui_local_state["progressData"] is not None
+    assert ui_local_state["progressData"]["step_name"] == "Nuclei Vulnerability Scan"
+    assert ui_local_state["progressData"]["tool"] == "nuclei"
+    assert ui_local_state["autoApprove"] is True
+    assert ui_local_state["elapsedSeconds"] >= 0
+
+    active_mission_tracker.reset()
+
+
+def test_nyx_mock_llm_deterministic_responses(monkeypatch):
+    """Verify that when NYX_MOCK_LLM=1, LocalLlamaProvider returns deterministic, varied structured responses without network I/O."""
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+    import json
+
+    monkeypatch.setenv("NYX_MOCK_LLM", "1")
+    # Point to an unroutable/dead port to prove zero network requests are attempted
+    prov = LocalLlamaProvider(endpoint_url="http://127.0.0.1:59999/api/generate", health_url="http://127.0.0.1:59999/api/tags")
+
+    # 1. Ping / health check probe
+    assert prov.generate("Say OK if you can read this.") == "OK. Connection verified."
+
+    # 2. Candidate step decision
+    cand_resp = prov.generate("Policy-Validated Candidate Steps: [{'name': 'SQLi'}]")
+    cand_data = json.loads(cand_resp)
+    assert cand_data["selected_index"] == 0
+    assert cand_data["decision"] == "proceed"
+    assert "SQL injection" in cand_data["reasoning"]
+
+    # 3. Traversal / LFI step decision
+    lfi_resp = prov.generate("Policy-Validated Candidate Steps: [{'name': 'LFI check'}]")
+    lfi_data = json.loads(lfi_resp)
+    assert lfi_data["selected_index"] == 0
+    assert "traversal" in lfi_data["reasoning"]
+
+    # 4. Context analysis / create_plan prompt
+    plan_resp = prov.generate("tailored hypothesis for target: api.example.com, detected technologies: ['PHP', 'MySQL'], SQL Injection")
+    plan_data = json.loads(plan_resp)
+    assert "SQL" in plan_data["focus"]
+    assert "SQL" in plan_data["reasoning"]
+
+    # 5. Finding hypothesis description enrichment
+    hypo_resp = prov.generate("You are a senior security researcher analyzing a detected web attack surface hypothesis for NYX. ### Why This Was Flagged")
+    assert "### Why This Was Flagged" in hypo_resp
+    assert "### Exploitability Conditions" in hypo_resp
+    assert "### Verification Steps" in hypo_resp
+    assert "### Status" in hypo_resp
+
+    # 6. Finding evidence review
+    ev_resp = prov.generate("VERDICT: review the evidence collected for finding")
+    assert "VERDICT: CONFIRMED" in ev_resp
+
+    # 7. analyze() integration
+    res = prov.analyze({"target": "test.local", "technologies": ["express"]}, prompt="Select candidate step")
+    assert res["status"] == "success"
+    assert res["selected_index"] == 0
+    assert res["decision"] == "proceed"
+
+    # 8. test_connection() mock fast-path
+    conn = prov.test_connection()
+    assert conn["success"] is True
+    assert conn["status"] == "ready"
+
+
+def test_nyx_mock_llm_respects_explicit_requests_patch(monkeypatch):
+    """Verify that when a test explicitly mocks requests.post, NYX_MOCK_LLM does NOT bypass the test's mock."""
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.providers.local_llama import LocalLlamaProvider
+
+    monkeypatch.setenv("NYX_MOCK_LLM", "1")
+    prov = LocalLlamaProvider(endpoint_url="http://mock-ollama:11434/api/generate")
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"response": "Custom test mock output from patched requests.post"}
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        res = prov.generate("Any prompt")
+        assert res == "Custom test mock output from patched requests.post"
+        assert mock_post.called
+
+
+def test_concurrent_autonomous_mission_rejection():
+    """Verify that triggering an autonomous run while a mission is already running returns HTTP 409 Conflict."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.ai.tracker import active_mission_tracker
+
+    app = create_app()
+    client = TestClient(app)
+    token = get_or_create_api_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Simulate an active running mission in the tracker
+    active_mission_tracker.start(target="busy.target.com", provider_name="local")
+    try:
+        resp = client.post(
+            "/api/v1/ai/autonomous-run",
+            json={"target": "another.target.com", "max_iterations": 1},
+            headers=headers,
+        )
+        assert resp.status_code == 409
+        err = resp.json()["detail"]
+        assert err["code"] == "MISSION_ALREADY_RUNNING"
+        assert "busy.target.com" in err["message"]
+    finally:
+        active_mission_tracker.reset()
+
+
+def test_autonomous_loop_emits_completion_event(tmp_path: Path):
+    """Verify autonomous loop emits completion event and updates tracker to completed."""
+    from unittest.mock import patch, MagicMock
+    from nyx.ai.tracker import active_mission_tracker
+    from nyx.ai.planner import MissionPlanner
+
+    active_mission_tracker.reset()
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    emitted_events = []
+    def fake_emit(event_type, data=None, mission_id=None):
+        emitted_events.append({"event": event_type, "data": data, "mission_id": mission_id})
+
+    # Mock context to avoid external network/LLM calls
+    with patch("nyx.web.events.emit_event_sync", side_effect=fake_emit), \
+         patch.object(planner.context_engine, "get_target_context", return_value={"in_scope": True, "endpoints": ["https://target.local/api"]}), \
+         patch.object(planner, "_select_steps", return_value=[]):
+
+        res = planner.run_autonomous_loop(target="target.local", max_iterations=2)
+        assert res["status"] == "complete"
+        assert res["reason"] == "no_remaining_candidates"
+
+        # Check tracker state
+        st = active_mission_tracker.get_status()
+        assert st["is_running"] is False
+        assert st["status"] == "completed"
+        assert st["result"] is not None
+        assert st["result"]["status"] == "complete"
+
+        # Check emitted completion events
+        event_types = [e["event"] for e in emitted_events]
+        assert "mission_completed" in event_types
+        comp = next(e for e in emitted_events if e["event"] == "mission_completed")
+        assert comp["data"]["state"] == "completed"
+        assert comp["data"]["target"] == "target.local"
+        assert comp["data"]["reason"] == "no_remaining_candidates"
+
+    active_mission_tracker.reset()
+
+
+def test_classification_sub_step_progress_emitted(tmp_path):
+    """Verify that during classification, granular sub-step progress events are emitted to tracker and WebSocket."""
+    from nyx.ai.tracker import active_mission_tracker
+    from nyx.ai.planner import MissionPlanner
+    from unittest.mock import patch
+
+    active_mission_tracker.reset()
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "findings").mkdir(parents=True, exist_ok=True)
+
+    active_mission_tracker.start(
+        target="http://test.local",
+        provider_name="mock",
+        active_permitted=False,
+        max_iterations=5,
+    )
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    emitted_progress = []
+    def fake_emit(event_type, data=None, mission_id=None):
+        if event_type == "mission_progress":
+            emitted_progress.append(data)
+
+    classified_sample = [
+        {
+            "url": "http://test.local/admin",
+            "category": "AUTH",
+            "skills": ["hunt-auth-bypass"],
+            "matches": {},
+        },
+        {
+            "url": "http://test.local/graphql",
+            "category": "API",
+            "skills": ["hunt-graphql"],
+            "matches": {},
+        },
+    ]
+
+    with patch("nyx.web.events.emit_event_sync", side_effect=fake_emit), \
+         patch.object(planner.ai_manager, "generate", return_value="### Why This Was Flagged\nTest rationale\n### Exploitability Conditions\nNone\n### Verification Steps\nCheck\n### Status\nUnconfirmed"):
+
+        created = planner._map_classification_to_hypotheses(
+            classified_results=classified_sample,
+            target="http://test.local",
+        )
+
+        assert len(created) >= 1
+        assert len(emitted_progress) >= 1
+
+        # Check latest tracker progress
+        tracker_st = active_mission_tracker.get_status()
+        last_prog = tracker_st.get("last_progress", {})
+        assert "sub_step" in last_prog
+        assert last_prog["sub_step"]["type"] == "hypothesis_enrichment"
+        assert last_prog["sub_step"]["current"] >= 1
+        assert last_prog["sub_step"]["total"] >= 1
+        assert "Enriching hypothesis" in last_prog["message"]
+
+        # Check emitted WS events
+        enrich_events = [p for p in emitted_progress if p.get("sub_step", {}).get("type") == "hypothesis_enrichment"]
+        assert len(enrich_events) >= 1
+        first_enrich = enrich_events[0]
+        assert "Enriching hypothesis" in first_enrich["message"]
+        assert first_enrich["sub_step"]["current"] == 1
+
+    active_mission_tracker.reset()
+
+
+def test_shutdown_event_coordinator_and_signal_handling():
+    """Verify thread-safe shutdown coordinator and second-Ctrl+C force-quit mechanics."""
+    from nyx.infrastructure.process import (
+        is_shutdown_requested,
+        request_shutdown,
+        reset_shutdown,
+    )
+
+    reset_shutdown()
+    try:
+        assert is_shutdown_requested() is False
+
+        request_shutdown()
+        assert is_shutdown_requested() is True
+
+        # Idempotent
+        request_shutdown()
+        assert is_shutdown_requested() is True
+
+        reset_shutdown()
+        assert is_shutdown_requested() is False
+    finally:
+        reset_shutdown()
+
+
+def test_autonomous_loop_aborts_on_shutdown_request(tmp_path, monkeypatch):
+    """Verify autonomous loop and bg worker gracefully abort when shutdown is requested."""
+    from nyx.infrastructure.process import (
+        is_shutdown_requested,
+        request_shutdown,
+        reset_shutdown,
+    )
+    from nyx.ai.planner import MissionPlanner
+    from nyx.ai.tracker import active_mission_tracker
+
+    reset_shutdown()
+    active_mission_tracker.reset()
+
+    try:
+        # Setup engagement target
+        eng_dir = tmp_path / ".engagement"
+        eng_dir.mkdir(parents=True, exist_ok=True)
+        (eng_dir / "target.yaml").write_text("scope:\n  - auto.target.com\n", encoding="utf-8")
+        (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+        (eng_dir / "endpoints.json").write_text('[{"url": "https://auto.target.com/api"}]', encoding="utf-8")
+
+        planner = MissionPlanner(base_dir=tmp_path)
+        planner._select_steps = lambda ctx: [{
+            "step": 1,
+            "name": "Passive Port Scan",
+            "action": "scan",
+            "tool": "nmap",
+            "description": "Port scan.",
+            "impact_class": "RECON",
+            "policy_status": "POLICY_COMPLIANT",
+        }]
+
+        # 1. Shutdown requested before loop starts
+        request_shutdown()
+        res = planner.run_autonomous_loop("auto.target.com", max_iterations=3)
+        assert res["status"] == "aborted"
+        assert res["reason"] == "shutdown_requested"
+        assert active_mission_tracker.is_running is False
+        assert active_mission_tracker.status == "aborted"
+
+        # 2. Shutdown requested mid-iteration (e.g. during AI analyze)
+        reset_shutdown()
+        active_mission_tracker.reset()
+
+        def analyze_and_shutdown(*args, **kwargs):
+            request_shutdown()
+            return {"selected_index": 0, "reasoning": "Selected"}
+
+        planner.ai_manager.analyze = analyze_and_shutdown
+        res2 = planner.run_autonomous_loop("auto.target.com", max_iterations=3)
+        assert res2["status"] == "aborted"
+        assert res2["reason"] == "shutdown_requested"
+        assert active_mission_tracker.is_running is False
+        assert active_mission_tracker.status == "aborted"
+    finally:
+        reset_shutdown()
+        active_mission_tracker.reset()
+
+
+def test_run_cmd_refuses_execution_during_shutdown():
+    """Verify run_cmd refuses to spawn new processes once shutdown is requested."""
+    from nyx.infrastructure.process import (
+        run_cmd,
+        request_shutdown,
+        reset_shutdown,
+    )
+
+    reset_shutdown()
+    try:
+        # Before shutdown
+        rc, out, err = run_cmd(["echo", "nyx-shutdown-test"])
+        # Echo should work or return standard code
+        assert rc in (0, 127)  # 127 if echo isn't binary on windows, 0 if it is or handled
+
+        # Trigger shutdown
+        request_shutdown()
+        rc_shut, out_shut, err_shut = run_cmd(["echo", "should-not-spawn"])
+        assert rc_shut == 130
+        assert "system shutdown in progress" in err_shut
+    finally:
+        reset_shutdown()
+
+
+def test_autonomous_run_route_handles_cancellation(monkeypatch):
+    """Verify run_ai_autonomous_loop route traps CancelledError and aborts cleanly."""
+    import asyncio
+    from nyx.web.routes.intelligence import run_ai_autonomous_loop, AIAutonomousRequest
+    from nyx.ai.tracker import active_mission_tracker
+    from nyx.infrastructure.process import is_shutdown_requested, reset_shutdown
+
+    reset_shutdown()
+    active_mission_tracker.reset()
+
+    class FakeService:
+        class FakePlanner:
+            def run_autonomous_loop(self, *args, **kwargs):
+                pass
+        planner = FakePlanner()
+
+    # Mock asyncio.to_thread to raise CancelledError
+    async def mock_to_thread(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(asyncio, "to_thread", mock_to_thread)
+
+    async def _run():
+        req = AIAutonomousRequest(target="test.example.com")
+        res = await run_ai_autonomous_loop(req=req, service=FakeService())
+        assert res["status"] == "aborted"
+        assert res["reason"] == "cancelled"
+        assert is_shutdown_requested() is True
+        assert active_mission_tracker.is_running is False
+        assert active_mission_tracker.status == "aborted"
+
+    try:
+        asyncio.run(_run())
+    finally:
+        reset_shutdown()
+        active_mission_tracker.reset()
+
+
+def test_recon_service_and_surface_routes_target_scoping(tmp_path):
+    """Verify get_endpoints and get_assets default to active target and isolate cross-target assets."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.application.recon_service import ReconService
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target:\n  name: http://localhost:4444/#/\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+
+    mixed_endpoints = [
+        {"url": "https://static.tesla.com/login", "host": "static.tesla.com"},
+        {"url": "https://api.tesla.com/v1/user", "host": "api.tesla.com"},
+        {"url": "http://localhost:4444/api/v1/test", "host": "localhost"},
+        {"url": "http://localhost:4444/admin", "host": "localhost"},
+    ]
+    (eng_dir / "endpoints.json").write_text(json.dumps(mixed_endpoints), encoding="utf-8")
+
+    # 1. ReconService.get_endpoints with no target defaults to active target
+    svc = ReconService(base_dir=tmp_path)
+    res_default = svc.get_endpoints()
+    urls_default = [ep["url"] for ep in res_default["endpoints"]]
+    assert len(urls_default) == 2
+    assert "http://localhost:4444/api/v1/test" in urls_default
+    assert not any("tesla.com" in u for u in urls_default)
+
+    # 2. ReconService.get_endpoints with explicit target
+    res_tesla = svc.get_endpoints(target="tesla.com")
+    urls_tesla = [ep["url"] for ep in res_tesla["endpoints"]]
+    assert len(urls_tesla) == 2
+    assert "https://static.tesla.com/login" in urls_tesla
+    assert not any("localhost" in u for u in urls_tesla)
+
+    # 3. HTTP API routes test
+    import os
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        app = create_app()
+        client = TestClient(app)
+        token = get_or_create_api_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # GET /api/v1/endpoints (no target param)
+        resp_ep = client.get("/api/v1/endpoints", headers=headers)
+        assert resp_ep.status_code == 200
+        ep_data = resp_ep.json().get("endpoints", [])
+        assert len(ep_data) == 2
+        assert all("localhost" in ep["url"] for ep in ep_data)
+
+        # GET /api/v1/assets (no target param)
+        resp_assets = client.get("/api/v1/assets", headers=headers)
+        assert resp_assets.status_code == 200
+        assert resp_assets.json().get("data", {}).get("endpoints_count") == 2
+    finally:
+        os.chdir(orig_cwd)
+
+
+def test_findings_and_approvals_target_scoping(tmp_path):
+    """Verify list_findings and get_pending_approvals default to active target and isolate data."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.core import findings as core_findings
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target:\n  name: http://localhost:4444/#/\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+
+    mixed_findings = [
+        {"id": "FH-2026-001", "target": "tesla.com", "endpoint": "https://static.tesla.com/login", "title": "Tesla Reflected XSS", "status": "OPEN", "severity": "High"},
+        {"id": "FH-2026-002", "target": "http://localhost:4444", "endpoint": "http://localhost:4444/api/v1/user", "title": "Localhost IDOR", "status": "OPEN", "severity": "High"},
+    ]
+    (eng_dir / "findings.json").write_text(json.dumps(mixed_findings), encoding="utf-8")
+
+    # 1. core_findings.list_findings with no target defaults to active target
+    f_res = core_findings.list_findings(base_dir=tmp_path)
+    f_list = f_res.get("findings", [])
+    assert len(f_list) == 1
+    assert f_list[0]["id"] == "FH-2026-002"
+
+    # 2. HTTP route GET /api/v1/findings defaults to active target
+    import os
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        app = create_app()
+        client = TestClient(app)
+        token = get_or_create_api_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp_f = client.get("/api/v1/findings", headers=headers)
+        assert resp_f.status_code == 200
+        findings_data = resp_f.json().get("findings", [])
+        assert len(findings_data) == 1
+        assert findings_data[0]["id"] == "FH-2026-002"
+
+        # Explicit target query
+        resp_tesla = client.get("/api/v1/findings?target=tesla.com", headers=headers)
+        assert resp_tesla.status_code == 200
+        tesla_data = resp_tesla.json().get("findings", [])
+        assert len(tesla_data) == 1
+        assert tesla_data[0]["id"] == "FH-2026-001"
+    finally:
+        os.chdir(orig_cwd)
+
+
+def test_execution_and_continuous_target_scoping(tmp_path):
+    """Verify execution history and continuous routes isolate cross-target data."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.application.execution_service import ExecutionService
+    from nyx.intelligence.history import AssetHistory
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    db_dir = eng_dir / "database"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target:\n  name: http://localhost:4444/#/\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+
+    # 1. Execution history
+    mixed_execs = [
+        {"execution_id": "EXEC-1", "tool": "nuclei", "target": "https://static.tesla.com", "status": "COMPLETED"},
+        {"execution_id": "EXEC-2", "tool": "sqlmap", "target": "http://localhost:4444/api/v1/user", "status": "COMPLETED"},
+    ]
+    (db_dir / "executions.json").write_text(json.dumps(mixed_execs), encoding="utf-8")
+
+    exec_svc = ExecutionService(base_dir=tmp_path)
+    res_default = exec_svc.get_history()
+    h_default = res_default.data.get("history", [])
+    assert len(h_default) == 1
+    assert h_default[0]["execution_id"] == "EXEC-2"
+
+    res_tesla = exec_svc.get_history(target="tesla.com")
+    h_tesla = res_tesla.data.get("history", [])
+    assert len(h_tesla) == 1
+    assert h_tesla[0]["execution_id"] == "EXEC-1"
+
+    # 2. Asset history snapshots
+    mixed_snapshots = [
+        {"target": "tesla.com", "timestamp": "2026-09-01T00:00:00", "graph": {}},
+        {"target": "http://localhost:4444", "timestamp": "2026-09-02T00:00:00", "graph": {}},
+    ]
+    (db_dir / "asset_history.json").write_text(json.dumps(mixed_snapshots), encoding="utf-8")
+
+    history_mod = AssetHistory(base_dir=tmp_path)
+    snaps_loc = history_mod.get_snapshots(target="http://localhost:4444/#/")
+    assert len(snaps_loc) == 1
+    assert snaps_loc[0]["target"] == "http://localhost:4444"
+
+    snaps_tesla = history_mod.get_snapshots(target="tesla.com")
+    assert len(snaps_tesla) == 1
+    assert snaps_tesla[0]["target"] == "tesla.com"
+
+    # 3. HTTP routes test
+    import os
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        app = create_app()
+        client = TestClient(app)
+        token = get_or_create_api_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # GET /api/v1/execution/history without target param
+        resp_ex = client.get("/api/v1/execution/history", headers=headers)
+        assert resp_ex.status_code == 200
+        ex_list = resp_ex.json().get("data", {}).get("history", [])
+        assert len(ex_list) == 1
+        assert ex_list[0]["execution_id"] == "EXEC-2"
+
+        # GET /api/v1/execution/history with target param
+        resp_ex_t = client.get("/api/v1/execution/history?target=tesla.com", headers=headers)
+        assert resp_ex_t.status_code == 200
+        ex_list_t = resp_ex_t.json().get("data", {}).get("history", [])
+        assert len(ex_list_t) == 1
+        assert ex_list_t[0]["execution_id"] == "EXEC-1"
+    finally:
+        os.chdir(orig_cwd)
+
+
+def test_background_recon_target_switch_isolation(tmp_path):
+    """Verify background recon for another target does not pollute endpoints when target is switched."""
+    from nyx.core.recon import sync_recon_to_engagement
+    from nyx.application.recon_service import ReconService
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target:\n  name: http://localhost:4444/#/\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nscope:\n  - http://localhost:4444\n", encoding="utf-8")
+
+    # Seed with 90 localhost endpoints
+    localhost_eps = [
+        {"url": f"http://localhost:4444/api/v1/resource_{i}", "host": "localhost", "status": 200, "source": "crawler"}
+        for i in range(90)
+    ]
+    (eng_dir / "endpoints.json").write_text(json.dumps(localhost_eps), encoding="utf-8")
+
+    # Background recon for tesla.com completes AFTER target has switched to localhost
+    res = sync_recon_to_engagement(
+        target="tesla.com",
+        subs={"static.tesla.com", "api.tesla.com"},
+        resolved={"static.tesla.com": ["1.2.3.4"]},
+        live=[{"url": "https://static.tesla.com/login", "host": "static.tesla.com", "code": 200}],
+        base_dir=tmp_path,
+    )
+    # Recon should be discarded due to scope/target mismatch
+    assert res == (0, 0, 0)
+
+    # Verify ReconService.get_endpoints returns only 90 localhost endpoints
+    svc = ReconService(base_dir=tmp_path)
+    endpoints_res = svc.get_endpoints()
+    eps = endpoints_res.get("endpoints", [])
+    assert len(eps) == 90
+    assert all("localhost" in ep["url"] for ep in eps)
+    assert not any("tesla.com" in ep["url"] for ep in eps)
+
+    # Verify HTTP route returns only 90 localhost endpoints
+    import os
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        app = create_app()
+        client = TestClient(app)
+        token = get_or_create_api_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = client.get("/api/v1/endpoints", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json().get("endpoints", [])
+        assert len(data) == 90
+        assert all("localhost" in ep["url"] for ep in data)
+        assert not any("tesla.com" in ep["url"] for ep in data)
+    finally:
+        os.chdir(orig_cwd)
+
+
+def test_engine_status_target_scoping(tmp_path):
+    """Verify GET /api/v1/engine/status reports findings and approvals scoped to active target."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target:\n  name: http://localhost:4444/#/\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nscope:\n  - http://localhost:4444\n", encoding="utf-8")
+
+    mixed_findings = [
+        {"id": f"FH-TESLA-{i}", "target": "tesla.com", "endpoint": "https://static.tesla.com/login", "title": "Tesla XSS", "status": "OPEN", "severity": "High", "evidence_ids": ["EV-1"]}
+        for i in range(5)
+    ]
+    mixed_findings.append(
+        {"id": "FH-LOCAL-001", "target": "http://localhost:4444", "endpoint": "http://localhost:4444/api/v1/user", "title": "Local IDOR", "status": "OPEN", "severity": "High", "evidence_ids": ["EV-2"]}
+    )
+    (eng_dir / "findings.json").write_text(json.dumps(mixed_findings), encoding="utf-8")
+
+    import os
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        app = create_app()
+        client = TestClient(app)
+        token = get_or_create_api_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        resp = client.get("/api/v1/engine/status", headers=headers)
+        assert resp.status_code == 200
+        res_data = resp.json().get("data", {})
+        assert res_data.get("engine", {}).get("target") == "http://localhost:4444/#/"
+        # Findings count must be 1 for localhost, not 6
+        assert res_data.get("vault", {}).get("findings_count") == 1
+        assert res_data.get("vault", {}).get("evidence_count") == 1
+    finally:
+        os.chdir(orig_cwd)
+
+
+def test_active_recon_tracker_lifecycle():
+    """Verify ActiveReconTracker tracks real-time reconnaissance lifecycle stages and enforces target isolation."""
+    from nyx.recon.tracker import active_recon_tracker
+    active_recon_tracker.reset()
+
+    # 1. Idle state
+    idle = active_recon_tracker.get_status()
+    assert idle["is_running"] is False
+    assert idle["status"] == "idle"
+    assert idle["target"] is None
+
+    # 2. Start recon
+    active_recon_tracker.start(target="http://localhost:4444/#/")
+    running = active_recon_tracker.get_status()
+    assert running["is_running"] is True
+    assert running["status"] == "running"
+    assert running["target"] == "http://localhost:4444/#/"
+    assert running["current_phase"] == "subdomain_enum"
+    assert running["elapsed_seconds"] >= 0
+
+    # 3. Update phases
+    active_recon_tracker.update_phase("dns_resolution", "Resolving DNS for 5 subdomains...", subdomains_count=5)
+    p1 = active_recon_tracker.get_status()
+    assert p1["current_phase"] == "dns_resolution"
+    assert p1["progress"]["subdomains_count"] == 5
+
+    active_recon_tracker.update_phase("http_probing", "Probing 4 HTTP hosts...", resolved_count=4)
+    p2 = active_recon_tracker.get_status()
+    assert p2["current_phase"] == "http_probing"
+    assert p2["progress"]["resolved_count"] == 4
+
+    # Target isolation check: querying for another target should report idle
+    other_status = active_recon_tracker.get_status(target="tesla.com")
+    assert other_status["is_running"] is False
+    assert other_status["status"] == "idle"
+
+    # Querying for matching target reports running
+    matching_status = active_recon_tracker.get_status(target="http://localhost:4444")
+    assert matching_status["is_running"] is True
+
+    # 4. Complete
+    active_recon_tracker.complete({"sync_total": 90, "sync_new": 10})
+    done = active_recon_tracker.get_status()
+    assert done["is_running"] is False
+    assert done["status"] == "completed"
+    assert done["result"]["sync_total"] == 90
+
+    # 5. Fail
+    active_recon_tracker.start(target="example.com")
+    active_recon_tracker.fail("Connection refused")
+    failed = active_recon_tracker.get_status()
+    assert failed["is_running"] is False
+    assert failed["status"] == "error"
+    assert failed["error"] == "Connection refused"
+
+    # Cleanup
+    active_recon_tracker.reset()
+
+
+def test_recon_status_endpoint_returns_real_time_state():
+    """Verify GET /api/v1/surface/recon-status exposes authoritative tracker state over HTTP."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.recon.tracker import active_recon_tracker
+
+    active_recon_tracker.reset()
+    app = create_app()
+    client = TestClient(app)
+    token = get_or_create_api_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Idle state
+    resp_idle = client.get("/api/v1/surface/recon-status", headers=headers)
+    assert resp_idle.status_code == 200
+    idle_data = resp_idle.json()["data"]
+    assert idle_data["is_running"] is False
+    assert idle_data["status"] == "idle"
+
+    # 2. Running state
+    active_recon_tracker.start(target="http://localhost:4444")
+    active_recon_tracker.update_phase("http_probing", "Probing HTTP services...", live_count=12)
+
+    resp_running = client.get("/api/v1/surface/recon-status?target=http://localhost:4444", headers=headers)
+    assert resp_running.status_code == 200
+    running_data = resp_running.json()["data"]
+    assert running_data["is_running"] is True
+    assert running_data["status"] == "running"
+    assert running_data["current_phase"] == "http_probing"
+    assert running_data["progress"]["live_count"] == 12
+
+    # Different target queried returns idle
+    resp_other = client.get("/api/v1/surface/recon-status?target=tesla.com", headers=headers)
+    assert resp_other.status_code == 200
+    assert resp_other.json()["data"]["is_running"] is False
+
+    # Cleanup
+    active_recon_tracker.reset()
+
+
+def test_recon_mid_run_refresh_rehydration_state_trace(tmp_path):
+    """Verify state trace: start recon, simulate browser refresh mid-run, confirm live progress is re-hydrated."""
+    import time
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from nyx.recon.tracker import active_recon_tracker
+
+    active_recon_tracker.reset()
+    app = create_app()
+    client = TestClient(app)
+    token = get_or_create_api_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    target = "http://localhost:4444/#/"
+
+    # T0: Initial state before click
+    t0_resp = client.get(f"/api/v1/surface/recon-status?target={target}", headers=headers)
+    assert t0_resp.status_code == 200
+    t0_data = t0_resp.json()["data"]
+    assert t0_data["is_running"] is False
+    assert t0_data["status"] == "idle"
+
+    # T1: Operator clicks "Run Recon" -> tracker starts
+    active_recon_tracker.start(target=target)
+    active_recon_tracker.update_phase("subdomain_enum", "Enumerating subdomains for localhost...")
+    t1_resp = client.get(f"/api/v1/surface/recon-status?target={target}", headers=headers)
+    t1_data = t1_resp.json()["data"]
+    assert t1_data["is_running"] is True
+    assert t1_data["current_phase"] == "subdomain_enum"
+
+    # T2: Recon advances to DNS resolution and HTTP probing
+    time.sleep(0.05)
+    active_recon_tracker.update_phase("dns_resolution", "Resolving DNS for 1 subdomains...", subdomains_count=1)
+    active_recon_tracker.update_phase("http_probing", "Probing HTTP services across 1 endpoints...", resolved_count=1)
+
+    # T3: Operator presses browser REFRESH (F5) or switches tabs mid-run!
+    # Fresh mount queries recon-status independently
+    refresh_client = TestClient(app)  # Simulate fresh browser session mount
+    t3_resp = refresh_client.get(f"/api/v1/surface/recon-status?target={target}", headers=headers)
+    assert t3_resp.status_code == 200
+    t3_data = t3_resp.json()["data"]
+
+    # CONFIRM RE-HYDRATION: UI does NOT show idle; it recovers live running state!
+    assert t3_data["is_running"] is True
+    assert t3_data["status"] == "running"
+    assert t3_data["target"] == target
+    assert t3_data["current_phase"] == "http_probing"
+    assert "Probing HTTP services" in t3_data["phase_message"]
+    assert t3_data["progress"]["resolved_count"] == 1
+    assert t3_data["elapsed_seconds"] >= 0.05
+
+    # T4: Recon finishes content discovery & engagement syncing
+    active_recon_tracker.update_phase("content_discovery", "Mapping routes and parameters...")
+    active_recon_tracker.update_phase("syncing", "Syncing 90 discovered assets into memory...")
+    active_recon_tracker.complete({
+        "status": "success",
+        "target": target,
+        "sync_total": 90,
+        "sync_new": 90,
+        "sync_known": 0,
+    })
+
+    # T5: Post-completion polling queries status
+    t5_resp = refresh_client.get(f"/api/v1/surface/recon-status?target={target}", headers=headers)
+    assert t5_resp.status_code == 200
+    t5_data = t5_resp.json()["data"]
+    assert t5_data["is_running"] is False
+    assert t5_data["status"] == "completed"
+    assert t5_data["result"]["sync_total"] == 90
+
+    # Cleanup
+    active_recon_tracker.reset()
+
+
+
+
+
+
+
+
+

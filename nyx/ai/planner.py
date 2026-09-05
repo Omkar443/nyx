@@ -16,8 +16,30 @@ from nyx.ai.manager import AIManager
 from nyx.ai.memory import AIMemory
 from nyx.security.ai_policy import AIPolicyEngine
 from nyx.infrastructure.logging import get_logger
+import threading
 
 logger = get_logger("nyx.ai")
+
+_ACTIVE_ENRICHMENT_THREADS: List[threading.Thread] = []
+_ENRICHMENT_THREADS_LOCK = threading.Lock()
+
+
+def join_background_enrichment(timeout: Optional[float] = None) -> None:
+    """Wait for all active background enrichment threads to complete (useful in tests and teardown)."""
+    with _ENRICHMENT_THREADS_LOCK:
+        threads = list(_ACTIVE_ENRICHMENT_THREADS)
+    for t in threads:
+        if t.is_alive():
+            t.join(timeout=timeout)
+    with _ENRICHMENT_THREADS_LOCK:
+        _ACTIVE_ENRICHMENT_THREADS[:] = [t for t in _ACTIVE_ENRICHMENT_THREADS if t.is_alive()]
+
+
+def get_active_enrichment_count() -> int:
+    """Return count of currently running background enrichment threads."""
+    with _ENRICHMENT_THREADS_LOCK:
+        _ACTIVE_ENRICHMENT_THREADS[:] = [t for t in _ACTIVE_ENRICHMENT_THREADS if t.is_alive()]
+        return len(_ACTIVE_ENRICHMENT_THREADS)
 
 
 class MissionPlanner:
@@ -129,16 +151,105 @@ class MissionPlanner:
 
         return False
 
+    def _dispatch_background_enrichment(
+        self,
+        items_to_enrich: List[Dict[str, Any]],
+        target: str = "",
+    ) -> threading.Thread:
+        """Dispatch asynchronous background enrichment of findings without blocking the mission loop."""
+        from nyx.application.finding_service import FindingService
+        from nyx.core import findings as core_findings
+
+        base_dir = self.base_dir
+        ai_manager = self.ai_manager
+        provider_name = self.ai_manager.active_provider_name if self.ai_manager else None
+
+        from nyx.infrastructure.process import is_shutdown_requested
+
+        def _bg_worker():
+            finding_svc = FindingService(base_dir=base_dir)
+            total = len(items_to_enrich)
+            for idx, item in enumerate(items_to_enrich, start=1):
+                if is_shutdown_requested():
+                    logger.info("[AI:bg_enrich] Shutdown requested, terminating background enrichment worker")
+                    break
+                fid = item.get("finding_id")
+                if not fid:
+                    continue
+                vuln = item.get("vulnerability", "Hypothesis")
+                url = item.get("endpoint", target)
+                url_display = url.split("?")[0] if len(url) > 60 else url
+
+                # 1. Update progress for live UI / WebSocket visibility
+                try:
+                    from nyx.ai.tracker import active_mission_tracker
+                    from nyx.web.events import emit_event_sync
+
+                    cur_prog = active_mission_tracker.last_progress or {}
+                    sub_msg = f"Enriching hypothesis {idx}/{total}: {vuln} on {url_display}"
+                    prog_ev = dict(cur_prog)
+                    prog_ev["message"] = sub_msg
+                    prog_ev["sub_step"] = {
+                        "type": "hypothesis_enrichment",
+                        "current": idx,
+                        "total": total,
+                        "finding_id": fid,
+                        "vulnerability": vuln,
+                        "endpoint": url,
+                    }
+                    active_mission_tracker.update_progress(prog_ev)
+                    emit_event_sync(
+                        event_type="mission_progress",
+                        data=prog_ev,
+                        mission_id=target,
+                    )
+                except Exception:
+                    pass
+
+                # 2. Enrich via AI with internal retry and automatic fallback
+                try:
+                    finding_svc.enrich(
+                        fid,
+                        ai_manager=ai_manager,
+                        provider_name=provider_name,
+                    )
+                except Exception as ex:
+                    logger.warning("[AI:bg_enrich] Unexpected error enriching %s: %s", fid, ex)
+                    # Safety guarantee: ensure finding is never left in 'pending' status
+                    try:
+                        d = base_dir / ".engagement" if base_dir else Path(".engagement")
+                        f_file = d / "findings" / fid / "finding.json"
+                        if f_file.exists():
+                            fc = json.loads(f_file.read_text(encoding="utf-8"))
+                            if fc.get("enrichment_status") == "pending":
+                                fc["enrichment_status"] = "fallback"
+                                f_file.write_text(json.dumps(fc, indent=2), encoding="utf-8")
+                                core_findings._sync_findings_index(d)
+                    except Exception:
+                        pass
+
+        t = threading.Thread(
+            target=_bg_worker,
+            name=f"nyx-bg-enrich-{len(items_to_enrich)}",
+            daemon=True,
+        )
+        t.start()
+        with _ENRICHMENT_THREADS_LOCK:
+            _ACTIVE_ENRICHMENT_THREADS.append(t)
+        return t
+
     def _map_classification_to_hypotheses(
         self,
         classified_results: List[Dict[str, Any]],
         target: str,
+        async_enrich: bool = True,
     ) -> List[Dict[str, Any]]:
         """Bridge classification results to hypothesis findings in findings.json."""
         from nyx.application.finding_service import FindingService
         from nyx.core.analysis import extract_router_targets
         finding_svc = FindingService(base_dir=self.base_dir)
         created = []
+        candidate_items = []
 
         for item in classified_results:
             url = item.get("url") or target
@@ -316,26 +427,73 @@ class MissionPlanner:
                     })
 
             for vc in vuln_candidates:
-                try:
-                    f_res = finding_svc.create(
-                        title=vc["title"],
-                        endpoint=url,
-                        vulnerability=vc["vulnerability"],
-                        severity=vc["severity"],
-                        tag=vc["tag"],
-                        description=vc["description"],
-                        target=target,
-                    )
-                    if isinstance(f_res, dict) and not f_res.get("is_duplicate") and f_res.get("status") != "error":
-                        fid = f_res.get("finding_id")
-                        if fid:
-                            try:
-                                finding_svc.enrich(fid, ai_manager=self.ai_manager, provider_name=self.ai_manager.active_provider_name)
-                            except Exception:
-                                pass
-                        created.append(f_res)
-                except Exception:
-                    pass
+                candidate_items.append((url, vc))
+
+        total_candidates = len(candidate_items)
+        items_to_enrich = []
+        for item_idx, (url, vc) in enumerate(candidate_items, start=1):
+            try:
+                f_res = finding_svc.create(
+                    title=vc["title"],
+                    endpoint=url,
+                    vulnerability=vc["vulnerability"],
+                    severity=vc["severity"],
+                    tag=vc["tag"],
+                    description=vc["description"],
+                    target=target,
+                )
+                if isinstance(f_res, dict) and not f_res.get("is_duplicate") and f_res.get("status") != "error":
+                    fid = f_res.get("finding_id")
+                    if fid:
+                        items_to_enrich.append({
+                            "finding_id": fid,
+                            "vulnerability": vc["vulnerability"],
+                            "endpoint": url,
+                            "title": vc["title"],
+                        })
+                    created.append(f_res)
+            except Exception:
+                pass
+
+        if items_to_enrich:
+            if async_enrich:
+                self._dispatch_background_enrichment(items_to_enrich, target=target)
+            else:
+                total_to_enrich = len(items_to_enrich)
+                for enrich_idx, item in enumerate(items_to_enrich, start=1):
+                    fid = item["finding_id"]
+                    url = item["endpoint"]
+                    vuln = item["vulnerability"]
+                    try:
+                        from nyx.ai.tracker import active_mission_tracker
+                        from nyx.web.events import emit_event_sync
+
+                        cur_prog = active_mission_tracker.last_progress or {}
+                        url_display = url.split("?")[0] if len(url) > 60 else url
+                        sub_msg = f"Enriching hypothesis {enrich_idx}/{total_to_enrich}: {vuln} on {url_display}"
+                        prog_ev = dict(cur_prog)
+                        prog_ev["message"] = sub_msg
+                        prog_ev["sub_step"] = {
+                            "type": "hypothesis_enrichment",
+                            "current": enrich_idx,
+                            "total": total_to_enrich,
+                            "finding_id": fid,
+                            "vulnerability": vuln,
+                            "endpoint": url,
+                        }
+                        active_mission_tracker.update_progress(prog_ev)
+                        emit_event_sync(
+                            event_type="mission_progress",
+                            data=prog_ev,
+                            mission_id=target,
+                        )
+                    except Exception:
+                        pass
+
+                    try:
+                        finding_svc.enrich(fid, ai_manager=self.ai_manager, provider_name=self.ai_manager.active_provider_name if self.ai_manager else None)
+                    except Exception:
+                        pass
 
         return created
 
@@ -1307,15 +1465,28 @@ class MissionPlanner:
             self.ai_manager.set_active_provider(provider_name)
         iterations: List[Dict[str, Any]] = list(prior_iterations or [])
 
+        from nyx.ai.tracker import active_mission_tracker
+        effective_provider = provider_name or getattr(self.ai_manager, "active_provider_name", "local")
+        active_mission_tracker.start(
+            target=target,
+            provider_name=effective_provider,
+            active_permitted=active_permitted,
+            max_iterations=max_iterations,
+            start_iteration=start_iteration,
+            auto_approve=auto_approve,
+        )
+
         # 0. Initial Context & Scope Check
         init_context = self.context_engine.get_target_context(target)
         if not init_context.get("in_scope", True):
-            return {
+            err_res = {
                 "status": "error",
                 "error": "out of scope",
                 "target": target,
                 "iterations": iterations,
             }
+            active_mission_tracker.fail("out of scope", err_res)
+            return err_res
 
         # 0.b. Auto-bootstrap reconnaissance if target context shows zero endpoints mapped
         logger.info(
@@ -1342,6 +1513,38 @@ class MissionPlanner:
             except Exception:
                 pass
 
+        from nyx.infrastructure.process import is_shutdown_requested
+
+        def _make_abort_result(cur_iter: int, reason: str = "shutdown_requested") -> Dict[str, Any]:
+            abort_res = {
+                "status": "aborted",
+                "reason": reason,
+                "target": target,
+                "iterations": iterations,
+                "message": f"Autonomous mission aborted due to system shutdown at iteration {cur_iter}.",
+            }
+            active_mission_tracker.abort(reason, abort_res)
+            try:
+                from nyx.web.events import emit_event_sync
+                abort_ev = {
+                    "state": "aborted",
+                    "status": "aborted",
+                    "target": target,
+                    "reason": reason,
+                    "iterations_count": len(iterations),
+                    "message": abort_res["message"],
+                    "result": abort_res,
+                }
+                emit_event_sync("mission_progress", data=abort_ev, mission_id=target)
+                emit_event_sync("mission_aborted", data=abort_ev, mission_id=target)
+            except Exception:
+                pass
+            return abort_res
+
+        if is_shutdown_requested():
+            logger.info("[MISSION] System shutdown requested at loop entry. Aborting.")
+            return _make_abort_result(start_iteration)
+
         if len(initial_eps) == 0 and start_iteration == 1:
             recon_step = {
                 "name": "Attack Surface Reconnaissance Bootstrap",
@@ -1357,23 +1560,25 @@ class MissionPlanner:
                     logger.info("[MISSION] Zero endpoints mapped — auto-bootstrapping reconnaissance for %s...", target)
                     try:
                         from nyx.web.events import emit_event_sync
+                        recon_progress = {
+                            "state": "executing",
+                            "target": target,
+                            "iteration": 1,
+                            "max_iterations": max_iterations,
+                            "current_step_index": 1,
+                            "total_planned_steps": 1,
+                            "step_name": "Attack Surface Reconnaissance Bootstrap",
+                            "tool": "nyx-recon",
+                            "action": "passive_recon",
+                            "phase": "DISCOVERY",
+                            "message": "Bootstrapping reconnaissance and endpoint discovery",
+                            "remaining_destructive_count": 0,
+                            "upcoming_pipeline": [],
+                        }
+                        active_mission_tracker.update_progress(recon_progress)
                         emit_event_sync(
                             event_type="mission_progress",
-                            data={
-                                "state": "executing",
-                                "target": target,
-                                "iteration": 1,
-                                "max_iterations": max_iterations,
-                                "current_step_index": 1,
-                                "total_planned_steps": 1,
-                                "step_name": "Attack Surface Reconnaissance Bootstrap",
-                                "tool": "nyx-recon",
-                                "action": "passive_recon",
-                                "phase": "DISCOVERY",
-                                "message": "Bootstrapping reconnaissance and endpoint discovery",
-                                "remaining_destructive_count": 0,
-                                "upcoming_pipeline": [],
-                            },
+                            data=recon_progress,
                             mission_id=target,
                         )
                     except Exception:
@@ -1386,15 +1591,35 @@ class MissionPlanner:
                     pass
 
         if start_iteration > max_iterations:
-            return {
+            term_res = {
                 "status": "complete",
                 "reason": "iteration_limit_reached",
                 "target": target,
                 "iterations": iterations,
                 "message": f"Autonomous mission reached max_iterations limit ({max_iterations}).",
             }
+            active_mission_tracker.complete(term_res)
+            try:
+                from nyx.web.events import emit_event_sync
+                comp_ev = {
+                    "state": "completed",
+                    "status": "complete",
+                    "target": target,
+                    "reason": "iteration_limit_reached",
+                    "iterations_count": len(iterations),
+                    "message": term_res["message"],
+                    "result": term_res,
+                }
+                emit_event_sync("mission_progress", data=comp_ev, mission_id=target)
+                emit_event_sync("mission_completed", data=comp_ev, mission_id=target)
+            except Exception:
+                pass
 
         for iteration_idx in range(start_iteration, max_iterations + 1):
+            if is_shutdown_requested():
+                logger.info("[MISSION] System shutdown requested before iteration %d. Aborting loop.", iteration_idx)
+                return _make_abort_result(iteration_idx)
+
             auto_approved_this_step = False
             current_action_id = None
 
@@ -1404,13 +1629,15 @@ class MissionPlanner:
             # 1.b. Scope check
             if not context.get("in_scope", True):
                 logger.error("[ERROR] Target %s is outside engagement scope boundaries.", target)
-                return {
+                err_res = {
                     "status": "error",
                     "error": "out of scope",
                     "target": target,
                     "iterations": iterations,
                     "recon_bootstrapped": recon_bootstrapped,
                 }
+                active_mission_tracker.fail("out of scope", err_res)
+                return err_res
 
             # 1.c. Candidate generation & policy filtering
             candidates = self._select_steps(context)
@@ -1439,7 +1666,7 @@ class MissionPlanner:
                     msg = "No candidate vectors found for this target."
 
                 logger.info("[DONE] %s", msg)
-                return {
+                term_res = {
                     "status": "complete",
                     "reason": "no_remaining_candidates",
                     "target": target,
@@ -1450,6 +1677,23 @@ class MissionPlanner:
                     "endpoints_count": len(context.get("endpoints", [])),
                     "message": msg,
                 }
+                active_mission_tracker.complete(term_res)
+                try:
+                    from nyx.web.events import emit_event_sync
+                    comp_ev = {
+                        "state": "completed",
+                        "status": "complete",
+                        "target": target,
+                        "reason": "no_remaining_candidates",
+                        "iterations_count": len(iterations),
+                        "message": msg,
+                        "result": term_res,
+                    }
+                    emit_event_sync("mission_progress", data=comp_ev, mission_id=target)
+                    emit_event_sync("mission_completed", data=comp_ev, mission_id=target)
+                except Exception:
+                    pass
+                return term_res
 
             # 1.e. AI-Guided Candidate Selection (selecting strictly FROM validated list)
             candidates_summary = [
@@ -1529,24 +1773,30 @@ class MissionPlanner:
             ]
             try:
                 from nyx.web.events import emit_event_sync
+                reasoning_ev = {
+                    "state": "reasoning",
+                    "target": target,
+                    "iteration": iteration_idx,
+                    "max_iterations": max_iterations,
+                    "current_step_index": iteration_idx,
+                    "total_planned_steps": len(validated),
+                    "provider": active_p_name,
+                    "message": f"Reasoning with {active_p_name} AI...",
+                    "remaining_destructive_count": len(destructive_in_plan),
+                    "upcoming_pipeline": destructive_in_plan[:5],
+                }
+                active_mission_tracker.update_progress(reasoning_ev)
                 emit_event_sync(
                     event_type="mission_progress",
-                    data={
-                        "state": "reasoning",
-                        "target": target,
-                        "iteration": iteration_idx,
-                        "max_iterations": max_iterations,
-                        "current_step_index": iteration_idx,
-                        "total_planned_steps": len(validated),
-                        "provider": active_p_name,
-                        "message": f"Reasoning with {active_p_name} AI...",
-                        "remaining_destructive_count": len(destructive_in_plan),
-                        "upcoming_pipeline": destructive_in_plan[:5],
-                    },
+                    data=reasoning_ev,
                     mission_id=target,
                 )
             except Exception:
                 pass
+            if is_shutdown_requested():
+                logger.info("[MISSION] System shutdown requested before AI analysis in iteration %d. Aborting loop.", iteration_idx)
+                return _make_abort_result(iteration_idx)
+
             t_ai_start = time.time()
             ai_reasoning = self.ai_manager.analyze(
                 augmented_context,
@@ -1559,6 +1809,10 @@ class MissionPlanner:
                 t_ai_elapsed,
                 active_p_name,
             )
+
+            if is_shutdown_requested():
+                logger.info("[MISSION] System shutdown requested after AI analysis in iteration %d. Aborting loop.", iteration_idx)
+                return _make_abort_result(iteration_idx)
 
             # SAFETY REQUIREMENT: Parse chosen candidate index; fail-closed if AI is unavailable / error / 429 / unparseable
             chosen_idx = None
@@ -1626,7 +1880,7 @@ class MissionPlanner:
                     degradation_reason,
                 )
                 # Keep prior successful iterations & findings intact; halt execution immediately
-                return {
+                err_res = {
                     "status": "ai_unavailable",
                     "reason": "ai_provider_failure",
                     "error": degradation_reason,
@@ -1639,6 +1893,8 @@ class MissionPlanner:
                     "degradation_reason": degradation_reason,
                     "message": f"AI provider unavailable: {degradation_reason}. Autonomous mission halted. No new findings generated.",
                 }
+                active_mission_tracker.fail(f"AI provider unavailable: {degradation_reason}", err_res)
+                return err_res
 
             next_step = validated[chosen_idx]
             next_step["ai_degraded"] = False
@@ -1690,6 +1946,10 @@ class MissionPlanner:
 
             logger.info("[MISSION] Selected candidate #%d: '%s' [%s] using '%s' (Reason: %s, AI Degraded: %s)", chosen_idx, next_step.get("name"), next_step.get("impact_class"), next_step.get("tool"), next_step.get("reason"), ai_degraded)
 
+            if is_shutdown_requested():
+                logger.info("[MISSION] System shutdown requested before step approval/execution in iteration %d. Aborting loop.", iteration_idx)
+                return _make_abort_result(iteration_idx)
+
             # 1.f. Pause on DESTRUCTIVE step (do NOT execute unless auto_approve is True)
             if next_step.get("impact_class") == "DESTRUCTIVE":
                 remaining_destructive = [
@@ -1738,32 +1998,34 @@ class MissionPlanner:
                         })
                     except Exception:
                         pass
+                    paused_progress = {
+                        "state": "paused",
+                        "target": target,
+                        "iteration": iteration_idx,
+                        "max_iterations": max_iterations,
+                        "current_step_index": chosen_idx + 1,
+                        "total_planned_steps": len(validated),
+                        "step_name": next_step.get("name"),
+                        "tool": next_step.get("tool"),
+                        "action": next_step.get("action"),
+                        "phase": next_step.get("phase"),
+                        "message": f"Paused for approval on {next_step.get('name')}",
+                        "remaining_destructive_count": remaining_destructive_count,
+                        "upcoming_pipeline": upcoming_pipeline,
+                        "pending_step": next_step,
+                        "action_id": act_id,
+                    }
+                    active_mission_tracker.update_progress(paused_progress)
                     try:
                         from nyx.web.events import emit_event_sync
                         emit_event_sync(
                             event_type="mission_progress",
-                            data={
-                                "state": "paused",
-                                "target": target,
-                                "iteration": iteration_idx,
-                                "max_iterations": max_iterations,
-                                "current_step_index": chosen_idx + 1,
-                                "total_planned_steps": len(validated),
-                                "step_name": next_step.get("name"),
-                                "tool": next_step.get("tool"),
-                                "action": next_step.get("action"),
-                                "phase": next_step.get("phase"),
-                                "message": f"Paused for approval on {next_step.get('name')}",
-                                "remaining_destructive_count": remaining_destructive_count,
-                                "upcoming_pipeline": upcoming_pipeline,
-                                "pending_step": next_step,
-                                "action_id": act_id,
-                            },
+                            data=paused_progress,
                             mission_id=target,
                         )
                     except Exception:
                         pass
-                    return {
+                    paused_res = {
                         "status": "paused_for_approval",
                         "pending_step": next_step,
                         "action_id": act_id,
@@ -1777,11 +2039,13 @@ class MissionPlanner:
                         "remaining_destructive_count": remaining_destructive_count,
                         "upcoming_pipeline": upcoming_pipeline,
                     }
+                    active_mission_tracker.pause(paused_res)
+                    return paused_res
                 else:
                     # Auto-approve mode is active: verify policy compliance
                     if next_step.get("permitted") is False:
                         logger.error("[ERROR] Step '%s' blocked by safety policy: %s", next_step.get("name"), next_step.get("policy_reason", "Not permitted"))
-                        return {
+                        blocked_res = {
                             "status": "blocked",
                             "blocked_step": next_step,
                             "target": target,
@@ -1790,6 +2054,8 @@ class MissionPlanner:
                             "ai_degraded": ai_degraded,
                             "degradation_reason": degradation_reason,
                         }
+                        active_mission_tracker.fail("Step blocked by safety policy", blocked_res)
+                        return blocked_res
 
                     act_id = None
                     try:
@@ -1930,6 +2196,7 @@ class MissionPlanner:
                     ev_data["auto_approved"] = True
                     ev_data["action_id"] = current_action_id
                     ev_data["approved_by"] = "auto"
+                active_mission_tracker.update_progress(ev_data)
                 emit_event_sync(
                     event_type="mission_progress",
                     data=ev_data,
@@ -1937,6 +2204,11 @@ class MissionPlanner:
                 )
             except Exception:
                 pass
+
+            if is_shutdown_requested():
+                logger.info("[MISSION] System shutdown requested before execute_step in iteration %d. Aborting loop.", iteration_idx)
+                return _make_abort_result(iteration_idx)
+
             step_active_perm = True if auto_approved_this_step else active_permitted
             result = self.execute_step(next_step, target, active_permitted=step_active_perm)
             step_status = result.get("result", {}).get("status") if isinstance(result, dict) else "completed"
@@ -1959,7 +2231,7 @@ class MissionPlanner:
         logger.info("[DONE] Autonomous loop reached maximum iteration limit (%d)", max_iterations)
         any_degraded = any(it.get("ai_degraded") for it in iterations)
         deg_reason = next((it.get("degradation_reason") for it in iterations if it.get("degradation_reason")), None)
-        return {
+        term_res = {
             "status": "max_iterations_reached",
             "target": target,
             "iterations": iterations,
@@ -1969,3 +2241,20 @@ class MissionPlanner:
             "degradation_reason": deg_reason,
             "auto_approve": auto_approve,
         }
+        active_mission_tracker.complete(term_res)
+        try:
+            from nyx.web.events import emit_event_sync
+            comp_ev = {
+                "state": "completed",
+                "status": "max_iterations_reached",
+                "target": target,
+                "reason": "max_iterations_reached",
+                "iterations_count": len(iterations),
+                "message": f"Autonomous mission reached maximum iteration limit ({max_iterations}).",
+                "result": term_res,
+            }
+            emit_event_sync("mission_progress", data=comp_ev, mission_id=target)
+            emit_event_sync("mission_completed", data=comp_ev, mission_id=target)
+        except Exception:
+            pass
+        return term_res

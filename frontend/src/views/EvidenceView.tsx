@@ -5,7 +5,7 @@ import { useNyxEvents } from '../hooks/useNyxEvents';
 import { useApp } from '../context/AppContext';
 
 export function EvidenceView() {
-  const { setCurrentView, refreshGlobalStats } = useApp();
+  const { target, setCurrentView, refreshGlobalStats } = useApp();
   const { lastEvent } = useNyxEvents();
   const [evidenceList, setEvidenceList] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
@@ -16,7 +16,8 @@ export function EvidenceView() {
 
   async function loadEvidence() {
     try {
-      const findingsRes = await fetchApi('/api/v1/findings');
+      const targetQuery = target && target !== 'No active target' ? `?target=${encodeURIComponent(target)}` : '';
+      const findingsRes = await fetchApi(`/api/v1/findings${targetQuery}`);
       const fList = findingsRes?.data?.findings || findingsRes?.findings || [];
       const allEv: any[] = [];
       if (Array.isArray(fList)) {
@@ -46,7 +47,7 @@ export function EvidenceView() {
 
   useEffect(() => {
     loadEvidence();
-  }, []);
+  }, [target]);
 
   useEffect(() => {
     if (lastEvent?.event === 'evidence_added' || lastEvent?.event === 'validation_completed') {

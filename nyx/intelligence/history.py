@@ -45,7 +45,16 @@ class AssetHistory:
         try:
             history = json.loads(hf.read_text(encoding="utf-8"))
             if target:
-                return [s for s in history if s.get("target") == target]
+                from nyx.security.authorization import parse_target_tuple
+                from nyx.ai.context import _matches_target_endpoint
+                _, t_host, _ = parse_target_tuple(target)
+                filtered = []
+                for s in history:
+                    s_target = s.get("target", "")
+                    _, s_host, _ = parse_target_tuple(s_target)
+                    if (t_host and s_host == t_host) or _matches_target_endpoint(s_target, target):
+                        filtered.append(s)
+                return filtered
             return history
         except Exception:
             return []

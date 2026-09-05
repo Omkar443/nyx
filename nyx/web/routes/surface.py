@@ -49,14 +49,21 @@ async def get_endpoints(
     service: ReconService = Depends(get_recon_service),
 ) -> Dict[str, Any]:
     """Retrieve harvested endpoint inventory from engagement memory."""
-    _, data = _parse_res(service.get_endpoints(target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.get_endpoints(target=active_target))
     return data
 
 
 @router.get("/technologies", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
-async def get_technologies(service: ReconService = Depends(get_recon_service)) -> Dict[str, Any]:
+async def get_technologies(
+    target: Optional[str] = Query(None, description="Optional target filter"),
+    service: ReconService = Depends(get_recon_service),
+) -> Dict[str, Any]:
     """Retrieve detected technology stack from engagement memory."""
-    _, data = _parse_res(service.get_technologies())
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.get_technologies(target=active_target))
     return data
 
 
@@ -66,8 +73,10 @@ async def get_assets(
     service: ReconService = Depends(get_recon_service),
 ) -> Dict[str, Any]:
     """Retrieve target asset surface overview."""
-    _, eps_data = _parse_res(service.get_endpoints(target=target))
-    _, tech_data = _parse_res(service.get_technologies())
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, eps_data = _parse_res(service.get_endpoints(target=active_target))
+    _, tech_data = _parse_res(service.get_technologies(target=active_target))
 
     eps = eps_data.get("data", {}).get("endpoints", []) if isinstance(eps_data.get("data"), dict) else eps_data.get("endpoints", [])
     techs = tech_data.get("data", {}).get("technologies", []) if isinstance(tech_data.get("data"), dict) else tech_data.get("technologies", [])
@@ -113,3 +122,22 @@ async def run_recon_surface(
 
     await emit_event("recon_completed", data={"target": target_clean, "results": data.get("data", {})})
     return data
+
+
+@router.get("/surface/recon-status", response_model=Dict[str, Any], dependencies=[Depends(require_auth)])
+async def get_recon_status(
+    target: Optional[str] = Query(None, description="Optional target domain filter"),
+) -> Dict[str, Any]:
+    """Retrieve authoritative live reconnaissance job progress and lifecycle state."""
+    from nyx.recon.tracker import active_recon_tracker
+    from nyx.core.engagement import get_engagement_target
+
+    active_target = target or get_engagement_target()
+    data = active_recon_tracker.get_status(target=active_target)
+    return {
+        "success": True,
+        "data": data,
+        "error": None,
+        "code": "OK",
+    }
+

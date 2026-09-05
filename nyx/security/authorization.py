@@ -239,6 +239,15 @@ def is_hostname_in_scope(hostname: str, scope_list: list[str] | None = None, bas
     return False
 
 
+def is_authorized_target(target: str, base_dir: Path | None = None) -> bool:
+    """Validate that target domain/host is authorized and falls within scope rules."""
+    ok, _ = check_authorization(target_domain=target, base_dir=base_dir)
+    if not ok:
+        return False
+    _, host, _ = parse_target_tuple(target)
+    return is_hostname_in_scope(host or target, base_dir=base_dir)
+
+
 def get_scope_status(hostname: str | None = None, base_dir: Path | None = None) -> dict[str, Any]:
     """Retrieve detailed scope status for a target domain or active workspace."""
     d = _get_eng_dir(create=False, base_dir=base_dir)

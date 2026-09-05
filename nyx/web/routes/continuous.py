@@ -63,7 +63,9 @@ async def get_asset_history(
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """Get historical asset graph snapshots."""
-    _, data = _parse_res(service.get_asset_history(target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.get_asset_history(target=active_target))
     return data
 
 
@@ -73,7 +75,9 @@ async def list_changes(
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """List detected security change events."""
-    _, data = _parse_res(service.list_changes(target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.list_changes(target=active_target))
     return data
 
 
@@ -83,7 +87,9 @@ async def list_alerts(
     service: ContinuousService = Depends(get_continuous_service),
 ) -> Dict[str, Any]:
     """List active security alerts."""
-    _, data = _parse_res(service.list_alerts(target=target))
+    from nyx.core.engagement import get_engagement_target
+    active_target = target or get_engagement_target()
+    _, data = _parse_res(service.list_alerts(target=active_target))
     return data
 
 

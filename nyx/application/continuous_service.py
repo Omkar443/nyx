@@ -66,19 +66,25 @@ class ContinuousService(BaseService):
         target_to_sync = t_name or "example.com"
         self.tracker.record_current_state(target_to_sync)
 
-        snapshots = self.history.get_snapshots(target=target)
+        snapshots = self.history.get_snapshots(target=t_name)
         return self.ok(data={"snapshots_count": len(snapshots), "snapshots": snapshots}, message="Retrieved asset history snapshots.")
 
     def list_changes(self, target: Optional[str] = None) -> ServiceResult:
-        events = self.change_detector.list_events(target=target)
+        from nyx.core.engagement import get_engagement_target
+        eff = target or get_engagement_target()
+        events = self.change_detector.list_events(target=eff)
         return self.ok(data={"changes_count": len(events), "changes": events}, message="Retrieved change detection events.")
 
     def list_alerts(self, target: Optional[str] = None) -> ServiceResult:
-        alerts = self.alert_manager.list_alerts(target=target)
+        from nyx.core.engagement import get_engagement_target
+        eff = target or get_engagement_target()
+        alerts = self.alert_manager.list_alerts(target=eff)
         return self.ok(data={"alerts_count": len(alerts), "alerts": alerts}, message="Retrieved alerts.")
 
     def list_research_opportunities(self, target: Optional[str] = None) -> ServiceResult:
-        opps = self.opportunity_engine.list_opportunities(target=target)
+        from nyx.core.engagement import get_engagement_target
+        eff = target or get_engagement_target()
+        opps = self.opportunity_engine.list_opportunities(target=eff)
         return self.ok(data={"opportunities_count": len(opps), "opportunities": opps}, message="Retrieved research opportunities.")
 
     def backup_knowledge(self) -> ServiceResult:

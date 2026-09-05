@@ -59,42 +59,76 @@ def terminate_all_subprocesses() -> None:
             pass
 
 
+_SHUTDOWN_EVENT = threading.Event()
 _is_shutting_down = False
 _shutdown_lock = threading.Lock()
 
 
+def is_shutdown_requested() -> bool:
+    """Return True if a shutdown has been requested via SIGINT, SIGTERM, or application lifecycle."""
+    return _SHUTDOWN_EVENT.is_set()
+
+
+def request_shutdown() -> None:
+    """Signal all active missions, workers, and tools to abort immediately."""
+    global _is_shutting_down
+    _SHUTDOWN_EVENT.set()
+    with _shutdown_lock:
+        _is_shutting_down = True
+
+
+def reset_shutdown() -> None:
+    """Reset shutdown state (used in testing and session resets)."""
+    global _is_shutting_down
+    _SHUTDOWN_EVENT.clear()
+    with _shutdown_lock:
+        _is_shutting_down = False
+
+
+_orig_sigint = None
+_orig_sigterm = None
+
+
+def _sigint_handler(sig, frame):
+    global _is_shutting_down
+    terminate_all_subprocesses()
+    with _shutdown_lock:
+        if _is_shutting_down:
+            logger.warning("[SHUTDOWN] Force exit requested by operator (Ctrl+C x2). Terminating process immediately.")
+            os._exit(130)
+            return
+        _is_shutting_down = True
+    _SHUTDOWN_EVENT.set()
+
+    if callable(_orig_sigint) and _orig_sigint not in (signal.SIG_IGN, signal.SIG_DFL, _sigint_handler):
+        _orig_sigint(sig, frame)
+    else:
+        raise KeyboardInterrupt
+
+
+def _sigterm_handler(sig, frame):
+    global _is_shutting_down
+    terminate_all_subprocesses()
+    with _shutdown_lock:
+        if _is_shutting_down:
+            os._exit(143)
+            return
+        _is_shutting_down = True
+    _SHUTDOWN_EVENT.set()
+
+    if callable(_orig_sigterm) and _orig_sigterm not in (signal.SIG_IGN, signal.SIG_DFL, _sigterm_handler):
+        _orig_sigterm(sig, frame)
+    else:
+        sys.exit(0)
+
+
 def setup_signal_handlers() -> None:
     """Install signal handlers for clean SIGINT / SIGTERM child process termination."""
+    global _orig_sigint, _orig_sigterm
     try:
         if threading.current_thread() is threading.main_thread():
-            orig_sigint = signal.getsignal(signal.SIGINT)
-            orig_sigterm = signal.getsignal(signal.SIGTERM)
-
-            def _sigint_handler(sig, frame):
-                global _is_shutting_down
-                terminate_all_subprocesses()
-                with _shutdown_lock:
-                    if _is_shutting_down:
-                        return
-                    _is_shutting_down = True
-
-                if callable(orig_sigint) and orig_sigint not in (signal.SIG_IGN, signal.SIG_DFL, _sigint_handler):
-                    orig_sigint(sig, frame)
-                else:
-                    raise KeyboardInterrupt
-
-            def _sigterm_handler(sig, frame):
-                global _is_shutting_down
-                terminate_all_subprocesses()
-                with _shutdown_lock:
-                    if _is_shutting_down:
-                        return
-                    _is_shutting_down = True
-
-                if callable(orig_sigterm) and orig_sigterm not in (signal.SIG_IGN, signal.SIG_DFL, _sigterm_handler):
-                    orig_sigterm(sig, frame)
-                else:
-                    sys.exit(0)
+            _orig_sigint = signal.getsignal(signal.SIGINT)
+            _orig_sigterm = signal.getsignal(signal.SIGTERM)
 
             signal.signal(signal.SIGINT, _sigint_handler)
             signal.signal(signal.SIGTERM, _sigterm_handler)
@@ -109,6 +143,8 @@ setup_signal_handlers()
 
 def run_cmd(cmd: list[str], timeout: int = 30) -> tuple[int, str, str]:
     """Execute command safely with timeout, path resolution, and process tracking."""
+    if is_shutdown_requested():
+        return 130, "", "Execution cancelled: system shutdown in progress"
     if not cmd:
         return 1, "", "empty command"
     resolved_bin = get_cmd_path(cmd[0])

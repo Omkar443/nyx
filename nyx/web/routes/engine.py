@@ -72,7 +72,8 @@ async def get_engine_status() -> Dict[str, Any]:
     # 6. Approvals Queue Telemetry
     try:
         from nyx.agent.runtime import get_agent_runtime
-        pending_approvals = len(get_agent_runtime().get_pending_approvals())
+        eff_target = active_target if active_target != "No active target" else None
+        pending_approvals = len(get_agent_runtime().get_pending_approvals(target=eff_target))
     except Exception:
         pending_approvals = 0
 
@@ -82,22 +83,17 @@ async def get_engine_status() -> Dict[str, Any]:
     evidence_count = 0
     findings_count = 0
     if vault_mounted:
-        ev_file = eng_dir / "evidence.json"
-        if ev_file.exists():
-            try:
-                import json
-                ev_data = json.loads(ev_file.read_text(encoding="utf-8"))
-                evidence_count = len(ev_data) if isinstance(ev_data, list) else 0
-            except Exception:
-                pass
-        f_file = eng_dir / "findings.json"
-        if f_file.exists():
-            try:
-                import json
-                f_data = json.loads(f_file.read_text(encoding="utf-8"))
-                findings_count = len(f_data) if isinstance(f_data, list) else 0
-            except Exception:
-                pass
+        try:
+            from nyx.core import findings as core_findings
+            eff_target = active_target if active_target != "No active target" else None
+            f_res = core_findings.list_findings(target_filter=eff_target)
+            f_list = f_res.get("findings", [])
+            findings_count = len(f_list)
+            for f in f_list:
+                ev_ids = f.get("evidence_ids") or f.get("evidenceIds") or []
+                evidence_count += len(ev_ids)
+        except Exception:
+            pass
 
     # 8. AI Providers Readiness
     try:

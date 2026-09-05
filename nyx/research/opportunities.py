@@ -50,5 +50,14 @@ class OpportunityEngine:
     def list_opportunities(self, target: Optional[str] = None) -> List[Dict[str, Any]]:
         opps = list(self._opportunities)
         if target:
-            opps = [o for o in opps if o.get("target") == target]
+            from nyx.security.authorization import parse_target_tuple
+            from nyx.ai.context import _matches_target_endpoint
+            _, t_host, _ = parse_target_tuple(target)
+            filtered = []
+            for o in opps:
+                o_target = o.get("target", "")
+                _, o_host, _ = parse_target_tuple(o_target)
+                if (t_host and o_host == t_host) or _matches_target_endpoint(o_target, target):
+                    filtered.append(o)
+            opps = filtered
         return PriorityRanker.rank_opportunities(opps)

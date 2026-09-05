@@ -59,5 +59,14 @@ class ChangeDetector:
     def list_events(self, target: Optional[str] = None) -> List[Dict[str, Any]]:
         """List all detected change events."""
         if target:
-            return [e for e in self._change_events if e.get("target") == target]
+            from nyx.security.authorization import parse_target_tuple
+            from nyx.ai.context import _matches_target_endpoint
+            _, t_host, _ = parse_target_tuple(target)
+            filtered = []
+            for e in self._change_events:
+                e_target = e.get("target", "")
+                _, e_host, _ = parse_target_tuple(e_target)
+                if (t_host and e_host == t_host) or _matches_target_endpoint(e_target, target):
+                    filtered.append(e)
+            return filtered
         return list(self._change_events)

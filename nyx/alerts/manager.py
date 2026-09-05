@@ -37,7 +37,16 @@ class AlertManager:
     def list_alerts(self, target: Optional[str] = None, unread_only: bool = False) -> List[Dict[str, Any]]:
         res = list(self._alerts.values())
         if target:
-            res = [a for a in res if a.get("target") == target]
+            from nyx.security.authorization import parse_target_tuple
+            from nyx.ai.context import _matches_target_endpoint
+            _, t_host, _ = parse_target_tuple(target)
+            filtered = []
+            for a in res:
+                a_target = a.get("target", "")
+                _, a_host, _ = parse_target_tuple(a_target)
+                if (t_host and a_host == t_host) or _matches_target_endpoint(a_target, target):
+                    filtered.append(a)
+            res = filtered
         if unread_only:
             res = [a for a in res if not a.get("read")]
         return sorted(res, key=lambda x: x.get("created_at", ""), reverse=True)

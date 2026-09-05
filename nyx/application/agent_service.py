@@ -54,9 +54,11 @@ class AgentService(BaseService):
         )
         return self.ok(data=res, message=f"Proposed action '{res.get('action_id')}' for human approval.")
 
-    def get_approvals(self) -> ServiceResult:
-        pending = self.agent.approval_system.get_pending_approvals()
-        approved = self.agent.approval_system.get_approval_history()
+    def get_approvals(self, target: str | None = None) -> ServiceResult:
+        from nyx.core.engagement import get_engagement_target
+        effective_target = target if target is not None else get_engagement_target()
+        pending = self.agent.approval_system.get_pending_approvals(target=effective_target)
+        approved = self.agent.approval_system.get_approval_history(target=effective_target)
         remaining_count = 0
         upcoming = []
         for p in pending:

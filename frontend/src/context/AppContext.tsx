@@ -48,7 +48,17 @@ const AppContext = createContext<AppContextType>({
 });
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [currentView, setCurrentViewState] = useState<string>('dashboard');
+  const [currentView, setCurrentViewState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('nyx_current_view');
+        if (saved && saved.trim()) {
+          return saved.trim();
+        }
+      } catch {}
+    }
+    return 'dashboard';
+  });
   const [viewParams, setViewParams] = useState<Record<string, any>>({});
   const [target, setTargetState] = useState<string>('');
   const [phase, setPhase] = useState<string>('DISCOVERY');
@@ -71,12 +81,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshGlobalStats = useCallback(async () => {
     try {
       // 1. Mission / Target
+      let currTarget = '';
       const missionRes = await fetchApi('/api/v1/mission');
       if (missionRes?.data?.target) {
+        currTarget = missionRes.data.target;
         setTargetState(missionRes.data.target);
       } else {
         const healthRes = await fetchApi('/health');
         if (healthRes?.target && healthRes.target !== 'No active target') {
+          currTarget = healthRes.target;
           setTargetState(healthRes.target);
         }
       }
@@ -85,14 +98,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setPhase(missionRes.data.state || missionRes.data.curr_state);
       }
 
+      const targetParam = currTarget && currTarget !== 'No active target' ? `?target=${encodeURIComponent(currTarget)}` : '';
+
       // 2. Assets / Endpoints
-      const assetsRes = await fetchApi('/api/v1/assets');
+      const assetsRes = await fetchApi(`/api/v1/assets${targetParam}`);
       if (assetsRes?.data?.endpoints_count !== undefined) {
         setEndpointsCount(assetsRes.data.endpoints_count);
       }
 
       // 3. Findings
-      const findingsRes = await fetchApi('/api/v1/findings');
+      const findingsRes = await fetchApi(`/api/v1/findings${targetParam}`);
       const fList = findingsRes?.data?.findings || findingsRes?.findings || [];
       if (Array.isArray(fList)) {
         setFindingsCount(fList.length);
@@ -101,7 +116,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 4. Approvals
-      const approvalsRes = await fetchApi('/api/v1/agent/approvals');
+      const approvalsRes = await fetchApi(`/api/v1/agent/approvals${targetParam}`);
       const aList = approvalsRes?.data?.approvals || approvalsRes?.approvals || [];
       if (Array.isArray(aList)) {
         setApprovalsCount(aList.filter((a: any) => a.status === 'PENDING').length);
@@ -141,6 +156,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setCurrentView = useCallback((view: string, params: Record<string, any> = {}) => {
     setCurrentViewState(view);
     setViewParams(params);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('nyx_current_view', view);
+      } catch {}
+    }
   }, []);
 
   const setTarget = useCallback((newTarget: string) => {
