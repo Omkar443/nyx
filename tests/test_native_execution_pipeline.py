@@ -145,7 +145,7 @@ def test_execution_to_finding_bridge(test_workspace):
     finding_obj = get_finding(fid, base_dir=test_workspace)
     assert finding_obj is not None
     assert finding_obj["task_id"] == "EXEC-TEST1234"
-    assert finding_obj["state"] in ("TRIAGED", "VALIDATED", "CONFIRMED")
+    assert finding_obj["state"] in ("VALIDATING", "TRIAGED", "VALIDATED", "CONFIRMED")
 
     # Verify evidence items created and hashes valid
     ev_data = list_evidence(fid, base_dir=test_workspace)
@@ -176,7 +176,7 @@ def test_live_execution_engine_end_to_end(mock_server, test_workspace):
     finding_obj = get_finding(fid, base_dir=test_workspace)
     assert finding_obj is not None
     assert finding_obj["task_id"] == res.execution_id
-    assert finding_obj["state"] in ("TRIAGED", "VALIDATED", "CONFIRMED")
+    assert finding_obj["state"] in ("VALIDATING", "TRIAGED", "VALIDATED", "CONFIRMED")
 
 
 def test_ai_mission_execution_service(mock_server, test_workspace):

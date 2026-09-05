@@ -78,8 +78,8 @@ def test_deterministic_validation_confirmed_with_real_evidence(tmp_path: Path, m
     val_svc = ValidationService(base_dir=tmp_path)
     v_res = val_svc.validate_finding(fid)
 
-    assert v_res["validation"]["status"] == "CONFIRMED"
-    assert v_res["validation"]["state"] == "CONFIRMED"
+    assert v_res["validation"]["status"] == "PENDING_AI_REVIEW"
+    assert v_res["validation"]["state"] == "VALIDATING"
     assert v_res["validation"]["confidence"] >= 80
 
 
@@ -196,10 +196,10 @@ def test_finding_provenance_and_lifecycle_state_sync(tmp_path: Path, monkeypatch
     val_svc = ValidationService(base_dir=tmp_path)
     v_res = val_svc.validate_finding(fid)
 
-    assert v_res["validation"]["state"] == "CONFIRMED"
+    assert v_res["validation"]["state"] == "VALIDATING"
     # Verify disk synchronization in both finding.json and findings.json
     f_updated = f_svc.get_finding(fid)
-    assert f_updated["status"] == "CONFIRMED"
+    assert f_updated["status"] == "VALIDATING"
     assert f_updated["confidence"] >= 80
 
 

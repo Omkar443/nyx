@@ -128,6 +128,7 @@ class AIService(BaseService):
         provider_name: Optional[str] = None,
         active_permitted: bool = False,
         max_iterations: int = 15,
+        auto_approve: bool = False,
     ) -> ServiceResult:
         """Execute autonomous mission loop via planner."""
         try:
@@ -136,6 +137,7 @@ class AIService(BaseService):
                 provider_name=provider_name,
                 active_permitted=active_permitted,
                 max_iterations=max_iterations,
+                auto_approve=auto_approve,
             )
             if res.get("status") == "error":
                 return self.fail(

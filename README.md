@@ -8,7 +8,7 @@
   <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-226%20Passed-brightgreen.svg" alt="226 Tests Passing"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-331%20Passed-brightgreen.svg" alt="331 Tests Passing"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-83%20Validated-blueviolet.svg" alt="83 Security Skills"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Knowledge%20Assets-33%20Databases-blue.svg" alt="33 Knowledge Databases"></a>
   <a href="docs/benchmarks/"><img src="https://img.shields.io/badge/Benchmarks-68.8%25%20%7C%2081.0%25-informational.svg" alt="Empirical Benchmarks"></a>
@@ -109,7 +109,7 @@ eq$ Finding Confirmation:** Finding an endpoint (e.g., `/graphql` or `/admin`) n
 - 📚 **33 Structured Knowledge Databases:** Verified vulnerability patterns and attack vectors mapped to real-world disclosed bug bounty research.
 - 🎯 **Fail-Closed Scope Policy:** Enforces boundary checks (`CONFIGURED`, `UNCONFIGURED`, `OUT_OF_SCOPE`). Blocks active scans on unverified targets while allowing dry-run plan reviews.
 - 🔌 **Native Tool Adapters:** Subprocess execution harnesses for `httpx`, `katana`, `subfinder`, `ffuf`, `nuclei`, and `nmap` with Native PATH / WSL dual-vector discovery and timeout isolation.
-- 🧠 **Multi-Provider AI Abstraction:** Native support for **Google Gemini**, **xAI Grok**, and **Groq** with actionable quota/error classification; **Anthropic Claude**, **OpenAI**, and **Local LLMs (Ollama)** with deterministic offline fallback.
+- 🧠 **Local-First & Multi-Provider AI Abstraction:** Privacy-first **Local LLMs via Ollama** (`qwen2.5-coder:7b`) configured as the default with zero cloud token leaks, no cloud rate limits, and dynamic inference timeout scaling; hot-swappable in real-time via the Web Settings UI or CLI with **Google Gemini**, **Groq**, **xAI Grok**, **OpenAI**, and **Anthropic Claude**.
 - 💾 **Persistent Engagement Memory:** Tracks discovered assets, technology stacks, and tested vectors in `.engagement/` to prevent duplicate scanning.
 - ⚖️ **Deterministic 7-Question Gate:** Triage engine that scores findings based on real-world impact, unauthenticated reachability, and program terms.
 - 📄 **Multi-Platform Report Generator:** Automatically drafts formatted vulnerability submissions for **HackerOne**, **Bugcrowd**, **Intigriti**, and enterprise red-team deliverables.
@@ -290,50 +290,62 @@ The NYX Web UI provides a centralized interface for the entire research lifecycl
 | **🗺️ Deterministic Mission Planner** | Context-aware decision trees, automated step execution, and strategy formulation across discovery, analysis, and validation phases. |
 | **📡 Attack Surface Explorer** | Discovered endpoint inventory, route priority ranking, query parameter mapping, and technology detection. |
 | **💻 Execution History & Tool Harness** | Live process launcher with Native PATH & WSL dual-vector discovery (`httpx`, `subfinder`, `katana`, `nuclei`, `nmap`, `ffuf`, `curl`), live output streaming, and honest execution status badges (`COMPLETED`, `SKIPPED`, `UNAVAILABLE`, `BLOCKED`, `FAILED`). |
-| **👥 Multi-Agent Fleet & Approvals** | Multi-agent autonomous worker control, action authorization approval queue, and task execution tracking. |
+| **👥 Multi-Agent Fleet & Approvals** | Sequential HITL approval queue with upcoming pipeline preview accordion ("Step X of Y · N more queued"), interactive authorization modals, and autonomous worker control. |
 | **⚡ Engine Telemetry & System Health** | Live runtime telemetry, dynamic 83-skill inventory distribution, binary resolution matrix, worker status, and persistent vault integrity. |
 | **🧠 Intelligence & AI Playbooks** | Multi-provider AI reasoning, vulnerability playbook generator, knowledge base search, and provider readiness checks. |
 | **👁️ Evidence Vault** | Raw HTTP request/response logs with SHA-256 integrity verification, PII redaction, and reproducible PoC records. |
 | **📈 Continuous Monitoring** | Scheduled cron monitoring jobs, new asset diff detection, and automated alerting. |
-| **⚙️ Target & Scope Settings** | Engagement target configuration, in-scope whitelist domains/IPs, and exclusion rules. |
+| **⚙️ Target & Scope Settings** | Engagement target configuration, in-scope whitelist domains/IPs, exclusion rules, and **real-time AI Provider Switcher** (hot-swap between Local Ollama, Gemini, Groq, Grok, OpenAI, and Claude). |
 
 ---
 
-## Supported AI Providers
+## Supported AI Providers & Local-First Architecture
 
-NYX is model-neutral and supports both cloud-hosted APIs and self-hosted local inference engines. The setup wizard (`./install.sh` or `nyx setup`) tests and validates credentials live before saving them to `.env`.
+NYX is built with a **local-first, privacy-respecting architecture**. By default, NYX performs all strategic planning, hypothesis generation, finding enrichment, and 7-Question triage using a self-hosted **Local LLM via Ollama** (`qwen2.5-coder:7b`), ensuring that no target data, internal IP addresses, API schemas, or customer tokens ever leave your machine.
 
-| Provider | Identifier | Default Model | Best For | Rate Limits |
+NYX is also completely model-neutral and includes a **real-time Provider Switcher** in both the Web Operations Dashboard (under **Settings**) and the CLI (`--provider <name>`). You can seamlessly hot-swap between local models and commercial cloud APIs without restarting the server or losing mission context.
+
+| Provider | Identifier | Default Model | Best For | Privacy & Quotas |
 |---|---|---|---|---|
-| **Groq** *(Recommended)* | `groq` | `openai/gpt-oss-120b` | High-speed structured advisory reasoning | Free-tier TPM/daily token limits apply |
-| **Google Gemini** | `gemini` | `gemini-2.5-flash` | Fast hosted analysis & broad context | Standard Google API quotas |
-| **Local LLaMA / DeepSeek** | `local` / `llama` / `deepseek` | Custom local model | Zero cloud leakage, offline research, no rate limits | Dependent on local host GPU/CPU latency |
+| **Local LLM (Ollama)** *(Default & Recommended)* | `local` | `qwen2.5-coder:7b` | Offline research, zero cloud data leakage, autonomous loop | Unlimited local execution; zero cloud tokens |
+| **Google Gemini** | `gemini` | `gemini-2.5-flash` | Fast hosted analysis, broad context window | Standard Google API quotas |
+| **Groq** | `groq` | `openai/gpt-oss-120b` | High-speed structured advisory reasoning | Free-tier TPM/daily token limits apply |
+| **xAI Grok** | `grok` | `grok-2` | Specialized reasoning & deep analysis | Standard xAI API billing |
 | **OpenAI** | `openai` | `gpt-4o` | High-accuracy triage review | Standard OpenAI API billing |
 | **Anthropic Claude** | `claude` | `claude-3-5-sonnet` | Complex code & parameter analysis | Standard Anthropic API billing |
-| **xAI Grok** | `grok` | `grok-2` | Specialized reasoning | Standard xAI API billing |
 
-### Manual Configuration (`.env`)
+### Default Configuration (`.env`)
 
 ```bash
-# Set primary active provider (groq, gemini, local, openai, claude, grok)
-NYX_AI_PROVIDER="groq"
+# Primary active provider (local, gemini, groq, grok, openai, claude)
+NYX_AI_PROVIDER="local"
+NYX_PREFER_LOCAL="true"
 
-# Provider Credentials (configure the provider(s) you use)
-GROQ_API_KEY="gsk_..."
-GEMINI_API_KEY="AIzaSy..."
-OPENAI_API_KEY="sk-..."
-ANTHROPIC_API_KEY="sk-ant-..."
-XAI_API_KEY="xai-..."
+# Local Ollama Configuration (Default)
+LOCAL_LLM_MODEL="qwen2.5-coder:7b"
+LOCAL_LLM_URL="http://localhost:11434/api/generate"
 
-# Local LLaMA / DeepSeek Server URL (default: http://localhost:8000/chat)
-LOCAL_LLAMA_URL="http://localhost:8000/chat"
+# Token Budgets & Dynamic Timeout Settings
+LOCAL_MAX_TOKENS="1000"
+LOCAL_MAX_TOKENS_PLANNING="1024"
+LOCAL_MAX_TOKENS_ENRICHMENT="1000"
+LOCAL_MAX_TOKENS_TRIAGE="1200"
+LOCAL_MAX_TOKENS_EVALUATION="800"
+LOCAL_TIMEOUT_PADDING="60"
+
+# Optional Cloud Provider Credentials (configure only if using cloud switching)
+GEMINI_API_KEY=""
+GROQ_API_KEY=""
+XAI_API_KEY=""
+OPENAI_API_KEY=""
+ANTHROPIC_API_KEY=""
 ```
 
-*Note: If no AI provider is configured, NYX automatically falls back to its deterministic rule engine with 100% core scanning functionality.*
+*Note: If no AI provider is reachable, NYX automatically falls back to its deterministic rule engine with 100% core scanning functionality preserved.*
 
 ---
 
-## What's Autonomous vs. What Needs Approval vs. What Doesn't Exist Yet
+## Sequential Human-in-the-Loop (HITL) Execution & Pipeline Preview
 
 NYX enforces a strict operational taxonomy to guarantee safety, reproducibility, and human accountability:
 
@@ -366,8 +378,75 @@ NYX enforces a strict operational taxonomy to guarantee safety, reproducibility,
 └───────────────────────────────┘             └───────────────────────────────┘
 ```
 
+### Why HITL Approvals Are Sequential
+In the NYX autonomous loop, candidate steps are **dynamically evaluated after each execution cycle**. Rather than executing a static, pre-baked batch of attacks upfront, each iteration incorporates real evidence discovered by earlier steps. 
+
+When a destructive action (such as `nuclei`, `sqlmap`, or `ffuf`) is selected:
+1. **Loop Pauses Safely**: The autonomous loop pauses and creates an approval request.
+2. **Sequential Progress Indicator**: The Web Dashboard and CLI indicate:
+   ```text
+   Step 2 of 5 · 3 more destructive steps queued
+   ```
+3. **Upcoming Pipeline Preview**: An interactive accordion in the dashboard displays the preview of upcoming planned steps, their tools, targets, and justifications, giving the operator complete situational awareness before authorizing.
+4. **Execution & Next Evaluation**: Once approved, the tool executes, findings and evidence are harvested, and the planner dynamically recalculates remaining steps.
+
+### Phase Auto-Tracking & Live Telemetry
+As the mission progresses, NYX automatically advances the engagement state through the standard lifecycle:
+`DISCOVERY` ──► `ANALYSIS` ──► `VALIDATION` ──► `REPORTING`
+
+All phase transitions, step completions, and approval state changes are streamed live via WebSocket (`ws://localhost:8000/ws/events`) to the frontend in real time.
+
 ### Fail-Closed Behavior on AI Outage
-When operating in autonomous mode, if an AI provider fails (due to rate limits, HTTP 429 quota exhaustion, network timeouts, or unparseable responses), **the mission loop halts immediately with status `ai_unavailable`**. NYX will **never** silently fall back to guessing, will **never** manufacture unverified findings during an outage, and preserves all previously collected data in `.engagement/`.
+When operating in autonomous mode, if an AI provider fails (due to connection dropouts, HTTP 429 quota exhaustion, or unparseable output), **the mission loop halts immediately with status `ai_unavailable`**. NYX will **never** silently fall back to guessing, will **never** manufacture unverified findings during an outage, and preserves all previously collected data in `.engagement/`.
+
+---
+
+## Multi-Target Workspace Isolation Guarantees
+
+NYX guarantees strict data isolation across different targets:
+
+- **Target-Bound Context Engine**: Intelligence assets—including endpoint catalogs (`endpoints.json`), detected technologies (`technologies.json`), tested attack vectors (`tested_vectors.json`), and vulnerability hypotheses (`findings.json`)—are bound directly to the active target domain specified in `.engagement/target.yaml`.
+- **Zero Cross-Contamination**: When switching targets, tested vector history and finding records are strictly filtered by target provenance. Probing or validating Target A will never falsely register as completed vectors for Target B, and findings from Target B will never appear in Target A's triage pipeline or report drafts.
+
+---
+
+## Hardware & Load Considerations (Performance & Contention)
+
+Local LLM inference speed depends directly on available GPU/CPU compute resources:
+
+- **Baseline Inference Speed**: On standard modern hardware (e.g., Apple Silicon M-series or NVIDIA RTX 30/40 series GPUs), 7B parameter models such as `qwen2.5-coder:7b` typically achieve **4.0 to 6.0 tokens/second**.
+- **System Contention (OBS / Screen Recording / Heavy Multi-Tasking)**: When running concurrent GPU/CPU intensive applications—such as OBS screen recording, hardware video encoding, or background rendering—local inference throughput can temporarily drop to **1.5 to 3.0 tokens/second**.
+- **Dynamic Adaptive Timeout Scaling**: NYX incorporates an intelligent throughput calibrator. Rather than relying on a brittle static timeout, NYX measures generation speed in real-time and dynamically scales request timeouts based on the token budget:
+  $$\text{Timeout} = \left(\frac{\text{Token Budget}}{\text{Calibrated Speed}}\right) + \text{Padding}$$
+  Under heavy contention (e.g., 4.5 tok/s with a 1,024-token budget), NYX automatically extends request timeouts to ~290–370s, ensuring that autonomous missions never abort prematurely due to background system load.
+
+---
+
+## Complete Environment Variable Reference
+
+All configuration options can be set in your `.env` file or exported into the system environment:
+
+| Variable | Default | Description |
+|---|---|---|
+| `NYX_AI_PROVIDER` | `local` | Primary AI provider (`local`, `gemini`, `groq`, `grok`, `openai`, `claude`). |
+| `NYX_PREFER_LOCAL` | `true` | Prefer local Ollama inference whenever the local server is reachable. |
+| `LOCAL_LLM_MODEL` | `qwen2.5-coder:7b` | Model tag to load via Ollama for local inference. |
+| `LOCAL_LLM_URL` | `http://localhost:11434/api/generate` | Full HTTP endpoint URL for Ollama generation API. |
+| `LOCAL_MAX_TOKENS` | `1000` | Baseline maximum token ceiling for local generations. |
+| `LOCAL_MAX_TOKENS_PLANNING` | `1024` | Dedicated token budget for strategic mission plan formulation. |
+| `LOCAL_MAX_TOKENS_ENRICHMENT`| `1000` | Dedicated token budget for vulnerability hypothesis enrichment. |
+| `LOCAL_MAX_TOKENS_TRIAGE` | `1200` | Dedicated token budget for 7-Question Gate finding validation reviews. |
+| `LOCAL_MAX_TOKENS_EVALUATION`| `800` | Dedicated token budget for empirical evidence review evaluations. |
+| `LOCAL_TIMEOUT_PADDING` | `60` | Safety padding (in seconds) added to dynamically calculated local LLM timeouts. |
+| `GEMINI_API_KEY` | *(None)* | Google AI Studio API key for Gemini models (`gemini-2.5-flash`). |
+| `GROQ_API_KEY` | *(None)* | Groq Cloud API key for ultra-fast hosted inference. |
+| `XAI_API_KEY` | *(None)* | xAI API key for Grok models (`grok-2`). |
+| `OPENAI_API_KEY` | *(None)* | OpenAI API key for GPT-4o models. |
+| `ANTHROPIC_API_KEY` | *(None)* | Anthropic API key for Claude 3.5 Sonnet. |
+| `NYX_WEB_HOST` | `127.0.0.1` | Host address for the NYX Web Operations Dashboard server. |
+| `NYX_WEB_PORT` | `8000` | Port number for the NYX Web Operations Dashboard server. |
+| `NYX_BURP_PROXY` | *(None)* | Proxy URL (e.g. `http://127.0.0.1:8080`) for upstream Burp Suite interception (disables TLS verification for lab targets). |
+| `HTTPS_PROXY` / `HTTP_PROXY` | *(None)* | Standard corporate proxy URL (preserves strict TLS verification). |
 
 ---
 
@@ -463,7 +542,7 @@ To ensure transparent and falsifiable evaluation, NYX is tested against benchmar
 
 - **Frontend Automated Test Coverage**: Frontend React components are currently verified through manual end-to-end testing; full automated browser test suite (Playwright/Cypress) is planned for a future release.
 - **Custom Exploit Synthesis (v2 Scope)**: NYX does not construct bespoke exploit binaries or novel RCE payloads; it executes vetted security tooling (`nuclei`, `sqlmap`, `ffuf`).
-- **AI Quota Latency Trade-offs**: Groq free tier provides fast inference but enforces strict TPM quotas; local providers (`local_llama`) provide unlimited offline execution with higher hardware-dependent inference latency.
+- **AI Quota Latency Trade-offs**: Cloud providers (e.g. Groq free tier) provide fast hosted inference but enforce strict TPM quotas; local providers (`local` / Ollama) provide unlimited offline execution with hardware-dependent latency (mitigated by NYX's real-time throughput calibration and dynamic timeout scaling).
 - **Template Coverage Gaps**: Complex multi-stage business logic or exotic vulnerabilities lacking public Nuclei templates will remain in `HYPOTHESIS` status until manually confirmed by a researcher.
 
 ---

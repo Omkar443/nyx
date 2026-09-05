@@ -19,6 +19,8 @@ export function MissionView() {
   // Mission Runner State
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [activePermitted, setActivePermitted] = useState<boolean>(false);
+  const [autoApprove, setAutoApprove] = useState<boolean>(false);
+  const [showAutoApproveModal, setShowAutoApproveModal] = useState<boolean>(false);
   const [maxIterations, setMaxIterations] = useState<number>(15);
   const [missionResult, setMissionResult] = useState<any | null>(null);
   const [missionError, setMissionError] = useState<string | null>(null);
@@ -153,7 +155,8 @@ export function MissionView() {
         target: target,
         provider_name: activeP,
         active_permitted: activePermitted,
-        max_iterations: maxIterations
+        max_iterations: maxIterations,
+        auto_approve: autoApprove
       };
       const res = await fetchApi('/api/v1/ai/autonomous-run', {
         method: 'POST',
@@ -239,10 +242,33 @@ export function MissionView() {
               <input
                 type="checkbox"
                 checked={activePermitted}
-                onChange={(e) => setActivePermitted(e.target.checked)}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  setActivePermitted(val);
+                  if (!val && autoApprove) {
+                    setAutoApprove(false);
+                  }
+                }}
                 className="rounded border-[#444444] bg-[#2A2A2A] text-[#ebb94b] focus:ring-0"
               />
               <span>Allow Active Scans</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-[#888888] font-mono cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoApprove}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setShowAutoApproveModal(true);
+                  } else {
+                    setAutoApprove(false);
+                  }
+                }}
+                className="rounded border-[#444444] bg-[#2A2A2A] text-[#EF5350] focus:ring-0"
+              />
+              <span className={autoApprove ? 'text-[#EF5350] font-bold' : ''}>
+                Auto-approve destructive actions
+              </span>
             </label>
             <div className="flex items-center gap-1 text-[#888888] font-mono">
               <span>Max Iter:</span>
@@ -276,11 +302,88 @@ export function MissionView() {
           </div>
         </div>
 
+        {/* Confirmation Modal for Auto-Approve Mode */}
+        {showAutoApproveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-[#1E1E1E] border border-[#EF5350]/60 rounded-lg max-w-md w-full p-5 space-y-4 shadow-2xl animate-scaleIn">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#EF5350]/20 border border-[#EF5350]/40 flex items-center justify-center shrink-0 text-[#EF5350]">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-[#F2F2F2]">
+                    Enable Auto-Approve Mode?
+                  </h3>
+                  <p className="text-xs text-[#AAAAAA] leading-relaxed">
+                    This will automatically approve all destructive actions including <span className="font-mono text-[#E8E8E8] font-semibold">nuclei</span>, <span className="font-mono text-[#E8E8E8] font-semibold">sqlmap</span>, and <span className="font-mono text-[#E8E8E8] font-semibold">ffuf</span> without operator sign-off for this mission run.
+                  </p>
+                </div>
+              </div>
+              <div className="p-3 rounded bg-[#252525] border border-[#333333] text-[11px] text-[#888888] font-mono space-y-1.5">
+                <div className="text-[#4CAF50] flex items-center gap-2">
+                  <span>✓</span>
+                  <span>Engagement scope boundaries strictly enforced</span>
+                </div>
+                <div className="text-[#4CAF50] flex items-center gap-2">
+                  <span>✓</span>
+                  <span>Actions still policy-checked before execution</span>
+                </div>
+                <div className="text-[#4CAF50] flex items-center gap-2">
+                  <span>✓</span>
+                  <span>Every action audited in approvals.json (approved_by: &quot;auto&quot;)</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#333333]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAutoApproveModal(false);
+                    setAutoApprove(false);
+                  }}
+                  className="px-3.5 py-1.5 rounded bg-[#2A2A2A] hover:bg-[#333333] text-xs font-medium text-[#CCCCCC] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAutoApprove(true);
+                    setActivePermitted(true);
+                    setShowAutoApproveModal(false);
+                  }}
+                  className="px-4 py-1.5 rounded bg-[#EF5350] hover:bg-[#D32F2F] text-xs font-bold text-white transition-colors flex items-center gap-1.5 shadow-md shadow-[#EF5350]/20"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Enable Auto-Approve</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Error Alert */}
         {missionError && (
           <div className="p-3 rounded bg-[#EF5350]/10 border border-[#EF5350]/30 text-xs text-[#EF5350] flex items-center gap-2">
             <AlertOctagon className="w-4 h-4 shrink-0" />
             <span>{missionError}</span>
+          </div>
+        )}
+
+        {/* Persistent Warning Banner during Auto-Approve Mode */}
+        {isRunning && autoApprove && (
+          <div className="p-3 rounded bg-[#EF5350]/15 border border-[#EF5350]/40 flex items-center justify-between gap-3 text-xs font-mono text-[#EF5350]">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-[#EF5350] animate-pulse" />
+              <span className="font-bold uppercase tracking-wide">
+                ⚠ Auto-Approve Mode Active
+              </span>
+              <span className="text-[#E8E8E8] hidden sm:inline">
+                — Destructive actions will execute without manual confirmation.
+              </span>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-[#EF5350]/20 border border-[#EF5350]/40 font-bold uppercase shrink-0">
+              AUTOPILOT
+            </span>
           </div>
         )}
 
@@ -326,6 +429,51 @@ export function MissionView() {
               </div>
               <span className="text-[#888888] hidden lg:inline">Non-blocking background reasoning</span>
             </div>
+          </div>
+        )}
+
+        {/* Live Pipeline Preview during execution */}
+        {isRunning && progressData?.upcoming_pipeline && progressData.upcoming_pipeline.length > 0 && (
+          <div className="border border-[#3A3A3A] rounded bg-[#1A1A1A] p-3 space-y-2 text-xs font-mono">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#ebb94b] font-semibold">
+                <Clock className="w-3.5 h-3.5 text-[#ebb94b]" />
+                <span>
+                  Step {progressData.current_step_index || 1} of {progressData.total_planned_steps || (progressData.upcoming_pipeline.length + 1)} &middot; {progressData.remaining_destructive_count ?? progressData.upcoming_pipeline.length} more queued
+                </span>
+                {progressData.auto_approved && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#EF5350]/20 text-[#EF5350] border border-[#EF5350]/40 uppercase font-bold">
+                    AUTO-APPROVED
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPipelineOpen(!isPipelineOpen)}
+                className="text-[11px] text-[#888888] hover:text-[#E8E8E8] flex items-center gap-1"
+              >
+                <span>{isPipelineOpen ? 'Hide Pipeline' : 'Preview Queue'}</span>
+                {isPipelineOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+            {isPipelineOpen && (
+              <div className="space-y-1.5 pt-1 border-t border-[#2A2A2A]">
+                {progressData.upcoming_pipeline.map((step: any, sIdx: number) => (
+                  <div key={sIdx} className="bg-[#222222] p-2 rounded border border-[#333333] text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 truncate">
+                      <span className="text-[#888888] shrink-0">#{(progressData.current_step_index || 1) + sIdx + 1}</span>
+                      <span className="text-[#CCCCCC] truncate font-medium">{step.name || step.action}</span>
+                      <span className="text-[10px] px-1 py-0.2 rounded bg-[#2E2E2E] text-[#AAAAAA] shrink-0">
+                        {step.tool || step.tool_name || 'tool'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EF5350]/15 text-[#EF5350] border border-[#EF5350]/30 shrink-0 uppercase font-bold">
+                      {step.impact_class || 'DESTRUCTIVE'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -493,6 +641,11 @@ export function MissionView() {
                             }`}>
                               {step.impact_class || 'NON_DESTRUCTIVE'}
                             </span>
+                            {it.approved_by === 'auto' && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#EF5350]/20 text-[#EF5350] border border-[#EF5350]/40 font-bold uppercase">
+                                AUTO-APPROVED
+                              </span>
+                            )}
                           </div>
                           {it.ai_reasoning?.reasoning && (
                             <p className="text-[11px] text-[#707070] italic">AI: {it.ai_reasoning.reasoning}</p>

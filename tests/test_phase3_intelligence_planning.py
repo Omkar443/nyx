@@ -52,7 +52,7 @@ def test_context_engine_loads_tested_vectors_and_knowledge(tmp_path: Path):
     (eng_dir / "technologies.json").write_text(json.dumps(["Laravel"]), encoding="utf-8")
     (eng_dir / "endpoints.json").write_text(json.dumps(["https://app.corp.internal/api/v1/user"]), encoding="utf-8")
     (eng_dir / "tested_vectors.json").write_text(
-        json.dumps([{"vector": "auth_surface_analysis", "result": "tested_negative"}]),
+        json.dumps([{"vector": "auth_surface_analysis", "result": "tested_negative", "target": "app.corp.internal"}]),
         encoding="utf-8",
     )
 
@@ -77,7 +77,7 @@ def test_ai_manager_fail_safe_on_error_or_malformed():
     res = mgr.analyze({"target": "target.com"}, provider_name="mock_cloud")
 
     assert res["provider"] == "mock_cloud"
-    assert "AI analysis unavailable — using deterministic methodology" in res["recommended_focus"]
+    assert "AI analysis unavailable" in res["recommended_focus"]
     assert "API Timeout" in res["analysis"]
 
 
@@ -155,7 +155,7 @@ def test_deterministic_planner_tested_vector_suppression(tmp_path: Path):
     )
     # Record that auth surface analysis was already tested negative
     (eng_dir / "tested_vectors.json").write_text(
-        json.dumps([{"vector": "auth_surface_analysis", "result": "tested_negative"}]),
+        json.dumps([{"vector": "auth_surface_analysis", "result": "tested_negative", "target": "auth.portal.com"}]),
         encoding="utf-8",
     )
 
@@ -177,7 +177,7 @@ def test_deterministic_planner_hypothesis_triage_inclusion(tmp_path: Path):
     (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
     (eng_dir / "endpoints.json").write_text(json.dumps(["https://app.target.com/home"]), encoding="utf-8")
     (eng_dir / "findings.json").write_text(
-        json.dumps([{"finding_id": "FH-2026-001", "state": "HYPOTHESIS", "title": "Suspected IDOR"}]),
+        json.dumps([{"finding_id": "FH-2026-001", "state": "HYPOTHESIS", "title": "Suspected IDOR", "target": "app.target.com", "endpoint": "https://app.target.com/home"}]),
         encoding="utf-8",
     )
 

@@ -1295,6 +1295,7 @@ class MissionPlanner:
         max_iterations: int = 15,
         start_iteration: int = 1,
         prior_iterations: Optional[List[Dict[str, Any]]] = None,
+        auto_approve: bool = False,
     ) -> Dict[str, Any]:
         """Execute autonomous mission loop with AI-guided candidate selection, policy gates, and pause-on-destructive safety."""
         from nyx.execution.policy import normalize_target
@@ -1318,11 +1319,12 @@ class MissionPlanner:
 
         # 0.b. Auto-bootstrap reconnaissance if target context shows zero endpoints mapped
         logger.info(
-            "[MISSION] Starting autonomous loop for target: %s (iterations: %d-%d, active_permitted: %s)",
+            "[MISSION] Starting autonomous loop for target: %s (iterations: %d-%d, active_permitted: %s, auto_approve: %s)",
             target,
             start_iteration,
             max_iterations,
             active_permitted,
+            auto_approve,
         )
 
         # 0. Context Bootstrap Gate: If zero endpoints are mapped and start_iteration == 1, auto-bootstrap recon
@@ -1393,6 +1395,9 @@ class MissionPlanner:
             }
 
         for iteration_idx in range(start_iteration, max_iterations + 1):
+            auto_approved_this_step = False
+            current_action_id = None
+
             # 1.a. Re-fetch context fresh every iteration
             context = self.context_engine.get_target_context(target)
 
@@ -1685,10 +1690,8 @@ class MissionPlanner:
 
             logger.info("[MISSION] Selected candidate #%d: '%s' [%s] using '%s' (Reason: %s, AI Degraded: %s)", chosen_idx, next_step.get("name"), next_step.get("impact_class"), next_step.get("tool"), next_step.get("reason"), ai_degraded)
 
-            # 1.f. Pause on DESTRUCTIVE step (do NOT execute)
+            # 1.f. Pause on DESTRUCTIVE step (do NOT execute unless auto_approve is True)
             if next_step.get("impact_class") == "DESTRUCTIVE":
-                logger.warning("[PAUSED] Autonomous loop paused for operator approval on DESTRUCTIVE step: '%s' (Tool: %s, Target: %s)", next_step.get("name"), next_step.get("tool"), next_step.get("target") or target)
-                act_id = None
                 remaining_destructive = [
                     {
                         "name": s.get("name"),
@@ -1704,72 +1707,128 @@ class MissionPlanner:
                 ]
                 remaining_destructive_count = len(remaining_destructive)
                 upcoming_pipeline = remaining_destructive[:5]
-                try:
-                    from nyx.agent.approval import ApprovalSystem
-                    import uuid
-                    app_sys = ApprovalSystem(base_dir=self.base_dir)
-                    act_id = f"ACT-{uuid.uuid4().hex[:6].upper()}"
-                    app_sys.submit_for_approval({
-                        "action_id": act_id,
-                        "mission_target": target,
-                        "target": next_step.get("target") or target,
-                        "step_target": next_step.get("target") or target,
-                        "action": next_step.get("action", "validate"),
-                        "reason": next_step.get("reason", "DESTRUCTIVE_VALIDATION"),
-                        "tool_name": next_step.get("tool", "nyx-validate"),
-                        "risk": "High",
-                        "impact_class": next_step.get("impact_class", "DESTRUCTIVE"),
-                        "impact_justification": next_step.get("impact_justification", ""),
-                        "step": next_step,
-                        "provider_name": provider_name,
-                        "max_iterations": max_iterations,
-                        "current_iteration": iteration_idx,
-                        "prior_iterations": iterations,
-                        "active_permitted": active_permitted,
-                        "remaining_destructive_count": remaining_destructive_count,
-                        "upcoming_pipeline": upcoming_pipeline,
-                    })
-                except Exception:
-                    pass
-                try:
-                    from nyx.web.events import emit_event_sync
-                    emit_event_sync(
-                        event_type="mission_progress",
-                        data={
-                            "state": "paused",
-                            "target": target,
-                            "iteration": iteration_idx,
+
+                if not auto_approve:
+                    logger.warning("[PAUSED] Autonomous loop paused for operator approval on DESTRUCTIVE step: '%s' (Tool: %s, Target: %s)", next_step.get("name"), next_step.get("tool"), next_step.get("target") or target)
+                    act_id = None
+                    try:
+                        from nyx.agent.approval import ApprovalSystem
+                        import uuid
+                        app_sys = ApprovalSystem(base_dir=self.base_dir)
+                        act_id = f"ACT-{uuid.uuid4().hex[:6].upper()}"
+                        app_sys.submit_for_approval({
+                            "action_id": act_id,
+                            "mission_target": target,
+                            "target": next_step.get("target") or target,
+                            "step_target": next_step.get("target") or target,
+                            "action": next_step.get("action", "validate"),
+                            "reason": next_step.get("reason", "DESTRUCTIVE_VALIDATION"),
+                            "tool_name": next_step.get("tool", "nyx-validate"),
+                            "risk": "High",
+                            "impact_class": next_step.get("impact_class", "DESTRUCTIVE"),
+                            "impact_justification": next_step.get("impact_justification", ""),
+                            "step": next_step,
+                            "provider_name": provider_name,
                             "max_iterations": max_iterations,
-                            "current_step_index": chosen_idx + 1,
-                            "total_planned_steps": len(validated),
-                            "step_name": next_step.get("name"),
-                            "tool": next_step.get("tool"),
-                            "action": next_step.get("action"),
-                            "phase": next_step.get("phase"),
-                            "message": f"Paused for approval on {next_step.get('name')}",
+                            "current_iteration": iteration_idx,
+                            "prior_iterations": iterations,
+                            "active_permitted": active_permitted,
                             "remaining_destructive_count": remaining_destructive_count,
                             "upcoming_pipeline": upcoming_pipeline,
-                            "pending_step": next_step,
-                            "action_id": act_id,
-                        },
-                        mission_id=target,
+                        })
+                    except Exception:
+                        pass
+                    try:
+                        from nyx.web.events import emit_event_sync
+                        emit_event_sync(
+                            event_type="mission_progress",
+                            data={
+                                "state": "paused",
+                                "target": target,
+                                "iteration": iteration_idx,
+                                "max_iterations": max_iterations,
+                                "current_step_index": chosen_idx + 1,
+                                "total_planned_steps": len(validated),
+                                "step_name": next_step.get("name"),
+                                "tool": next_step.get("tool"),
+                                "action": next_step.get("action"),
+                                "phase": next_step.get("phase"),
+                                "message": f"Paused for approval on {next_step.get('name')}",
+                                "remaining_destructive_count": remaining_destructive_count,
+                                "upcoming_pipeline": upcoming_pipeline,
+                                "pending_step": next_step,
+                                "action_id": act_id,
+                            },
+                            mission_id=target,
+                        )
+                    except Exception:
+                        pass
+                    return {
+                        "status": "paused_for_approval",
+                        "pending_step": next_step,
+                        "action_id": act_id,
+                        "target": target,
+                        "iterations": iterations,
+                        "recon_bootstrapped": recon_bootstrapped,
+                        "ai_degraded": ai_degraded,
+                        "degradation_reason": degradation_reason,
+                        "current_iteration": iteration_idx,
+                        "max_iterations": max_iterations,
+                        "remaining_destructive_count": remaining_destructive_count,
+                        "upcoming_pipeline": upcoming_pipeline,
+                    }
+                else:
+                    # Auto-approve mode is active: verify policy compliance
+                    if next_step.get("permitted") is False:
+                        logger.error("[ERROR] Step '%s' blocked by safety policy: %s", next_step.get("name"), next_step.get("policy_reason", "Not permitted"))
+                        return {
+                            "status": "blocked",
+                            "blocked_step": next_step,
+                            "target": target,
+                            "iterations": iterations,
+                            "recon_bootstrapped": recon_bootstrapped,
+                            "ai_degraded": ai_degraded,
+                            "degradation_reason": degradation_reason,
+                        }
+
+                    act_id = None
+                    try:
+                        from nyx.agent.approval import ApprovalSystem
+                        app_sys = ApprovalSystem(base_dir=self.base_dir)
+                        act_id, rec = app_sys.auto_approve_action(
+                            decision={
+                                "mission_target": target,
+                                "target": next_step.get("target") or target,
+                                "step_target": next_step.get("target") or target,
+                                "action": next_step.get("action", "validate"),
+                                "reason": next_step.get("reason", "DESTRUCTIVE_VALIDATION"),
+                                "tool_name": next_step.get("tool", "nyx-validate"),
+                                "risk": "High",
+                                "impact_class": next_step.get("impact_class", "DESTRUCTIVE"),
+                                "impact_justification": next_step.get("impact_justification", ""),
+                                "step": next_step,
+                                "provider_name": provider_name,
+                                "max_iterations": max_iterations,
+                                "current_iteration": iteration_idx,
+                                "prior_iterations": iterations,
+                                "active_permitted": True,
+                                "remaining_destructive_count": remaining_destructive_count,
+                                "upcoming_pipeline": upcoming_pipeline,
+                            },
+                            approved_by="auto",
+                        )
+                    except Exception as e:
+                        logger.error("[ERROR] Failed to record auto-approval: %s", e)
+
+                    logger.warning(
+                        "[AUTO-APPROVED] Auto-approve mode active — automatically approving DESTRUCTIVE step: '%s' (Tool: %s, Target: %s, ActionID: %s, ApprovedBy: auto)",
+                        next_step.get("name"),
+                        next_step.get("tool"),
+                        next_step.get("target") or target,
+                        act_id,
                     )
-                except Exception:
-                    pass
-                return {
-                    "status": "paused_for_approval",
-                    "pending_step": next_step,
-                    "action_id": act_id,
-                    "target": target,
-                    "iterations": iterations,
-                    "recon_bootstrapped": recon_bootstrapped,
-                    "ai_degraded": ai_degraded,
-                    "degradation_reason": degradation_reason,
-                    "current_iteration": iteration_idx,
-                    "max_iterations": max_iterations,
-                    "remaining_destructive_count": remaining_destructive_count,
-                    "upcoming_pipeline": upcoming_pipeline,
-                }
+                    auto_approved_this_step = True
+                    current_action_id = act_id
 
             # 1.g. Stop if policy blocked
             if next_step.get("permitted") is False:
@@ -1848,38 +1907,53 @@ class MissionPlanner:
             upcoming_pipeline = remaining_destructive[:5]
             try:
                 from nyx.web.events import emit_event_sync
+                ev_data = {
+                    "state": "executing",
+                    "target": target,
+                    "iteration": iteration_idx,
+                    "max_iterations": max_iterations,
+                    "current_step_index": chosen_idx + 1,
+                    "total_planned_steps": len(validated),
+                    "step_name": next_step.get("name"),
+                    "tool": next_step.get("tool"),
+                    "action": next_step.get("action"),
+                    "phase": next_step.get("phase"),
+                    "message": (
+                        f"[AUTO-APPROVED] Executing {next_step.get('name')} ({next_step.get('tool')})"
+                        if auto_approved_this_step
+                        else f"Executing {next_step.get('name')} ({next_step.get('tool')})"
+                    ),
+                    "remaining_destructive_count": remaining_destructive_count,
+                    "upcoming_pipeline": upcoming_pipeline,
+                }
+                if auto_approved_this_step:
+                    ev_data["auto_approved"] = True
+                    ev_data["action_id"] = current_action_id
+                    ev_data["approved_by"] = "auto"
                 emit_event_sync(
                     event_type="mission_progress",
-                    data={
-                        "state": "executing",
-                        "target": target,
-                        "iteration": iteration_idx,
-                        "max_iterations": max_iterations,
-                        "current_step_index": chosen_idx + 1,
-                        "total_planned_steps": len(validated),
-                        "step_name": next_step.get("name"),
-                        "tool": next_step.get("tool"),
-                        "action": next_step.get("action"),
-                        "phase": next_step.get("phase"),
-                        "message": f"Executing {next_step.get('name')} ({next_step.get('tool')})",
-                        "remaining_destructive_count": remaining_destructive_count,
-                        "upcoming_pipeline": upcoming_pipeline,
-                    },
+                    data=ev_data,
                     mission_id=target,
                 )
             except Exception:
                 pass
-            result = self.execute_step(next_step, target, active_permitted=active_permitted)
+            step_active_perm = True if auto_approved_this_step else active_permitted
+            result = self.execute_step(next_step, target, active_permitted=step_active_perm)
             step_status = result.get("result", {}).get("status") if isinstance(result, dict) else "completed"
             logger.info("[DONE] Step '%s' complete — status: %s", next_step.get("name"), step_status)
-            iterations.append({
+            iter_entry = {
                 "iteration": iteration_idx,
                 "step": next_step,
                 "ai_reasoning": ai_reasoning,
                 "ai_degraded": ai_degraded,
                 "degradation_reason": degradation_reason,
                 "result": result,
-            })
+            }
+            if auto_approved_this_step:
+                iter_entry["action_id"] = current_action_id
+                iter_entry["approved_by"] = "auto"
+                iter_entry["status"] = "approved_and_executed"
+            iterations.append(iter_entry)
 
         # 2. Max iterations reached without terminal state
         logger.info("[DONE] Autonomous loop reached maximum iteration limit (%d)", max_iterations)
@@ -1893,4 +1967,5 @@ class MissionPlanner:
             "endpoints_count": len(context.get("endpoints", [])),
             "ai_degraded": any_degraded,
             "degradation_reason": deg_reason,
+            "auto_approve": auto_approve,
         }

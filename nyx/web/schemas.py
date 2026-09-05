@@ -139,6 +139,7 @@ class AIAutonomousRequest(BaseModel):
     provider_name: Optional[str] = Field(None, description="Optional AI provider name")
     active_permitted: bool = Field(False, description="Whether active scanning is permitted")
     max_iterations: int = Field(15, description="Maximum autonomous iterations")
+    auto_approve: bool = Field(False, description="Whether to auto-approve destructive actions")
 
 
 class AIPlanRequest(BaseModel):

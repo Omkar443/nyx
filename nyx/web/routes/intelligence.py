@@ -188,6 +188,7 @@ async def run_ai_autonomous_loop(
         provider_name=req.provider_name,
         active_permitted=req.active_permitted,
         max_iterations=req.max_iterations,
+        auto_approve=req.auto_approve,
     )
     if res.get("status") == "error":
         raise HTTPException(

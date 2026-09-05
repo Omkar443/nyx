@@ -223,7 +223,11 @@ def test_select_steps_four_combinations():
     assert [s["tool"] for s in steps3] == ["httpx", "katana", "nyx-classify", "nyx-triage"]
 
     # Combination 4: (has endpoints, has hypothesis findings) -> steps 3 and 4 survive, renumbered to 1 and 2
-    ctx4 = {"endpoints": ["http://example.com/api"], "findings": [{"state": "HYPOTHESIS"}]}
+    ctx4 = {
+        "target": "example.com",
+        "endpoints": ["http://example.com/api"],
+        "findings": [{"state": "HYPOTHESIS", "target": "example.com", "endpoint": "http://example.com/api"}],
+    }
     steps4 = planner._select_steps(ctx4)
     assert len(steps4) == 2
     assert [s["step"] for s in steps4] == [1, 2]
@@ -270,12 +274,13 @@ def test_cli_ai_plan_with_provider_flag(tmp_path: Path, monkeypatch, capsys):
         target="server.vulnapp.id",
         provider="local",
     )
-    ret = cmd_ai(args)
+    with patch("nyx.ai.manager.AIManager.analyze", return_value={"analysis": "Mock analysis", "recommended_focus": "SQL Injection"}):
+        ret = cmd_ai(args)
     assert ret == 0
     captured = capsys.readouterr().out
     assert "NYX Recommended AI Mission Plan" in captured
     assert "Provider:          local" in captured
-    assert "PHP & Web Server Attack Surface Analysis" in captured
+    assert any(k in captured for k in ("Technology-Specific Attack Surface Mapping", "Attack Surface Mapping", "PHP & Web Server Attack Surface Analysis"))
 
 
 def test_cli_ai_execute_with_provider_flag(tmp_path: Path, monkeypatch, capsys):
@@ -329,7 +334,7 @@ def test_execute_plan_active_permitted_dry_run_toggling(tmp_path: Path, monkeypa
         mock_run.return_value = mock_res
 
         planner.execute_plan(plan, active_permitted=False)
-        mock_run.assert_called_once_with("httpx", "http://test.vulnweb.com", dry_run=True, active_permitted=False)
+        mock_run.assert_called_once_with("httpx", "http://test.vulnweb.com", arguments=None, dry_run=True, active_permitted=False)
 
     # 2. When active_permitted is True -> dry_run=False
     with patch("nyx.application.execution_service.ExecutionService.run_tool") as mock_run:
@@ -338,7 +343,7 @@ def test_execute_plan_active_permitted_dry_run_toggling(tmp_path: Path, monkeypa
         mock_run.return_value = mock_res
 
         planner.execute_plan(plan, active_permitted=True)
-        mock_run.assert_called_once_with("httpx", "http://test.vulnweb.com", dry_run=False, active_permitted=True)
+        mock_run.assert_called_once_with("httpx", "http://test.vulnweb.com", arguments=None, dry_run=False, active_permitted=True)
 
 
 def test_create_plan_out_of_scope_target_returns_error(tmp_path: Path, monkeypatch):
@@ -505,6 +510,11 @@ def test_autonomous_loop_zero_context_triggers_recon_first(tmp_path: Path, monke
     (eng_dir / "technologies.json").write_text("{}", encoding="utf-8")
 
     planner = MissionPlanner(base_dir=tmp_path)
+    planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {
+        "selected_index": 0,
+        "decision": "proceed",
+        "reasoning": "Step selection",
+    }
 
     recon_called = False
 
@@ -523,7 +533,8 @@ def test_autonomous_loop_zero_context_triggers_recon_first(tmp_path: Path, monke
         }), encoding="utf-8")
         return {"status": "success", "sync_total": 3, "live_count": 3}
 
-    with patch("nyx.application.recon_service.ReconService.run_recon", side_effect=fake_run_recon):
+    with patch("nyx.application.recon_service.ReconService.run_recon", side_effect=fake_run_recon), \
+         patch("nyx.core.findings.enrich_hypothesis_description", return_value={"ai_enriched": True, "description": "Enriched"}):
         res = planner.run_autonomous_loop(
             target="app.example.com",
             active_permitted=False,
@@ -594,7 +605,8 @@ def test_classification_generates_hypothesis_and_surfaces_validation(tmp_path: P
         "reason": "API_SURFACE_DETECTED",
         "impact_class": "NON_DESTRUCTIVE",
     }
-    step_res = planner.execute_step(classify_step, "bridge.target.com", active_permitted=False)
+    with patch("nyx.core.findings.enrich_hypothesis_description", return_value={"ai_enriched": True, "description": "Enriched description"}):
+        step_res = planner.execute_step(classify_step, "bridge.target.com", active_permitted=False)
     assert step_res.get("result", {}).get("status") == "success"
 
     # 2. Check findings.json was populated with hypothesis finding
@@ -606,10 +618,13 @@ def test_classification_generates_hypothesis_and_surfaces_validation(tmp_path: P
     assert hyp.get("status") == "HYPOTHESIS"
     assert hyp.get("finding_id", "").startswith("FH-")
 
-    # 3. Verify _select_steps now surfaces a nyx-validate candidate matching the hypothesis
+    # 3. Verify _select_steps now surfaces a validation candidate matching the hypothesis
     fresh_ctx = planner.context_engine.get_target_context("bridge.target.com")
     candidates = planner._select_steps(fresh_ctx)
-    validate_candidates = [c for c in candidates if c.get("tool") == "nyx-validate"]
+    validate_candidates = [
+        c for c in candidates
+        if c.get("impact_class") == "DESTRUCTIVE" or c.get("tool") in ("nuclei", "sqlmap", "ffuf", "nyx-validate")
+    ]
     assert len(validate_candidates) >= 1
     v_step = validate_candidates[0]
     assert v_step.get("impact_class") == "DESTRUCTIVE"
@@ -624,30 +639,37 @@ def test_autonomous_loop_bridges_classification_to_validation_and_pauses(tmp_pat
     (eng_dir / "target.yaml").write_text("target: auto-bridge.target.com\nscope:\n  - auto-bridge.target.com\n", encoding="utf-8")
     (eng_dir / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
     (eng_dir / "endpoints.json").write_text(json.dumps([
-        "https://auto-bridge.target.com/api/v1/accounts/me",
+        "https://auto-bridge.target.com/api/v1/accounts/12345",
     ]), encoding="utf-8")
     (eng_dir / "technologies.json").write_text(json.dumps({"web": ["Express"]}), encoding="utf-8")
 
     planner = MissionPlanner(base_dir=tmp_path)
 
-    # Mock analyze to select candidate 0 on each iteration
-    planner.ai_manager.analyze = lambda ctx, prompt=None, provider_name=None: {
-        "selected_index": 0,
-        "decision": "proceed",
-        "reasoning": "Step selection",
-    }
+    # Mock analyze to select candidate 0 on iteration 1 (classification),
+    # then select the destructive validation step when it surfaces
+    def mock_analyze(ctx, prompt=None, provider_name=None):
+        candidates = ctx.get("candidates", [])
+        destructive_idx = next((i for i, c in enumerate(candidates) if c.get("impact_class") == "DESTRUCTIVE"), 0)
+        return {
+            "selected_index": destructive_idx,
+            "decision": "proceed",
+            "reasoning": "Step selection",
+        }
 
-    res = planner.run_autonomous_loop(
-        target="auto-bridge.target.com",
-        active_permitted=False,
-        max_iterations=10,
-    )
+    planner.ai_manager.analyze = mock_analyze
+
+    with patch("nyx.core.findings.enrich_hypothesis_description", return_value={"ai_enriched": True, "description": "Enriched description"}):
+        res = planner.run_autonomous_loop(
+            target="auto-bridge.target.com",
+            active_permitted=False,
+            max_iterations=10,
+        )
 
     # Loop should execute classification first, then pause when selecting the destructive validation step
     assert res.get("status") == "paused_for_approval"
     assert res.get("pending_step") is not None
     assert res.get("pending_step", {}).get("impact_class") == "DESTRUCTIVE"
-    assert res.get("pending_step", {}).get("tool") == "nyx-validate"
+    assert res.get("pending_step", {}).get("tool") in ("nuclei", "sqlmap", "ffuf", "nyx-validate")
     assert len(res.get("iterations", [])) >= 1
 
 

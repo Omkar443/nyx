@@ -3090,33 +3090,3 @@ def test_mission_progress_websocket_event_emission_on_pause(tmp_path: Path, monk
     assert paused_ev["data"]["upcoming_pipeline"][0]["name"] == "Step 2"
     assert paused_ev["data"]["upcoming_pipeline"][1]["name"] == "Step 3"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

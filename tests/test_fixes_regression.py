@@ -1081,11 +1081,195 @@ def test_autonomous_loop_recon_bootstrap(tmp_path: Path, monkeypatch):
         assert first_step.get("tool") == "nyx-classify"
 
 
+def test_url_classification_prioritizes_functional_surfaces_over_php_extension():
+    """Verify that specific functional surfaces (auth, upload, sqli, xss) take priority over .php extension,
+    and COMMAND_INJECTION_SURFACE requires explicit command-execution indicators."""
+    from nyx.application.analysis_service import AnalysisService
+
+    svc = AnalysisService()
+
+    # 1. Login page ending in .php must classify as AUTH_IDENTITY_SURFACE, NOT COMMAND_INJECTION_SURFACE
+    c_login = svc.classify_url("https://example.com/admin/login.php")
+    assert c_login["category"] == "AUTH_IDENTITY_SURFACE"
+    assert "hunt-auth-bypass" in c_login["skills"]
+
+    # 2. File upload page ending in .php must classify as FILE_UPLOAD_SURFACE
+    c_upload = svc.classify_url("https://example.com/upload.php")
+    assert c_upload["category"] == "FILE_UPLOAD_SURFACE"
+
+    # 3. Search query ending in .php must classify as XSS or SQLI surface
+    c_search = svc.classify_url("https://example.com/search.php?q=apple")
+    assert c_search["category"] in ("XSS_SURFACE", "SQLI_SURFACE")
+
+    # 4. Genuine command injection with explicit indicators must classify as COMMAND_INJECTION_SURFACE
+    c_ping = svc.classify_url("https://example.com/network/ping.php?host=127.0.0.1")
+    assert c_ping["category"] == "COMMAND_INJECTION_SURFACE"
+
+    c_cmd = svc.classify_url("https://example.com/utilities/exec?cmd=id")
+    assert c_cmd["category"] == "COMMAND_INJECTION_SURFACE"
+
+    c_shell = svc.classify_url("https://example.com/command-injection/run")
+    assert c_shell["category"] == "COMMAND_INJECTION_SURFACE"
 
 
+def test_auto_approve_executes_destructive_step_and_records_approval_history(tmp_path: Path):
+    """Verify that auto_approve=True executes DESTRUCTIVE steps without pausing,
+    records the approval in approvals.json with approved_by='auto', and updates approval history."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.agent.approval import ApprovalSystem
+    from nyx.application.agent_service import AgentService
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: example.com\nscope:\n  - example.com\n  - '*.example.com'\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nmode: testing\nscope:\n  - example.com\n", encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([{"url": "https://example.com/login", "host": "example.com"}]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["express"]}), encoding="utf-8")
+
+    destructive_step = {
+        "step": 1,
+        "name": "SQLMap Active Injection Scan",
+        "tool": "sqlmap",
+        "action": "active_validation",
+        "target": "https://example.com/api/user?id=1",
+        "impact_class": "DESTRUCTIVE",
+        "impact_justification": "Active SQL injection fuzzing modifies database state.",
+        "reason": "SQL_INJECTION",
+    }
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    with patch.object(planner, "_select_steps", return_value=[destructive_step]), \
+         patch.object(planner.ai_manager, "analyze", return_value={"selected_index": 0, "decision": "proceed", "reasoning": "Execute active validation"}), \
+         patch.object(planner, "execute_step", return_value={"step": 1, "name": "SQLMap Active Injection Scan", "tool": "sqlmap", "result": {"status": "success", "stdout": "sqlmap output"}}):
+
+        res = planner.run_autonomous_loop(
+            target="example.com",
+            active_permitted=True,
+            max_iterations=1,
+            auto_approve=True,
+        )
+
+        # 1. Mission did NOT pause for operator approval
+        assert res.get("status") != "paused_for_approval"
+        assert len(res.get("iterations", [])) == 1
+        it0 = res["iterations"][0]
+        assert it0.get("status") == "approved_and_executed"
+        assert it0.get("approved_by") == "auto"
+        assert it0.get("action_id", "").startswith("ACT-")
+
+        # 2. approvals.json has the auto-approved record
+        app_sys = ApprovalSystem(base_dir=tmp_path)
+        history = app_sys.get_approval_history(target="example.com")
+        assert len(history) == 1
+        record = history[0]
+        assert record["status"] == "APPROVED"
+        assert record["approved_by"] == "auto"
+        assert record["impact_class"] == "DESTRUCTIVE"
+        assert "approved_at" in record
+
+        # 3. AgentService reflects the auto-approval in approvals API
+        agent_svc = AgentService(base_dir=tmp_path)
+        approvals_data = agent_svc.get_approvals().data
+        assert approvals_data["pending_count"] == 0
+        assert approvals_data["approved_count"] == 1
+        assert len(approvals_data["approved"]) == 1
+        assert approvals_data["approved"][0]["approved_by"] == "auto"
 
 
+def test_auto_approve_respects_scope_and_policy_boundaries(tmp_path: Path):
+    """Verify that auto_approve=True still enforces scope and policy boundaries,
+    failing closed if targets are out-of-scope or blocked by security policies."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.agent.approval import ApprovalSystem
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: authorized.com\nscope:\n  - authorized.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nmode: testing\nscope:\n  - authorized.com\n", encoding="utf-8")
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    # 1. Out-of-scope mission target must fail closed immediately
+    res_oos = planner.run_autonomous_loop(
+        target="out-of-scope.com",
+        active_permitted=True,
+        max_iterations=1,
+        auto_approve=True,
+    )
+    assert res_oos.get("status") == "error"
+    assert res_oos.get("error") == "out of scope"
+
+    # No approvals should be generated
+    app_sys = ApprovalSystem(base_dir=tmp_path)
+    assert len(app_sys.get_approval_history()) == 0
 
 
+def test_manual_approval_remains_default(tmp_path: Path):
+    """Verify that auto_approve=False (the default) continues to pause for manual operator approval."""
+    from nyx.ai.planner import MissionPlanner
+    from nyx.agent.approval import ApprovalSystem
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: example.com\nscope:\n  - example.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nmode: testing\nscope:\n  - example.com\n", encoding="utf-8")
+    (eng_dir / "endpoints.json").write_text(json.dumps([{"url": "https://example.com/login", "host": "example.com"}]), encoding="utf-8")
+    (eng_dir / "technologies.json").write_text(json.dumps({"web": ["express"]}), encoding="utf-8")
+
+    destructive_step = {
+        "step": 1,
+        "name": "SQLMap Active Injection Scan",
+        "tool": "sqlmap",
+        "action": "active_validation",
+        "target": "https://example.com/api/user?id=1",
+        "impact_class": "DESTRUCTIVE",
+        "impact_justification": "Active SQL injection fuzzing modifies database state.",
+        "reason": "SQL_INJECTION",
+    }
+
+    planner = MissionPlanner(base_dir=tmp_path)
+
+    with patch.object(planner, "_select_steps", return_value=[destructive_step]), \
+         patch.object(planner.ai_manager, "analyze", return_value={"selected_index": 0, "decision": "proceed", "reasoning": "Execute active validation"}):
+
+        # auto_approve defaults to False
+        res = planner.run_autonomous_loop(
+            target="example.com",
+            active_permitted=True,
+            max_iterations=1,
+        )
+
+        assert res.get("status") == "paused_for_approval"
+        assert "pending_step" in res
+        assert res.get("pending_step", {}).get("name") == "SQLMap Active Injection Scan"
+
+        app_sys = ApprovalSystem(base_dir=tmp_path)
+        pending = app_sys.get_pending_approvals(target="example.com")
+        assert len(pending) == 1
+        assert pending[0]["tool_name"] == "sqlmap"
+        assert len(app_sys.get_approval_history(target="example.com")) == 0
+
+
+def test_surface_recon_endpoint_executes_without_name_error(tmp_path: Path):
+    """Verify that POST /api/v1/surface/recon executes without NameError: name 'asyncio' is not defined."""
+    from fastapi.testclient import TestClient
+    from nyx.web.app import create_app
+    from nyx.web.auth import get_or_create_api_token
+    from unittest.mock import patch
+
+    eng_dir = tmp_path / ".engagement"
+    eng_dir.mkdir(parents=True, exist_ok=True)
+    (eng_dir / "target.yaml").write_text("target: example.com\nscope:\n  - example.com\n", encoding="utf-8")
+    (eng_dir / "authorization.yaml").write_text("authorized: true\nmode: testing\nscope:\n  - example.com\n", encoding="utf-8")
+
+    app = create_app()
+    token = get_or_create_api_token()
+    client = TestClient(app)
+    with patch("nyx.application.recon_service.ReconService.run_recon", return_value={"status": "success", "endpoints": []}):
+        resp = client.post("/api/v1/surface/recon?target=example.com", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("success") is True or data.get("status") == "success"
 
 

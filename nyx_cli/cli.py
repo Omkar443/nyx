@@ -2744,6 +2744,7 @@ def cmd_ai(args: argparse.Namespace) -> int:
             except Exception:
                 pass
 
+        auto_approve = getattr(args, "auto_approve", False) or (sys.argv and "--auto-approve" in sys.argv)
         is_json = getattr(args, "json", False) or (sys.argv and "--json" in sys.argv)
 
         res = service.planner.run_autonomous_loop(
@@ -2751,6 +2752,7 @@ def cmd_ai(args: argparse.Namespace) -> int:
             provider_name=provider,
             active_permitted=active_perm,
             max_iterations=max_iter,
+            auto_approve=auto_approve,
         )
 
         if is_json:
@@ -2763,6 +2765,7 @@ def cmd_ai(args: argparse.Namespace) -> int:
         section(f"NYX AI Autonomous Mission Loop — {target}")
         say(f"Target:          {color(target, 'cyan')}")
         say(f"Loop Status:     {color(status_val.upper(), status_color)}")
+        say(f"Auto-Approve:    {color('ENABLED (DESTRUCTIVE ACTIONS PERMITTED)', 'yellow') if auto_approve else color('OFF (MANUAL APPROVAL)', 'cyan')}")
         say(f"Iterations Run:  {len(res.get('iterations', []))}")
 
         if status_val == "paused_for_approval":
@@ -3958,6 +3961,7 @@ def build_parser(prog_name: str = "nyx") -> argparse.ArgumentParser:
     p_ai_auto.add_argument("target", help="target domain")
     p_ai_auto.add_argument("--provider", default=None, help="AI provider to use (gemini, openai, grok, groq, local, claude). Defaults to active provider.")
     p_ai_auto.add_argument("--active-permitted", action="store_true", default=False, help="allow ACTIVE-class execution steps, not just dry-run")
+    p_ai_auto.add_argument("--auto-approve", action="store_true", default=False, help="auto-approve destructive actions for this mission without pausing")
     p_ai_auto.add_argument("--max-iterations", type=int, default=15, help="maximum iterations for the autonomous loop (default: 15)")
     p_ai_auto.add_argument("--json", action="store_true", help="output raw JSON results")
     p_ai_auto.set_defaults(func=cmd_ai)

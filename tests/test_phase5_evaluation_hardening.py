@@ -231,7 +231,7 @@ def test_planner_contexts_regression_matrix(tmp_path: Path, monkeypatch):
     plan_g = planner._select_steps({
         "target": "target.com",
         "endpoints": ["https://target.com/api"],
-        "findings": [{"finding_id": "FH-001", "state": "HYPOTHESIS"}],
+        "findings": [{"finding_id": "FH-001", "state": "HYPOTHESIS", "target": "target.com", "endpoint": "https://target.com/api"}],
     })
     assert len(plan_g) == 2
     assert plan_g[1]["tool"] == "nyx-triage"

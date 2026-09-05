@@ -56,6 +56,7 @@ class AgentService(BaseService):
 
     def get_approvals(self) -> ServiceResult:
         pending = self.agent.approval_system.get_pending_approvals()
+        approved = self.agent.approval_system.get_approval_history()
         remaining_count = 0
         upcoming = []
         for p in pending:
@@ -67,6 +68,8 @@ class AgentService(BaseService):
             data={
                 "pending_count": len(pending),
                 "pending": pending,
+                "approved_count": len(approved),
+                "approved": approved,
                 "remaining_destructive_count": remaining_count,
                 "upcoming_pipeline": upcoming,
             },

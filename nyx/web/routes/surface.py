@@ -4,6 +4,7 @@ NYX Web API Attack Surface Routes
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, List
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from nyx.web.auth import require_auth

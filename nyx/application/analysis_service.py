@@ -20,23 +20,32 @@ class AnalysisService:
         res = core_analysis.classify_url(url=target_url)
         matches = res.get("matches", {})
         skills = list(matches.keys())
+        url_lower = target_url.lower()
+        cmd_indicators = (
+            "cmd=", "exec=", "command=", "run=", "ping=", "host=",
+            "lookup=", "dns=", "ip=", "target_host=",
+            "/dns-lookup", "/command-injection", "/ping", "/traceroute",
+            "/exec", "/shell", "/terminal"
+        )
+        has_cmd_indicator = any(k in url_lower for k in cmd_indicators)
+
         category = "WEB_ENDPOINT"
-        if "graphql" in target_url.lower() or any(s in ("hunt-graphql", "hunt-fintech-graphql") for s in skills):
+        if "graphql" in url_lower or any(s in ("hunt-graphql", "hunt-fintech-graphql") for s in skills):
             category = "GRAPHQL_SURFACE"
-        elif any(s in ("hunt-rce",) for s in skills) or any(k in target_url.lower() for k in ("cmd", "exec", "ping", "dns-lookup", "command-injection")):
-            category = "COMMAND_INJECTION_SURFACE"
-        elif any(s in ("hunt-sqli",) for s in skills):
-            category = "SQLI_SURFACE"
-        elif any(s in ("hunt-xss", "hunt-html-injection") for s in skills):
-            category = "XSS_SURFACE"
         elif any(s in ("hunt-auth-bypass", "hunt-ato", "hunt-oauth", "hunt-saml", "hunt-forgot-password", "hunt-mfa-bypass") for s in skills):
             category = "AUTH_IDENTITY_SURFACE"
         elif any(s in ("hunt-file-upload", "hunt-lfi") for s in skills):
             category = "FILE_UPLOAD_SURFACE"
         elif any(s in ("hunt-ssrf", "hunt-open-redirect") for s in skills):
             category = "REDIRECT_SSRF_SURFACE"
+        elif any(s in ("hunt-sqli",) for s in skills):
+            category = "SQLI_SURFACE"
+        elif any(s in ("hunt-xss", "hunt-html-injection") for s in skills):
+            category = "XSS_SURFACE"
         elif any(s in ("hunt-idor", "hunt-api-misconfig") for s in skills):
             category = "API_IDOR_SURFACE"
+        elif ("hunt-rce" in skills and has_cmd_indicator) or has_cmd_indicator:
+            category = "COMMAND_INJECTION_SURFACE"
 
         return {
             "status": "success",

@@ -172,6 +172,7 @@ class NYXAgent:
                     max_iterations=max_iter,
                     start_iteration=next_start_iter,
                     prior_iterations=prior_iters,
+                    auto_approve=rec.get("auto_approve", False),
                 )
 
         return {

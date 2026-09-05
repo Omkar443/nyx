@@ -156,17 +156,84 @@ class ApprovalSystem:
             if _is_match(rec.get("mission_target") or rec.get("target") or "", target)
         ]
 
-    def approve_action(self, action_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    def approve_action(self, action_id: str, approved_by: str = "operator") -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Approve a pending action ID."""
+        from datetime import datetime, timezone
         self._load_persisted()
         if action_id not in self._pending_queue:
             return False, f"Action ID '{action_id}' not found in pending approval queue.", None
 
         record = self._pending_queue.pop(action_id)
         record["status"] = "APPROVED"
+        record["approved_by"] = approved_by
+        record["approved_at"] = datetime.now(timezone.utc).isoformat()
         self._approved_actions[action_id] = record
         self._save_persisted()
         return True, f"Action '{action_id}' approved successfully.", record
+
+    def auto_approve_action(self, decision: Dict[str, Any], approved_by: str = "auto") -> Tuple[str, Dict[str, Any]]:
+        """Record an auto-approved action directly into approved history without operator pause."""
+        from datetime import datetime, timezone
+        import uuid
+        self._load_persisted()
+        action_id = decision.get("action_id") or f"ACT-{uuid.uuid4().hex[:6].upper()}"
+        record = dict(decision)
+        record["action_id"] = action_id
+        record["status"] = "APPROVED"
+        record["approved_by"] = approved_by
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if "created_at" not in record or not record["created_at"]:
+            record["created_at"] = now_iso
+        record["approved_at"] = now_iso
+
+        # Ensure full step metadata is preserved
+        step = record.get("step")
+        if isinstance(step, dict):
+            record["tool"] = record.get("tool") or step.get("tool") or record.get("tool_name")
+            record["tool_name"] = record.get("tool_name") or step.get("tool") or record.get("tool")
+            record["action"] = record.get("action") or step.get("action") or step.get("name")
+            record["name"] = record.get("name") or step.get("name") or step.get("action")
+            record["impact_class"] = record.get("impact_class") or step.get("impact_class") or "DESTRUCTIVE"
+            record["impact_justification"] = record.get("impact_justification") or step.get("impact_justification") or step.get("description")
+            record["target"] = record.get("target") or step.get("target")
+            record["params"] = record.get("params") or step.get("params") or {}
+
+        if "remaining_destructive_count" in decision:
+            record["remaining_destructive_count"] = decision["remaining_destructive_count"]
+        elif "remaining_destructive_count" not in record:
+            record["remaining_destructive_count"] = 0
+
+        if "upcoming_pipeline" in decision:
+            record["upcoming_pipeline"] = decision["upcoming_pipeline"]
+        elif "upcoming_pipeline" not in record:
+            record["upcoming_pipeline"] = []
+
+        self._pending_queue.pop(action_id, None)
+        self._approved_actions[action_id] = record
+        self._save_persisted()
+        return action_id, record
+
+    def get_approval_history(self, target: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Return list of all approved actions, optionally filtered by target."""
+        self._load_persisted()
+        items = list(self._approved_actions.values())
+        if not target:
+            return items
+        from nyx.ai.context import _matches_target_endpoint
+
+        def _is_match(t_val: str, tgt: str) -> bool:
+            if not t_val or not tgt:
+                return False
+            t_clean = t_val.strip("/").lower()
+            tgt_clean = tgt.strip("/").lower()
+            if t_clean in tgt_clean or tgt_clean in t_clean:
+                return True
+            return _matches_target_endpoint(t_val, tgt) or _matches_target_endpoint(tgt, t_val)
+
+        return [
+            rec for rec in items
+            if _is_match(rec.get("mission_target") or rec.get("target") or "", target)
+        ]
 
     def deny_action(self, action_id: str, reason: str = "") -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Deny a pending action ID."""
