@@ -62,6 +62,8 @@ def terminate_all_subprocesses() -> None:
 _SHUTDOWN_EVENT = threading.Event()
 _is_shutting_down = False
 _shutdown_lock = threading.Lock()
+_server_mode = False
+_server_shutdown_complete = False
 
 
 def is_shutdown_requested() -> bool:
@@ -77,12 +79,36 @@ def request_shutdown() -> None:
         _is_shutting_down = True
 
 
+def set_server_mode(enabled: bool = True) -> None:
+    """Flag whether the process is running as a web/ASGI server (e.g. uvicorn)."""
+    global _server_mode
+    _server_mode = enabled
+
+
+def is_server_mode() -> bool:
+    """Return True if running as a web/ASGI server where the ASGI runner manages the loop."""
+    return _server_mode
+
+
+def mark_server_shutdown_complete() -> None:
+    """Mark that the ASGI server has finished its lifespan shutdown sequence."""
+    global _server_shutdown_complete
+    _server_shutdown_complete = True
+
+
+def is_server_shutdown_complete() -> bool:
+    """Return True if the ASGI server has completed graceful shutdown."""
+    return _server_shutdown_complete
+
+
 def reset_shutdown() -> None:
     """Reset shutdown state (used in testing and session resets)."""
-    global _is_shutting_down
+    global _is_shutting_down, _server_shutdown_complete, _server_mode
     _SHUTDOWN_EVENT.clear()
     with _shutdown_lock:
         _is_shutting_down = False
+    _server_shutdown_complete = False
+    _server_mode = False
 
 
 _orig_sigint = None
@@ -91,6 +117,11 @@ _orig_sigterm = None
 
 def _sigint_handler(sig, frame):
     global _is_shutting_down
+    # If server shutdown is already complete, this is uvicorn's post-exit re-raise (capture_signals).
+    # Silently return to let uvicorn's run() exit cleanly with status 0 and no traceback.
+    if _server_shutdown_complete:
+        return
+
     terminate_all_subprocesses()
     with _shutdown_lock:
         if _is_shutting_down:
@@ -100,6 +131,11 @@ def _sigint_handler(sig, frame):
         _is_shutting_down = True
     _SHUTDOWN_EVENT.set()
 
+    if is_server_mode():
+        # Under uvicorn: return cleanly without calling _orig_sigint and without raising
+        # KeyboardInterrupt so uvicorn's graceful shutdown and lifespan exit cleanly.
+        return
+
     if callable(_orig_sigint) and _orig_sigint not in (signal.SIG_IGN, signal.SIG_DFL, _sigint_handler):
         _orig_sigint(sig, frame)
     else:
@@ -108,13 +144,20 @@ def _sigint_handler(sig, frame):
 
 def _sigterm_handler(sig, frame):
     global _is_shutting_down
+    if _server_shutdown_complete:
+        return
+
     terminate_all_subprocesses()
+
     with _shutdown_lock:
         if _is_shutting_down:
             os._exit(143)
             return
         _is_shutting_down = True
     _SHUTDOWN_EVENT.set()
+
+    if is_server_mode():
+        return
 
     if callable(_orig_sigterm) and _orig_sigterm not in (signal.SIG_IGN, signal.SIG_DFL, _sigterm_handler):
         _orig_sigterm(sig, frame)

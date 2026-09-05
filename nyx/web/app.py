@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, Request, status
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -25,9 +25,18 @@ from nyx.web.schemas import HealthResponse, ErrorResponse, ErrorDetail
 async def lifespan(app: FastAPI):
     """Modern FastAPI lifespan context manager replacing deprecated on_event handlers."""
     from nyx.infrastructure.logging import setup_logging, get_logger
-    from nyx.infrastructure.process import terminate_all_subprocesses
+    from nyx.infrastructure.process import (
+        terminate_all_subprocesses,
+        set_server_mode,
+        mark_server_shutdown_complete,
+        setup_signal_handlers,
+        request_shutdown,
+        reset_shutdown,
+    )
     from nyx.worker.daemon import WorkerDaemon
 
+    reset_shutdown()
+    set_server_mode(True)
     setup_logging()
     logger = get_logger("nyx.web")
     logger.info("NYX Web Platform & API Server starting up...")
@@ -42,7 +51,6 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         logger.info("NYX Web Platform shutting down — terminating child processes and background tasks...")
-        from nyx.infrastructure.process import request_shutdown
         request_shutdown()
         daemon.stop()
         daemon_task.cancel()
@@ -51,11 +59,14 @@ async def lifespan(app: FastAPI):
         except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
             pass
         terminate_all_subprocesses()
+        mark_server_shutdown_complete()
         logger.info("NYX Web Platform shutdown complete.")
 
 
 def create_app() -> FastAPI:
     """Create and configure NYX FastAPI web application."""
+    from nyx.infrastructure.process import set_server_mode
+    set_server_mode(True)
     app = FastAPI(
         title="NYX Security Operations Dashboard API",
         description="Local web platform interface for NYX Security Intelligence Engine",
@@ -90,7 +101,34 @@ def create_app() -> FastAPI:
         request_id = request.headers.get("X-Request-ID") or f"REQ-{uuid.uuid4().hex[:8].upper()}"
         request.state.request_id = request_id
 
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            from nyx.infrastructure.process import is_shutdown_requested
+            is_cancel = isinstance(exc, asyncio.CancelledError)
+            if not is_cancel:
+                try:
+                    import anyio
+                    if isinstance(exc, anyio.get_cancelled_exc_class()):
+                        is_cancel = True
+                except Exception:
+                    pass
+                if hasattr(exc, "exceptions"):
+                    for sub in getattr(exc, "exceptions", []):
+                        if isinstance(sub, asyncio.CancelledError):
+                            is_cancel = True
+                            break
+
+            if is_cancel and is_shutdown_requested():
+                from nyx.infrastructure.logging import get_logger
+                get_logger("nyx.web").info(
+                    "[SHUTDOWN] Request %s cancelled during graceful shutdown.", request_id
+                )
+                return Response(status_code=499, content=b"Request cancelled during shutdown")
+            raise
+
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"

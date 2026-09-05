@@ -61,6 +61,7 @@ export function MissionView() {
         const autoData = autoStatusRes.data;
         if (autoData.is_running) {
           setIsRunning(true);
+          setMissionResult((prev: any) => (prev?.status === 'paused_for_approval' ? null : prev));
           if (autoData.last_progress) {
             setProgressData(autoData.last_progress);
           } else {
@@ -216,11 +217,27 @@ export function MissionView() {
         }));
       } else if (lastEvent.data.state === 'executing' || lastEvent.data.state === 'reasoning') {
         setIsRunning(true);
+        setMissionResult((prev: any) => (prev?.status === 'paused_for_approval' ? null : prev));
         setCompletedSummary(null);
         if (lastEvent.data.auto_approved) {
           setAutoApprove(true);
         }
       }
+    } else if (lastEvent.event === 'action_approved') {
+      setIsRunning(true);
+      setMissionResult((prev: any) => (prev?.status === 'paused_for_approval' ? null : prev));
+      if (lastEvent.data?.step) {
+        setProgressData((prev: any) => ({
+          ...prev,
+          state: 'executing',
+          step_name: `Executing Approved Action: ${lastEvent.data.step.name || lastEvent.data.action_id || 'Step'}`,
+          message: `Action approved by operator — executing ${lastEvent.data.step.name || lastEvent.data.action_id}...`,
+          tool: lastEvent.data.step.tool,
+          action: lastEvent.data.step.action,
+          target: lastEvent.data.target || target,
+        }));
+      }
+      refreshGlobalStats();
     } else if (lastEvent.event === 'mission_completed' && lastEvent.data) {
       setIsRunning(false);
       setCompletedSummary({

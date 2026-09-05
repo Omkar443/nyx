@@ -139,6 +139,34 @@ class NYXAgent:
                 "params": rec.get("params") or {},
             }
 
+        current_iter = rec.get("current_iteration") or 1
+        max_iter = rec.get("max_iterations") or 15
+
+        # 1. Immediately emit progress and action_approved events to clear paused UI banner
+        from nyx.ai.tracker import active_mission_tracker
+        from nyx.web.events import emit_event_sync
+
+        resuming_progress = {
+            "state": "executing",
+            "target": mission_target,
+            "iteration": current_iter,
+            "max_iterations": max_iter,
+            "current_step_index": rec.get("current_step_index") or current_iter,
+            "total_planned_steps": rec.get("total_planned_steps") or max_iter,
+            "step_name": f"Executing Approved Action: {step.get('name')}",
+            "tool": step.get("tool"),
+            "action": step.get("action"),
+            "phase": step.get("phase") or "VALIDATING",
+            "message": f"Action '{action_id}' approved by operator — executing {step.get('name')} ({step.get('tool')})...",
+            "action_id": action_id,
+            "approved_by": "operator",
+            "remaining_destructive_count": rec.get("remaining_destructive_count", 0),
+            "upcoming_pipeline": rec.get("upcoming_pipeline", []),
+        }
+        active_mission_tracker.update_progress(resuming_progress)
+        emit_event_sync("mission_progress", data=resuming_progress, mission_id=mission_target)
+        emit_event_sync("action_approved", data={"action_id": action_id, "step": step, "target": mission_target}, mission_id=mission_target)
+
         # Actually execute the approved step via MissionPlanner with active_permitted=True
         from nyx.ai.planner import MissionPlanner
         planner = MissionPlanner(base_dir=getattr(self, "base_dir", None))
@@ -148,8 +176,6 @@ class NYXAgent:
 
         # Automatically resume the autonomous loop if this action originated from a paused autonomous mission loop
         resumed_loop_result = None
-        current_iter = rec.get("current_iteration")
-        max_iter = rec.get("max_iterations")
         provider_name = rec.get("provider_name")
         active_perm = rec.get("active_permitted", False)
         prior_iters = list(rec.get("prior_iterations") or [])
@@ -165,6 +191,23 @@ class NYXAgent:
             })
             next_start_iter = current_iter + 1
             if next_start_iter <= max_iter:
+                resumed_progress = {
+                    "state": "reasoning",
+                    "target": mission_target,
+                    "iteration": next_start_iter,
+                    "max_iterations": max_iter,
+                    "current_step_index": next_start_iter,
+                    "total_planned_steps": rec.get("total_planned_steps") or max_iter,
+                    "step_name": "Autonomous Loop Resuming",
+                    "phase": "ANALYSIS",
+                    "message": f"Action '{action_id}' execution complete — resuming mission loop iteration {next_start_iter}/{max_iter}...",
+                    "action_id": action_id,
+                    "remaining_destructive_count": rec.get("remaining_destructive_count", 0),
+                    "upcoming_pipeline": rec.get("upcoming_pipeline", []),
+                }
+                active_mission_tracker.update_progress(resumed_progress)
+                emit_event_sync("mission_progress", data=resumed_progress, mission_id=mission_target)
+
                 resumed_loop_result = planner.run_autonomous_loop(
                     target=mission_target,
                     provider_name=provider_name,

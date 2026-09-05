@@ -151,7 +151,12 @@ def run_mission(target: str, provider: Optional[str] = None) -> int:
     if ep_file.exists():
         try:
             eps = json.loads(ep_file.read_text(encoding="utf-8"))
-            ep_count = len(eps)
+            if isinstance(eps, list):
+                from nyx.ai.context import _matches_target_endpoint
+                ep_count = len([
+                    ep for ep in eps
+                    if _matches_target_endpoint(ep.get("url", "") if isinstance(ep, dict) else str(ep), target)
+                ])
         except Exception:
             pass
     say(color(f"✓ Attack surface created ({ep_count} endpoints indexed in memory)", "green"))

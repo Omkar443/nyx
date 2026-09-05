@@ -8,7 +8,7 @@
   <a href="https://github.com/Omkar443/nyx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Version-1.0.0-success.svg" alt="Version 1.0.0"></a>
-  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-341%20Passed-brightgreen.svg" alt="341 Tests Passing"></a>
+  <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Tests-383%20Passed-brightgreen.svg" alt="383 Tests Passing"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Security%20Skills-83%20Validated-blueviolet.svg" alt="83 Security Skills"></a>
   <a href="https://github.com/Omkar443/nyx"><img src="https://img.shields.io/badge/Knowledge%20Assets-33%20Databases-blue.svg" alt="33 Knowledge Databases"></a>
   <a href="docs/benchmarks/"><img src="https://img.shields.io/badge/Benchmarks-68.8%25%20%7C%2081.0%25-informational.svg" alt="Empirical Benchmarks"></a>
@@ -106,6 +106,10 @@ eq$ Finding Confirmation:** Finding an endpoint (e.g., `/graphql` or `/admin`) n
 
 - 🛡️ **83 Validated Security Skills:** Modular playbooks covering Web, API, Cloud IAM, M365/Entra, Okta, Mobile (APK/iOS), CI/CD, Container/K8s, and Business Logic.
 - 🖥️ **Web Operations Dashboard:** Modern React/Vite web platform with live WebSocket streaming, attack surface explorer, multi-agent fleet control, tool execution console, and telemetry monitors.
+- 📡 **Real-Time Recon Tracker & Session Re-Hydration:** Live telemetry tracking with progress streaming, intra-loop status callbacks, and crash-resilient session re-hydration for active reconnaissance runs.
+- ⚡ **High-Performance Bounded Content Discovery:** Parallel concurrent probe pool with per-endpoint timeout budgets, configurable tool deadlines (`NYX_SUBFINDER_TIMEOUT`), and automated uniform WAF blocking detection to eliminate false-positive endpoint spam.
+- 🔒 **Multi-Target Engagement Isolation:** Strict target-scoped filtering across AI context assembly, attack surface graphs, and memory ledgers, ensuring 0% cross-target data contamination.
+- 🛑 **Dual-Mode Graceful Shutdown:** Uvicorn ASGI lifespan coordination combined with synchronous CLI signal trapping for clean `Ctrl+C` exits without orphan processes or traceback dumps.
 - 📚 **33 Structured Knowledge Databases:** Verified vulnerability patterns and attack vectors mapped to real-world disclosed bug bounty research.
 - 🎯 **Fail-Closed Scope Policy:** Enforces boundary checks (`CONFIGURED`, `UNCONFIGURED`, `OUT_OF_SCOPE`). Blocks active scans on unverified targets while allowing dry-run plan reviews.
 - 🔌 **Native Tool Adapters:** Subprocess execution harnesses for `httpx`, `katana`, `subfinder`, `ffuf`, `nuclei`, and `nmap` with Native PATH / WSL dual-vector discovery and timeout isolation.
@@ -535,7 +539,7 @@ python3 -m pytest
 
 ### Fast Test Execution via `NYX_MOCK_LLM` (Developer / Testing Tier)
 To ensure fast, reliable local development and CI runs without requiring real GPU/CPU local LLM inference or commercial API keys, the test suite defaults to deterministic mock AI reasoning via `NYX_MOCK_LLM=1` in `conftest.py`:
-- **Blazing Fast**: Runs all 341 tests in ~3.5 minutes (down from 31+ minutes when contending on real local model inference).
+- **Blazing Fast**: Runs all 383 tests in ~5 minutes (down from 31+ minutes when contending on real local model inference).
 - **Zero Overhead**: Completely eliminates live network requests to `http://localhost:11434` during routine unit/regression testing.
 - **Live LLM Opt-In**: To run the test suite against a real local Ollama server, pass the `--live-llm` flag:
   ```bash

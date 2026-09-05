@@ -56,7 +56,7 @@ class AgentService(BaseService):
 
     def get_approvals(self, target: str | None = None) -> ServiceResult:
         from nyx.core.engagement import get_engagement_target
-        effective_target = target if target is not None else get_engagement_target()
+        effective_target = target if target is not None else get_engagement_target(base_dir=self.base_dir)
         pending = self.agent.approval_system.get_pending_approvals(target=effective_target)
         approved = self.agent.approval_system.get_approval_history(target=effective_target)
         remaining_count = 0

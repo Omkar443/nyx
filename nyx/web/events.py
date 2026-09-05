@@ -16,11 +16,16 @@ class ConnectionManager:
 
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept and register a WebSocket connection."""
         await websocket.accept()
         self.active_connections.append(websocket)
+        try:
+            self.loop = asyncio.get_running_loop()
+        except Exception:
+            pass
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a disconnected WebSocket."""
@@ -74,6 +79,14 @@ def emit_event_sync(
 ) -> None:
     """Convenience helper to broadcast WebSocket events from synchronous execution contexts."""
     try:
+        main_loop = getattr(ws_manager, "loop", None)
+        if main_loop and main_loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                ws_manager.broadcast_event(event_type, data=data, mission_id=mission_id),
+                main_loop,
+            )
+            return
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

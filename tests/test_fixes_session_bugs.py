@@ -1780,8 +1780,8 @@ def test_terminal_heartbeat_and_ai_observability(caplog):
         with caplog.at_level(logging.INFO):
             ans = prov.generate("Hello test")
             assert ans == "test decision"
-            assert any("[AI:local] Dispatching prompt to local LLM" in rec.message for rec in caplog.records)
-            assert any("[AI:local] Local LLM response received" in rec.message for rec in caplog.records)
+            assert any("[AI:local] Dispatching prompt to local LLM" in rec.getMessage() for rec in caplog.records)
+            assert any("[AI:local] Local LLM response received" in rec.getMessage() for rec in caplog.records)
     finally:
         requests.post = orig_post
 
@@ -2483,9 +2483,9 @@ def test_local_llama_num_predict_mapping_and_failure_logging(caplog):
             except RuntimeError:
                 pass
 
-    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING and "[AI:local]" in r.message]
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING and "[AI:local]" in r.getMessage()]
     assert len(warning_records) >= 1
-    assert "Request failed/timed out after" in warning_records[0].message
+    assert "Request failed/timed out after" in warning_records[0].getMessage()
 
 
 def test_web_clean_shutdown_and_signal_idempotency():
@@ -2513,6 +2513,10 @@ def test_web_clean_shutdown_and_signal_idempotency():
     register_process(dummy_proc)
     assert dummy_proc.poll() is None
     terminate_all_subprocesses()
+    try:
+        dummy_proc.wait(timeout=2.0)
+    except subprocess.TimeoutExpired:
+        pass
     assert dummy_proc.poll() is not None
     assert len(_active_processes) == 0
 
@@ -3089,4 +3093,27 @@ def test_mission_progress_websocket_event_emission_on_pause(tmp_path: Path, monk
     assert len(paused_ev["data"]["upcoming_pipeline"]) == 2
     assert paused_ev["data"]["upcoming_pipeline"][0]["name"] == "Step 2"
     assert paused_ev["data"]["upcoming_pipeline"][1]["name"] == "Step 3"
+
+
+def test_fresh_target_zero_endpoints_never_leaks_foreign_data(tmp_path: Path):
+    """Verify that a freshly-initialized target with 0 endpoints receives [] and never leaks other targets' endpoints."""
+    from nyx.ai.context import ContextEngine
+    eng = tmp_path / ".engagement"
+    eng.mkdir(parents=True, exist_ok=True)
+    (eng / "target.yaml").write_text("domain: fresh.corp.internal\nscope:\n  - fresh.corp.internal\n", encoding="utf-8")
+    (eng / "authorization.yaml").write_text("authorized: true\n", encoding="utf-8")
+    foreign_endpoints = [
+        {"url": "https://other.target.com/api/v1/users", "source": "recon"},
+        {"url": "https://evil.com/admin", "source": "recon"},
+        {"url": "http://192.168.1.50:8080/debug", "source": "recon"},
+    ]
+    (eng / "endpoints.json").write_text(json.dumps(foreign_endpoints), encoding="utf-8")
+
+    engine = ContextEngine(base_dir=tmp_path)
+    ctx = engine.get_target_context("fresh.corp.internal")
+
+    assert ctx["target"] == "fresh.corp.internal"
+    assert ctx["endpoints"] == []
+    for f_ep in foreign_endpoints:
+        assert f_ep["url"] not in ctx["endpoints"]
 

@@ -132,8 +132,8 @@ class ContextEngine:
                     pass
 
         # Target-aware scoping and relevance prioritization
-        target_scoped_endpoints = [ep for ep in endpoints if _matches_target_endpoint(ep, target)]
-        if target_scoped_endpoints:
+        if target:
+            target_scoped_endpoints = [ep for ep in endpoints if _matches_target_endpoint(ep, target)]
             target_scoped_endpoints.sort(key=_endpoint_relevance_score, reverse=True)
             scoped_endpoints = target_scoped_endpoints[:50]
         else:

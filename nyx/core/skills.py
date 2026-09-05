@@ -89,12 +89,33 @@ def parse_skill_metadata(skill_path: Path | str) -> dict:
 
 
 _SKILLS_CACHE: dict[str, dict] | None = None
+_SKILLS_DIRS_SIG: tuple = ()
 
 
-def load_skills() -> dict[str, dict]:
-    global _SKILLS_CACHE
-    if _SKILLS_CACHE is not None:
+def clear_skills_cache() -> None:
+    """Clear the memoized skills registry cache to force a directory re-scan."""
+    global _SKILLS_CACHE, _SKILLS_DIRS_SIG
+    _SKILLS_CACHE = None
+    _SKILLS_DIRS_SIG = ()
+
+
+def _get_dirs_sig() -> tuple:
+    sigs = []
+    for d in get_skills_dirs():
+        try:
+            subs = [p.name for p in d.iterdir() if p.is_dir()]
+            sigs.append((str(d), d.stat().st_mtime_ns, len(subs), tuple(sorted(subs))))
+        except Exception:
+            pass
+    return tuple(sigs)
+
+
+def load_skills(reload: bool = False) -> dict[str, dict]:
+    global _SKILLS_CACHE, _SKILLS_DIRS_SIG
+    curr_sig = _get_dirs_sig()
+    if not reload and _SKILLS_CACHE is not None and curr_sig == _SKILLS_DIRS_SIG:
         return _SKILLS_CACHE
+
     skills_map = {}
     for s_dir in get_skills_dirs():
         for s_folder in s_dir.iterdir():
@@ -104,6 +125,7 @@ def load_skills() -> dict[str, dict]:
             if meta:
                 skills_map[meta["name"]] = meta
     _SKILLS_CACHE = skills_map
+    _SKILLS_DIRS_SIG = curr_sig
     return skills_map
 
 

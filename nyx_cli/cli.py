@@ -2532,6 +2532,8 @@ def cmd_web(args: argparse.Namespace) -> int:
     say(f" API Token:     {token[:8]}...{token[-4:]}")
     from nyx.infrastructure.logging import setup_logging
     setup_logging()
+    from nyx.infrastructure.process import set_server_mode
+    set_server_mode(True)
 
     import asyncio
     import uvicorn

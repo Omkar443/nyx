@@ -36,3 +36,23 @@ def _handle_live_llm_marker(request: pytest.FixtureRequest, monkeypatch: pytest.
     """If a test is marked with @pytest.mark.live_llm, unset NYX_MOCK_LLM for that test."""
     if request.node.get_closest_marker("live_llm"):
         monkeypatch.delenv("NYX_MOCK_LLM", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _clean_shutdown_state() -> None:
+    """Ensure shutdown event does not leak state across test cases."""
+    from nyx.infrastructure.process import reset_shutdown
+    reset_shutdown()
+    yield
+    reset_shutdown()
+
+
+@pytest.fixture(autouse=True)
+def _enable_log_propagation() -> None:
+    """Ensure nyx logger records propagate to pytest's root caplog handler."""
+    import logging
+    nyx_logger = logging.getLogger("nyx")
+    orig_prop = nyx_logger.propagate
+    nyx_logger.propagate = True
+    yield
+    nyx_logger.propagate = orig_prop
